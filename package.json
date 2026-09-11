@@ -2,20 +2,25 @@
   "name": "mlb-edge",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "postinstall": "npm run -w @mlb-edge/db build",
     "build:db": "npm run -w @mlb-edge/db build",
     "db:migrate": "npm run -w @mlb-edge/pipeline db:migrate",
     "ingest": "npm run -w @mlb-edge/pipeline ingest --",
-    "seed:demo": "npm run -w @mlb-edge/pipeline seed:demo",
-    "clv": "npm run -w @mlb-edge/pipeline clv",
-    "calibrate": "npm run -w @mlb-edge/pipeline calibrate",
     "project": "npm run -w @mlb-edge/pipeline project --",
     "lines": "npm run -w @mlb-edge/pipeline lines --",
     "settle": "npm run -w @mlb-edge/pipeline settle --",
+    "seed:demo": "npm run -w @mlb-edge/pipeline seed:demo",
+    "clv": "npm run -w @mlb-edge/pipeline clv",
+    "calibrate": "npm run -w @mlb-edge/pipeline calibrate",
     "web:dev": "npm run build:db && npm run -w @mlb-edge/web dev",
     "web:build": "npm run build:db && npm run -w @mlb-edge/web build",
-    "typecheck": "npm run build:db && npm run -w @mlb-edge/pipeline typecheck && npm run -w @mlb-edge/web typecheck"
+    "typecheck": "npm run build:db && npm run -w @mlb-edge/pipeline typecheck && npm run -w @mlb-edge/web typecheck",
+    "backfill": "npm run -w @mlb-edge/pipeline backfill --",
+    "backtest": "npm run -w @mlb-edge/pipeline backtest"
   }
 }

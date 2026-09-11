@@ -31,8 +31,8 @@ export async function seedDemo(): Promise<number> {
     );
     await c.query(
       `INSERT INTO games(id, game_date, home_team_id, away_team_id, status)
-       VALUES ($1, CURRENT_DATE, $2, $2, 'Final')
-       ON CONFLICT (id) DO NOTHING`,
+       VALUES ($1, DATE '2099-01-01', $2, $2, 'Final')
+       ON CONFLICT (id) DO UPDATE SET game_date = DATE '2099-01-01'`,
       [DEMO_GAME, DEMO_TEAM],
     );
     for (let i = 0; i < 12; i++) {

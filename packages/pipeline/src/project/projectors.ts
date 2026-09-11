@@ -5,20 +5,42 @@ export interface LeagueBatting {
   p1: number; p2: number; p3: number; p4: number; // per-PA event probabilities
   soPerPa: number;
 }
-
 export interface BatterHistory {
   pa: number; singles: number; doubles: number; triples: number; hr: number; games: number;
 }
+export interface PitcherHistory {
+  bf: number; so: number; h: number; appearances: number;
+}
+export interface Projection { mean: number; stdev: number; pmf: number[] }
 
-// Total bases as a per-PA {0,1,2,3,4} distribution: shrink each event rate
-// toward league, apply the matchup multiplier to hit outcomes, then sum over
-// independent plate appearances to get a game-level mean and stdev.
+function convolve(a: number[], b: number[]): number[] {
+  const out = new Array(a.length + b.length - 1).fill(0);
+  for (let i = 0; i < a.length; i++) for (let j = 0; j < b.length; j++) out[i + j] += a[i] * b[j];
+  return out;
+}
+// Exact PMF of a sum of `expN` iid trials (fractional expN mixes floor/ceil).
+function compound(perTrial: number[], expN: number): number[] {
+  const lo = Math.max(0, Math.floor(expN));
+  const w = expN - lo;
+  let pmfLo: number[] = [1];
+  for (let i = 0; i < lo; i++) pmfLo = convolve(pmfLo, perTrial);
+  const pmfHi = convolve(pmfLo, perTrial);
+  const len = Math.max(pmfLo.length, pmfHi.length);
+  const out = new Array(len).fill(0);
+  for (let k = 0; k < len; k++) out[k] = (1 - w) * (pmfLo[k] ?? 0) + w * (pmfHi[k] ?? 0);
+  return out;
+}
+function statsFromPmf(pmf: number[]): { mean: number; stdev: number } {
+  let m = 0, e2 = 0;
+  for (let k = 0; k < pmf.length; k++) { m += k * pmf[k]; e2 += k * k * pmf[k]; }
+  return { mean: m, stdev: Math.sqrt(Math.max(0, e2 - m * m)) };
+}
+
+// Total bases: per-PA {0,1,2,3,4} outcome distribution (shrunk to league and
+// adjusted for matchup), convolved over expected PAs into the exact game PMF.
 export function projectTotalBases(args: {
-  hist: BatterHistory;
-  league: LeagueBatting;
-  expPa: number;
-  adj: number; // combined park * pitcher * weather multiplier on hit rates
-}): { mean: number; stdev: number } {
+  hist: BatterHistory; league: LeagueBatting; expPa: number; adj: number;
+}): Projection {
   const { hist, league, expPa } = args;
   const p1 = shrinkRate(hist.singles, hist.pa, league.p1, K_PA);
   const p2 = shrinkRate(hist.doubles, hist.pa, league.p2, K_PA);
@@ -28,31 +50,20 @@ export function projectTotalBases(args: {
   const a = clamp(args.adj, 0.7, 1.4);
   let q1 = p1 * a, q2 = p2 * a, q3 = p3 * a, q4 = p4 * a;
   const hitSum = q1 + q2 + q3 + q4;
-  if (hitSum > 0.95) {
-    const s = 0.95 / hitSum;
-    q1 *= s; q2 *= s; q3 *= s; q4 *= s;
-  }
+  if (hitSum > 0.95) { const s = 0.95 / hitSum; q1 *= s; q2 *= s; q3 *= s; q4 *= s; }
+  const q0 = Math.max(0, 1 - (q1 + q2 + q3 + q4));
 
-  const m = q1 + 2 * q2 + 3 * q3 + 4 * q4;           // per-PA mean TB
-  const ex2 = q1 + 4 * q2 + 9 * q3 + 16 * q4;         // per-PA E[TB^2]
-  const v = Math.max(1e-6, ex2 - m * m);              // per-PA variance
-  return { mean: expPa * m, stdev: Math.sqrt(expPa * v) };
+  const perPa = [q0, q1, q2, q3, q4];   // TB per plate appearance
+  const pmf = compound(perPa, expPa);
+  return { ...statsFromPmf(pmf), pmf };
 }
 
-export interface PitcherHistory {
-  bf: number; so: number; h: number; appearances: number;
-}
-
-// Strikeouts as Binomial(expected batters faced, per-BF K rate), where the rate
-// is the pitcher's shrunk K/BF scaled by how K-prone the opposing lineup is.
+// Strikeouts: exact Binomial(expected batters faced, shrunk per-BF K rate).
 export function projectStrikeouts(args: {
-  hist: PitcherHistory;
-  leagueSoPerBf: number;
-  expBf: number;
-  oppKFactor: number;
-}): { mean: number; stdev: number } {
+  hist: PitcherHistory; leagueSoPerBf: number; expBf: number; oppKFactor: number;
+}): Projection {
   const base = shrinkRate(args.hist.so, args.hist.bf, args.leagueSoPerBf, K_BF);
   const rate = clamp(base * clamp(args.oppKFactor, 0.85, 1.2), 0.05, 0.5);
-  const n = args.expBf;
-  return { mean: n * rate, stdev: Math.sqrt(n * rate * (1 - rate)) };
+  const pmf = compound([1 - rate, rate], args.expBf);
+  return { ...statsFromPmf(pmf), pmf };
 }

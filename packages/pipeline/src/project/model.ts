@@ -1,6 +1,6 @@
 // Tunable constants for the v0 projection model. These are deliberately
 // conservative and exposed here so they are easy to sweep during calibration.
-export const MODEL_VERSION = 'tb-so-v0.1';
+export const MODEL_VERSION = 'tb-so-v0.2';
 
 // Shrinkage weights, in pseudo-observations. Larger = regress harder toward the
 // league mean (a player needs more of their own sample to move the estimate).

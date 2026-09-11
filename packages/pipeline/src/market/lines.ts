@@ -1,7 +1,7 @@
 import { query, withTx } from '@mlb-edge/db';
 import { getEvents, getEventOdds } from '../clients/oddsApi.js';
 import { MODEL_VERSION } from '../project/model.js';
-import { pOver, deVig } from './prob.js';
+import { pOver, pOverFromPmf, deVig } from '@mlb-edge/db';
 import { buildGameIndex, buildPlayerIndex, normalize } from './match.js';
 
 type Prop = 'total_bases' | 'strikeouts';
@@ -111,18 +111,19 @@ function referenceLines(rows: LineRow[]): Map<string, LineRow> {
   return ref;
 }
 
-async function loadProjections(date: string): Promise<Map<string, { mean: number; stdev: number }>> {
-  const res = await query<{ player_id: number; game_id: number; prop_type: string; proj_mean: string; proj_stdev: string | null }>(
-    `SELECT p.player_id, p.game_id, p.prop_type, p.proj_mean, p.proj_stdev
+async function loadProjections(date: string): Promise<Map<string, { mean: number; stdev: number; pmf: number[] | null }>> {
+  const res = await query<{ player_id: number; game_id: number; prop_type: string; proj_mean: string; proj_stdev: string | null; dist: number[] | null }>(
+    `SELECT p.player_id, p.game_id, p.prop_type, p.proj_mean, p.proj_stdev, p.dist
      FROM projections p JOIN games g ON g.id = p.game_id
      WHERE g.game_date = $1 AND p.model_version = $2`,
     [date, MODEL_VERSION],
   );
-  const m = new Map<string, { mean: number; stdev: number }>();
+  const m = new Map<string, { mean: number; stdev: number; pmf: number[] | null }>();
   for (const r of res.rows) {
     m.set(key(r.player_id, r.game_id, r.prop_type), {
       mean: Number(r.proj_mean),
       stdev: r.proj_stdev == null ? 0 : Number(r.proj_stdev),
+      pmf: r.dist,
     });
   }
   return m;
@@ -169,7 +170,7 @@ export async function pullLines(date: string, opts: PullOptions): Promise<PullRe
   for (const [k, r] of ref) {
     const proj = projections.get(k);
     if (!proj) continue;
-    const modelOver = pOver(proj.mean, proj.stdev, r.line);
+    const modelOver = proj.pmf ? pOverFromPmf(proj.pmf, r.line) : pOver(proj.mean, proj.stdev, r.line);
     const { fairOver } = deVig(r.overOdds, r.underOdds);
     const edgeOver = modelOver - fairOver;
     const side: 'over' | 'under' = edgeOver >= 0 ? 'over' : 'under';

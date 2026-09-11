@@ -116,3 +116,16 @@ td.bad { color: var(--bad); }
 @media (max-width: 640px) {
   .scorecard { grid-template-columns: 1fr; }
 }
+
+a { color: var(--good); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wordmark a { color: inherit; }
+
+.search { width: 100%; padding: 0.6rem 0.8rem; border: 1px solid var(--hair); background: var(--panel); color: var(--ink); font-size: 0.95rem; margin: 0 0 1rem; }
+.search:focus { outline: 2px solid var(--good); outline-offset: 1px; }
+.roster { display: flex; flex-direction: column; border: 1px solid var(--hair); max-height: 30rem; overflow-y: auto; }
+.roster-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--grid); color: var(--ink); }
+.roster-row:last-child { border-bottom: none; }
+.roster-row:hover { background: var(--paper); text-decoration: none; }
+.rname { font-weight: 500; white-space: nowrap; }
+.rmeta { color: var(--faint); font-size: 0.85rem; text-align: right; }

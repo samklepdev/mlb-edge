@@ -13,7 +13,9 @@
     "seed:demo": "tsx src/cli.ts db seed:demo",
     "clv": "tsx src/cli.ts clv",
     "calibrate": "tsx src/cli.ts calibrate",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "backfill": "tsx src/cli.ts backfill",
+    "backtest": "tsx src/cli.ts backtest"
   },
   "dependencies": {
     "@mlb-edge/db": "*",

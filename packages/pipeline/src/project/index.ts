@@ -15,6 +15,7 @@ interface ProjectionRow {
   propType: PropKind;
   mean: number;
   stdev: number;
+  pmf: number[];
 }
 
 function daysBefore(date: string, days: number): string {
@@ -56,8 +57,8 @@ export async function runProjections(date: string, props: PropKind[]): Promise<n
           const hist = batters.get(pid);
           if (!hist || hist.pa < MIN_PA) continue;
           const expPa = clamp(hist.pa / Math.max(1, hist.games), PA_CLAMP[0], PA_CLAMP[1]);
-          const { mean, stdev } = projectTotalBases({ hist, league, expPa, adj });
-          rows.push({ playerId: pid, gameId: g.id, propType: 'total_bases', mean, stdev });
+          const { mean, stdev, pmf } = projectTotalBases({ hist, league, expPa, adj });
+          rows.push({ playerId: pid, gameId: g.id, propType: 'total_bases', mean, stdev, pmf });
         }
       }
     }
@@ -83,8 +84,8 @@ export async function runProjections(date: string, props: PropKind[]): Promise<n
         const expBf = clamp(hist.bf / Math.max(1, hist.appearances), BF_CLAMP[0], BF_CLAMP[1]);
         const tk = oppTeam == null ? undefined : teamK.get(oppTeam);
         const oppKFactor = tk && tk.pa > 0 ? teamKFactor(tk.so / tk.pa, league.soPerPa) : 1;
-        const { mean, stdev } = projectStrikeouts({ hist, leagueSoPerBf: pLeague.soPerBf, expBf, oppKFactor });
-        rows.push({ playerId: pid, gameId: g.id, propType: 'strikeouts', mean, stdev });
+        const { mean, stdev, pmf } = projectStrikeouts({ hist, leagueSoPerBf: pLeague.soPerBf, expBf, oppKFactor });
+        rows.push({ playerId: pid, gameId: g.id, propType: 'strikeouts', mean, stdev, pmf });
       }
     }
   }
@@ -98,11 +99,11 @@ async function upsertProjections(rows: ProjectionRow[]): Promise<void> {
   await withTx(async (c) => {
     for (const r of rows) {
       await c.query(
-        `INSERT INTO projections (player_id, game_id, prop_type, proj_mean, proj_stdev, model_version)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO projections (player_id, game_id, prop_type, proj_mean, proj_stdev, model_version, dist)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (player_id, game_id, prop_type, model_version)
-         DO UPDATE SET proj_mean = EXCLUDED.proj_mean, proj_stdev = EXCLUDED.proj_stdev, created_at = now()`,
-        [r.playerId, r.gameId, r.propType, r.mean.toFixed(4), r.stdev.toFixed(4), MODEL_VERSION],
+         DO UPDATE SET proj_mean = EXCLUDED.proj_mean, proj_stdev = EXCLUDED.proj_stdev, dist = EXCLUDED.dist, created_at = now()`,
+        [r.playerId, r.gameId, r.propType, r.mean.toFixed(4), r.stdev.toFixed(4), MODEL_VERSION, JSON.stringify(r.pmf)],
       );
     }
   });

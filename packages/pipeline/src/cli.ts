@@ -5,6 +5,8 @@ import { ingestSchedule } from './ingest/schedule.js';
 import { ingestFinalGames, ingestBoxscore } from './ingest/games.js';
 import { seedDemo } from './seed/demo.js';
 import { runProjections, type PropKind } from './project/index.js';
+import { backfill } from './project/backfill.js';
+import { backtestReport } from './backtest/report.js';
 import { MODEL_VERSION } from './project/model.js';
 import { pullLines, captureClosing, settleResults, type PullOptions } from './market/lines.js';
 import { clvReport } from './clv/index.js';
@@ -134,6 +136,32 @@ program
   .action(async (o: { date: string }) => {
     const n = await settleResults(o.date);
     console.log(`settled ${n} pick(s) for ${o.date}`);
+  });
+
+program
+  .command('backfill')
+  .description('project a date range and evaluate finished games vs reality (model calibration)')
+  .requiredOption('--from <YYYY-MM-DD>', 'start date (inclusive)')
+  .requiredOption('--to <YYYY-MM-DD>', 'end date (inclusive)')
+  .option('--prop <kind>', 'total_bases | strikeouts | all', 'all')
+  .action(async (o: { from: string; to: string; prop: string }) => {
+    const valid: PropKind[] = ['total_bases', 'strikeouts'];
+    const props: PropKind[] =
+      o.prop === 'all' ? valid : valid.includes(o.prop as PropKind) ? [o.prop as PropKind] : [];
+    if (props.length === 0) {
+      console.error(`unknown --prop "${o.prop}". Use: total_bases | strikeouts | all`);
+      process.exitCode = 1;
+      return;
+    }
+    const r = await backfill(o.from, o.to, props);
+    console.log(`backfilled ${r.dates} date(s): ${r.projected} projection(s), ${r.evals} model eval(s)`);
+  });
+
+program
+  .command('backtest')
+  .description('report model calibration (reliability + ECE + Brier) from model_evals')
+  .action(async () => {
+    await backtestReport();
   });
 
 program
