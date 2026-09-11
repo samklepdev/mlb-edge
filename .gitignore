@@ -4,6 +4,3 @@ dist
 .turbo
 *.tsbuildinfo
 .env
-
-# Idea
-.idea

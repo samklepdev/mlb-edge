@@ -1,0 +1,23 @@
+{
+  "name": "@mlb-edge/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mlb-edge/db": "*",
+    "next": "^16",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5.5.0"
+  }
+}
