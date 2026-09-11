@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getPlayerCard, latestSlateDate, type PlayerCardRow } from '@mlb-edge/db';
+import { Headshot } from '../_components/Headshot';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,10 @@ export default async function PlayerPage({
         </section>
       ) : (
         <section className="clv">
-          <h2>{card.playerName} · {card.date}</h2>
+          <div className="player-id">
+            <Headshot playerId={card.playerId} />
+            <h2>{card.playerName} · {card.date}</h2>
+          </div>
           {card.rows.length === 0 ? (
             <p className="cap">No projections for this player on {card.date}.</p>
           ) : (

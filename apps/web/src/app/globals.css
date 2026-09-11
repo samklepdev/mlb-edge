@@ -129,3 +129,14 @@ a:hover { text-decoration: underline; }
 .roster-row:hover { background: var(--paper); text-decoration: none; }
 .rname { font-weight: 500; white-space: nowrap; }
 .rmeta { color: var(--faint); font-size: 0.85rem; text-align: right; }
+
+/* ---- player identity ---- */
+.player-id { display: flex; align-items: center; gap: 0.85rem; margin: 0 0 1rem; }
+.player-id h2 { margin: 0; }
+.headshot {
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--hair);
+}
