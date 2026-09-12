@@ -148,46 +148,44 @@ export default async function Page() {
               <p>
                 The {d.scorecard.syntheticSettled} settled picks in this database are demo
                 seed data, and are deliberately excluded from CLV and calibration — they
-                carry invented results and would report an edge that does not exist. Real
-                numbers here need the forward loop: pull lines, capture closing lines, then
-                settle once the games are final.
+                carry invented results and would report an edge that does not exist. CLV
+                below is real: it only needs a captured closing line. Calibration and hit
+                rates need more — they wait on settlement, once the games are final.
               </p>
             </section>
           )}
-          {d.scorecard.settledPicks > 0 && (
-            <>
-              <section className="scorecard">
-                <Readout label="Avg closing line value"
-                  value={d.scorecard.avgClv == null ? '—' : signed(d.scorecard.avgClv)}
-                  tone={d.scorecard.avgClv == null ? undefined : d.scorecard.avgClv > 0 ? 'good' : 'bad'}
-                  verdict={d.scorecard.avgClv == null ? 'no closing lines yet' : d.scorecard.avgClv > 0 ? 'market moved toward your picks' : 'no closing-line edge yet'} />
-                <Readout label="Pick calibration (ECE)"
-                  value={d.scorecard.ece == null ? '—' : pct(d.scorecard.ece)}
-                  tone={d.scorecard.ece == null ? undefined : d.scorecard.ece < 0.02 ? 'good' : d.scorecard.ece >= 0.05 ? 'bad' : undefined}
-                  verdict="settled picks vs outcomes" />
-                <Readout label="Settled picks"
-                  value={<span className="num">{d.scorecard.settledPicks}</span>}
-                  verdict={`${d.scorecard.picksWithClose} with a closing line`} />
-              </section>
-              {d.clv.length > 0 && (
-                <section className="clv">
-                  <h2>Closing line value by prop</h2>
-                  <table>
-                    <thead><tr><th>Prop</th><th>n</th><th>Avg CLV</th><th>Hit rate</th></tr></thead>
-                    <tbody>
-                      {d.clv.map((r: ClvRow) => (
-                        <tr key={r.propType}>
-                          <td>{r.propType}</td>
-                          <td className="num">{r.n}</td>
-                          <td className={`num ${r.avgClv != null && r.avgClv > 0 ? 'good' : 'bad'}`}>{r.avgClv == null ? '—' : signed(r.avgClv)}</td>
-                          <td className="num">{r.hitRate == null ? '—' : pct(r.hitRate)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </section>
-              )}
-            </>
+          {(d.scorecard.picksWithClose > 0 || d.scorecard.settledPicks > 0) && (
+            <section className="scorecard">
+              <Readout label="Avg closing line value"
+                value={d.scorecard.avgClv == null ? '—' : signed(d.scorecard.avgClv)}
+                tone={d.scorecard.avgClv == null ? undefined : d.scorecard.avgClv > 0 ? 'good' : 'bad'}
+                verdict={d.scorecard.avgClv == null ? 'no closing lines yet' : d.scorecard.avgClv > 0 ? 'market moved toward your picks' : 'no closing-line edge yet'} />
+              <Readout label="Pick calibration (ECE)"
+                value={d.scorecard.ece == null ? '—' : pct(d.scorecard.ece)}
+                tone={d.scorecard.ece == null ? undefined : d.scorecard.ece < 0.02 ? 'good' : d.scorecard.ece >= 0.05 ? 'bad' : undefined}
+                verdict={d.scorecard.settledPicks === 0 ? 'needs settled picks' : 'settled picks vs outcomes'} />
+              <Readout label="Settled picks"
+                value={<span className="num">{d.scorecard.settledPicks}</span>}
+                verdict={`${d.scorecard.picksWithClose} with a closing line`} />
+            </section>
+          )}
+          {d.clv.length > 0 && (
+            <section className="clv">
+              <h2>Closing line value by prop</h2>
+              <table>
+                <thead><tr><th>Prop</th><th>n</th><th>Avg CLV</th><th>Hit rate</th></tr></thead>
+                <tbody>
+                  {d.clv.map((r: ClvRow) => (
+                    <tr key={r.propType}>
+                      <td>{r.propType}</td>
+                      <td className="num">{r.n}</td>
+                      <td className={`num ${r.avgClv != null && r.avgClv > 0 ? 'good' : 'bad'}`}>{r.avgClv == null ? '—' : signed(r.avgClv)}</td>
+                      <td className="num">{r.hitRate == null ? '—' : pct(r.hitRate)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
           )}
         </>
       )}
