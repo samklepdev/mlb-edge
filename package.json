@@ -21,6 +21,7 @@
     "web:build": "npm run build:db && npm run -w @mlb-edge/web build",
     "typecheck": "npm run build:db && npm run -w @mlb-edge/pipeline typecheck && npm run -w @mlb-edge/web typecheck",
     "backfill": "npm run -w @mlb-edge/pipeline backfill --",
-    "backtest": "npm run -w @mlb-edge/pipeline backtest"
+    "backtest": "npm run -w @mlb-edge/pipeline backtest",
+    "health": "npm run -w @mlb-edge/pipeline health"
   }
 }

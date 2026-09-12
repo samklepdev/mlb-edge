@@ -15,7 +15,8 @@
     "calibrate": "tsx src/cli.ts calibrate",
     "typecheck": "tsc --noEmit",
     "backfill": "tsx src/cli.ts backfill",
-    "backtest": "tsx src/cli.ts backtest"
+    "backtest": "tsx src/cli.ts backtest",
+    "health": "tsx src/cli.ts health"
   },
   "dependencies": {
     "@mlb-edge/db": "*",

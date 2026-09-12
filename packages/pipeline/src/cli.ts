@@ -7,6 +7,7 @@ import { seedDemo } from './seed/demo.js';
 import { runProjections, ALL_PROPS, type PropKind } from './project/index.js';
 import { backfill } from './project/backfill.js';
 import { backtestReport } from './backtest/report.js';
+import { healthReport } from './health/report.js';
 import { MODEL_VERSION } from './project/model.js';
 import { pullLines, captureClosing, settleResults, type PullOptions } from './market/lines.js';
 import { clvReport } from './clv/index.js';
@@ -219,6 +220,13 @@ program
   .description('report model calibration (reliability + ECE + Brier) from model_evals')
   .action(async () => {
     await backtestReport();
+  });
+
+program
+  .command('health')
+  .description('data sufficiency: date coverage, sample vs shrinkage, eval counts')
+  .action(async () => {
+    await healthReport();
   });
 
 program
