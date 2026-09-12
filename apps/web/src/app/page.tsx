@@ -151,7 +151,7 @@ export default async function Page() {
                 carry invented results and would report an edge that does not exist.{' '}
                 {d.scorecard.picksWithClose > 0
                   ? 'CLV below is real: it reflects captured closing lines on real picks.'
-                  : 'CLV needs a captured closing line on real picks — it will appear below once `lines pull` and `lines capture` have run for a slate.'}
+                  : 'CLV needs a captured closing line on real picks — it will appear below once the lines pull and lines capture steps have run for a slate.'}
                 {' '}Calibration and hit rates need more — they wait on settlement, once the games are final.
               </p>
             </section>
