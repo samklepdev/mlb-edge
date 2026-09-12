@@ -32,3 +32,18 @@ export async function clvByProp(): Promise<ClvRow[]> {
     hitRate: r.hit_rate == null ? null : Number(r.hit_rate),
   }));
 }
+
+// Rows that have a closing line but are excluded from clvByProp above -- either
+// captured at or after first pitch (a live in-game price, not a closing one) or
+// never stamped (not verifiable). Reported alongside the CLV table so a reader
+// comparing against a raw `close_line IS NOT NULL` count sees where the gap
+// went, instead of a smaller n with no explanation.
+export async function clvExcludedCount(): Promise<number> {
+  const res = await query<{ n: number | string }>(`
+    SELECT count(*)::int AS n
+    FROM picks pk JOIN games g ON g.id = pk.game_id
+    WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic
+      AND NOT (pk.close_captured_at IS NOT NULL AND pk.close_captured_at < g.start_time)
+  `);
+  return Number(res.rows[0].n);
+}

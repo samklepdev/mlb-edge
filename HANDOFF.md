@@ -44,7 +44,7 @@ Verified: `npm run typecheck` and `npm run web:build` are green.
 
 | Command | What it does |
 |---|---|
-| `npm run db:migrate` | apply migrations 001–006 |
+| `npm run db:migrate` | apply migrations 001–008 |
 | `npm run seed:demo` | synthetic settled picks (no API key) |
 | `npm run ingest -- schedule --date <d>` / `-- games --date <d>` | schedule / box scores |
 | `npm run project -- --date <d> [--prop ..]` | projections (distributions) |

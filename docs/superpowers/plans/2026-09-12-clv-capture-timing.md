@@ -277,7 +277,7 @@ docker compose exec -T db psql -U mlb -d mlb_edge -At -F'|' -c \
    FROM picks pk JOIN games g ON g.id = pk.game_id;"
 ```
 
-Expected: `336|-0.0023`. This is the figure the dashboard's "Avg closing line value" readout will now show, down from −0.0085.
+Expected: `336|-0.0023`. This is the figure the dashboard's "Avg closing line value" readout will now show. All-slate, like-for-like (same filter population, `close_line IS NOT NULL AND NOT g.is_synthetic`): **−0.499% (n=500) → −0.228% (n=336)**. (−0.0085 was the 2026-09-12 slate alone, not the all-slate figure — comparing a slate-scoped before against an all-slate after is the mismatch corrected here; see 2026-09-12-clv-capture-timing-design.md's per-slate breakdown for that scoped number, −0.849%.)
 
 - [ ] **Step 6: Commit**
 
@@ -290,10 +290,10 @@ price. 164 of 500 CLV rows were contaminated this way, and the distortion
 ran in BOTH directions (-5.47% on one slate, +0.37% on the other), so it
 was noise rather than a correctable bias.
 
-Reported n drops 500 -> 336 and avg CLV moves -0.0085 -> -0.0023. The
-smaller, honest sample is the point. The +0.265% figure previously
-carried as the forward-test result does not survive: 124 of its 157 rows
-were captured after first pitch."
+Reported n drops 500 -> 336 and avg CLV moves -0.499% -> -0.228% (all-slate,
+like-for-like, same filter population). The smaller, honest sample is the
+point. The +0.265% figure previously carried as the forward-test result does
+not survive: 124 of its 157 rows were captured after first pitch."
 ```
 
 ---
@@ -571,7 +571,7 @@ what makes the timing decision possible at all."
 
 **Why this task exists:** `CLAUDE.md`'s pipeline-order line describes `lines capture` as "closing lines → CLV" with no mention of timing. `HANDOFF.md:77` already carries a `# before first pitch` comment on the example command — so the rule was *stated but never enforced*, which is exactly how 33% of rows got contaminated. This task makes the docs match the now-enforced behaviour and records the contamination so the next reader does not trust old CLV numbers.
 
-**Verified before writing this task:** the `+0.265%` figure does **not** appear anywhere in `CLAUDE.md`, `HANDOFF.md`, or `docs/` — it lived only in the gitignored `.superpowers/sdd/progress.md`. There is therefore no stale published figure to retract; the `CLAUDE.md` bullet below documents the new invariant rather than correcting an existing claim.
+**Correction (post-review):** this section originally claimed the `+0.265%` figure "does not appear anywhere in `CLAUDE.md`, `HANDOFF.md`, or `docs/`." That was false — it appears in this plan (Task 1, Task 2) and in `docs/superpowers/specs/2026-09-12-clv-capture-timing-design.md`, both tracked files. The accurate statement: no *pre-existing* doc presented `+0.265%` as a live result before this plan/design pair introduced it as the figure being corrected; outside these two docs it lived only in the gitignored `.superpowers/sdd/progress.md`. There is therefore no stale figure published in an *earlier, separate* doc to retract; the `CLAUDE.md` bullet below documents the new invariant.
 
 - [ ] **Step 1: Fix the pipeline-order description in `CLAUDE.md`**
 
@@ -653,16 +653,16 @@ known-seam note that CLV rows recorded before 2026-09-12 are contaminated."
 | No other `close_line` consumer exists | Task 2 preamble |
 | First-pitch reporting in CLI | Task 3, Steps 2-3 |
 | CLI-only; no dashboard change | Global Constraints; Task 3 |
-| Expected effect: n 500→336, CLV −0.0085→−0.0023 | Task 2, Steps 4-5 |
+| Expected effect: n 500→336, CLV −0.499%→−0.228% (all-slate, like-for-like) | Task 2, Steps 4-5 |
 | Falling `n` stated in the commit, not buried | Task 2, Step 6 commit message |
 | Zero API calls proven | Task 3, Step 5 |
 | `npm run typecheck` exits 0 | Tasks 2 and 3, Step 2a/4 |
 | `build:db` + compiled-output check | Task 2, Step 3 |
 | Record contamination of pre-2026-09-12 CLV | Task 4, Step 2 |
 
-No spec requirement is without a task. Task 4 is additive beyond the spec's explicit sections: the timing rule existed in `HANDOFF.md` only as a comment on an example command, which is why it was never enforced. Verified during self-review that the `+0.265%` figure appears in no tracked doc, so Task 4 documents a new invariant rather than retracting a published number.
+No spec requirement is without a task. Task 4 is additive beyond the spec's explicit sections: the timing rule existed in `HANDOFF.md` only as a comment on an example command, which is why it was never enforced. **Correction (post-review):** this row originally claimed the `+0.265%` figure "appears in no tracked doc" — false, it appears in this plan and in the design doc, both tracked. The accurate statement is that no *pre-existing* doc presented it as a live result, so Task 4 documents a new invariant rather than retracting a claim from an earlier, separate doc.
 
-**Placeholder scan:** no TBDs, no "handle edge cases", no "similar to Task N". Every code step carries complete code; every command step carries an exact command and an expected result, including the specific measured numbers (500, 164, 336, 160, 157, 126, 42, 18, 150, −0.0023) that make the checks falsifiable.
+**Placeholder scan:** no TBDs, no "handle edge cases", no "similar to Task N". Every code step carries complete code; every command step carries an exact command and an expected result, including the specific measured numbers (500, 164, 336, 160, 157, 126, 42, 18, 150, −0.228%) that make the checks falsifiable.
 
 **Type consistency:**
 - `CaptureResult` — declared Task 3 Step 1, consumed Task 3 Step 3. All six fields (`updated`, `skipped`, `gamesStarted`, `nextFirstPitch`, `lastFirstPitch`, `fetched`) are read in the CLI action; `nextFirstPitch`/`lastFirstPitch` are `Date | null` and are null-guarded together before `fmtUtc`.

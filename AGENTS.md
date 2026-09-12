@@ -78,12 +78,16 @@ vs reality; `backtest` = calibration report (reliability, ECE, Brier).
 - Park factors are a stub table; the pitcher factor is a hits-allowed proxy.
 - The per-PA independence assumption slightly understates variance (mild residual
   overconfidence in high-probability buckets at large n).
-- CLV rows captured after first pitch are excluded structurally
-  (`picks.close_captured_at < games.start_time`). Historical values are
-  approximated from `max(market_lines.fetched_at)` per slate — conservative, but
-  estimates. Any CLV figure recorded before 2026-09-12 is contaminated: 164 of
-  the first 500 rows were live in-game prices, including 124 of the 157 behind
-  the old "+0.265%" result.
+- CLV **reads** (`clv.ts`, `scorecard.ts`) structurally exclude any row where
+  `close_captured_at` is null or `>= games.start_time` — this guarantee covers
+  CLV only, not the whole pipeline: live quotes still land in `market_lines`,
+  and `lines reprice` prefers the newest row, so a late capture can still feed
+  a live price into `pick_fair_prob` on reprice. Historical `close_captured_at`
+  is a conservative proxy (`max(market_lines.fetched_at)` per slate), not a
+  true timestamp. Of the 164 rows this excludes from the pre-2026-09-12
+  baseline, only 105 are provably post-first-pitch (a later quote exists for
+  that player/game/prop); the other 59 (all 2026-09-11) have no post-start
+  quote and are excluded as unverifiable, not proven contaminated.
 
 ## Open work, prioritized
 1. Run the forward CLV loop — the actual unanswered question.

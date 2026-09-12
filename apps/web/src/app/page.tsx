@@ -169,7 +169,11 @@ export default async function Page() {
                 verdict={d.scorecard.settledPicks === 0 ? 'needs settled picks' : 'settled picks vs outcomes'} />
               <Readout label="Settled picks"
                 value={<span className="num">{d.scorecard.settledPicks}</span>}
-                verdict={`${d.scorecard.picksWithClose} with a closing line`} />
+                verdict={`${d.scorecard.picksWithClose} with a closing line` +
+                  (d.scorecard.excludedClose > 0
+                    ? ` (${d.scorecard.excludedClose} more have a close_line but were captured at or after` +
+                      ' first pitch, or never timestamped, so are excluded here)'
+                    : '')} />
             </section>
           )}
           {d.clv.length > 0 && (

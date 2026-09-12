@@ -301,7 +301,7 @@ export async function captureClosing(date: string, opts: PullOptions): Promise<C
       await query<{ n: string }>(
         `SELECT count(*) AS n
          FROM picks pk JOIN games g ON g.id = pk.game_id
-         WHERE g.game_date = $1 AND g.start_time <= now()`,
+         WHERE g.game_date = $1 AND g.start_time <= now() AND NOT g.is_synthetic`,
         [date],
       )
     ).rows[0].n,

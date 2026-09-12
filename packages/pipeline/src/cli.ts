@@ -215,10 +215,15 @@ lines
   .action(async (o: { date: string; books: string; sharp: string; regions: string; edge: string }) => {
     const r = await captureClosing(o.date, pullOptions(o));
     if (!r.fetched) {
-      console.log(
-        `no upcoming games for ${o.date} — all ${r.gamesStarted} game(s) have started; ` +
-          `skipped ${r.skipped} pick(s), 0 API credits spent`,
-      );
+      if (r.gamesStarted === 0) {
+        console.log(`no games for ${o.date} — 0 upcoming, 0 started; nothing to capture, 0 API credits spent`);
+        console.log(`Hint: no games in the DB for ${o.date}. Run: npm run ingest -- schedule --date ${o.date}`);
+      } else {
+        console.log(
+          `no upcoming games for ${o.date} — all ${r.gamesStarted} game(s) have started; ` +
+            `skipped ${r.skipped} pick(s), 0 API credits spent`,
+        );
+      }
       return;
     }
     console.log(
