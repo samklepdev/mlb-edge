@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {
   getScorecard, clvByProp, calibrationBuckets,
-  backtestSummary, projectionReliability,
+  backtestSummary, projectionReliability, evalPropTypes,
   latestSlateDate, getSlateGames, getTopEdges, getSlateRoster,
   type ClvRow, type Scorecard,
 } from '@mlb-edge/db';
@@ -15,18 +15,21 @@ const signed = (v: number, d = 3) => `${v >= 0 ? '+' : ''}${v.toFixed(d)}`;
 
 async function load() {
   try {
-    const slateDate = await latestSlateDate();
-    const [scorecard, clv, calib, bt, btBuckets, games, edges, roster] = await Promise.all([
+    const [slateDate, evalProps] = await Promise.all([latestSlateDate(), evalPropTypes()]);
+    const [scorecard, clv, calib, bt, btBuckets, btByProp, games, edges, roster] = await Promise.all([
       getScorecard(),
       clvByProp(),
       calibrationBuckets(10),
       backtestSummary(),
       projectionReliability(10),
+      // Per-prop is the figure that actually means something; the pooled one
+      // mixes props with different base rates. See backtestReport for the why.
+      Promise.all(evalProps.map(async (prop) => ({ prop, ...(await backtestSummary(prop)) }))),
       slateDate ? getSlateGames(slateDate) : Promise.resolve([]),
       slateDate ? getTopEdges(slateDate, 25) : Promise.resolve([]),
       slateDate ? getSlateRoster(slateDate) : Promise.resolve([]),
     ]);
-    return { ok: true as const, slateDate, scorecard, clv, calib, bt, btBuckets, games, edges, roster };
+    return { ok: true as const, slateDate, scorecard, clv, calib, bt, btBuckets, btByProp, games, edges, roster };
   } catch (err) {
     return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
   }
@@ -63,12 +66,34 @@ export default async function Page() {
               </div>
             ) : (
               <>
-                <p className="cap">
-                  {d.bt.n.toLocaleString()} evaluations · ECE {d.bt.ece == null ? '—' : pct(d.bt.ece)} ·
-                  Brier {d.bt.brier == null ? '—' : d.bt.brier.toFixed(3)}. Points below the
-                  diagonal mean the model claims more than it delivers.
+                <table>
+                  <thead>
+                    <tr><th>Prop</th><th>Evaluations</th><th>ECE</th><th>Brier</th></tr>
+                  </thead>
+                  <tbody>
+                    {d.btByProp.map((b) => (
+                      <tr key={b.prop}>
+                        <td>{b.prop}</td>
+                        <td className="num">{b.n.toLocaleString()}</td>
+                        <td className="num">{b.ece == null ? '—' : pct(b.ece)}</td>
+                        <td className="num">{b.brier == null ? '—' : b.brier.toFixed(3)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="cap" style={{ marginTop: '1rem' }}>
+                  Read each prop against itself over time — never against another prop. A low
+                  ECE on a rare event (home runs) mostly reflects the base rate, not skill; and
+                  hits at 0.5 is the same event as total bases at 0.5, so those two rows are one
+                  piece of evidence, not two.
                 </p>
                 <div className="plot-frame"><ReliabilityPlot buckets={d.btBuckets} /></div>
+                <p className="cap">
+                  Curve pools all {d.bt.n.toLocaleString()} evaluations across {d.btByProp.length} props
+                  (ECE {d.bt.ece == null ? '—' : pct(d.bt.ece)}), so it is not comparable to the
+                  two-prop v0.1/v0.2 figures. Points below the diagonal mean the model claims
+                  more than it delivers.
+                </p>
               </>
             )}
           </section>
