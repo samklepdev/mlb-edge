@@ -22,10 +22,15 @@ function parseProps(arg: string): PropKind[] {
   return (ALL_PROPS as readonly string[]).includes(arg) ? [arg as PropKind] : [];
 }
 
-// Ingest commands accept either a single --date or a --from/--to range.
-// Returns [] when nothing usable was given, so callers can error uniformly.
+// Ingest commands accept either a single --date or a --from/--to range, but
+// not a mix: --date plus either range flag is ambiguous (which did the user
+// mean?), and a lone --from or --to is a dangling/typo'd range. Both are
+// errors. Returns [] when nothing usable -- or something invalid -- was
+// given, so callers can error uniformly.
 function parseDates(o: { date?: string; from?: string; to?: string }): string[] {
-  if (o.from && o.to) return dateRange(o.from, o.to);
+  const hasRange = Boolean(o.from || o.to);
+  if (o.date && hasRange) return [];
+  if (hasRange) return o.from && o.to ? dateRange(o.from, o.to) : [];
   return o.date ? [o.date] : [];
 }
 
@@ -84,6 +89,7 @@ ingest
     }
     const r = await forEachDate(dates, ingestSchedule);
     console.log(`ingested ${r.total} game(s) across ${r.ok} date(s); ${r.failed} failed`);
+    if (r.failed > 0) process.exitCode = 1;
   });
 ingest
   .command('games')
@@ -100,6 +106,7 @@ ingest
     }
     const r = await forEachDate(dates, ingestFinalGames);
     console.log(`ingested boxscores across ${r.ok} date(s) (${r.total} final game(s)); ${r.failed} failed`);
+    if (r.failed > 0) process.exitCode = 1;
   });
 ingest
   .command('game')
