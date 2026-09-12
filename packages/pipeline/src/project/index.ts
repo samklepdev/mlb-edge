@@ -115,13 +115,29 @@ export async function runProjections(date: string, props: PropKind[]): Promise<n
     }
   }
 
-  await upsertProjections(rows);
+  await upsertProjections(rows, gameIds, props);
   return rows.length;
 }
 
-async function upsertProjections(rows: ProjectionRow[]): Promise<void> {
-  if (rows.length === 0) return;
+async function upsertProjections(
+  rows: ProjectionRow[],
+  gameIds: number[],
+  props: PropKind[],
+): Promise<void> {
+  if (gameIds.length === 0) return;
   await withTx(async (c) => {
+    // Idempotent: replace this slate's projections for the requested props.
+    // Upserting alone leaves orphans -- rows for players who no longer qualify
+    // (say, MIN_PA against less history) survive under the same model_version
+    // and still feed the backtest. Version filtering catches drift ACROSS
+    // versions, never within one.
+    //
+    // Scoping the delete to `props` is load-bearing: re-projecting `hits` alone
+    // must not wipe this slate's `strikeouts`.
+    await c.query(
+      'DELETE FROM projections WHERE game_id = ANY($1) AND model_version = $2 AND prop_type = ANY($3)',
+      [gameIds, MODEL_VERSION, props],
+    );
     for (const r of rows) {
       await c.query(
         `INSERT INTO projections (player_id, game_id, prop_type, proj_mean, proj_stdev, model_version, dist)
