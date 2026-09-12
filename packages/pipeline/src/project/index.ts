@@ -96,11 +96,16 @@ export async function runProjections(date: string, props: PropKind[]): Promise<n
         const pid = pk[side];
         if (!pid) continue;
         const hist = pitchers.get(pid);
-        if (!hist || hist.bf < MIN_BF) continue;
-        // No prior starts means no basis for a starter's workload -- this
-        // pitcher's bf/appearance reflects relief usage only. Skip rather than
-        // guess, the same way MIN_BF declines to project a thin sample.
-        if (hist.starts === 0) continue;
+        // Same threshold, two samples: the strikeout rate still draws on all
+        // appearances (hist.bf), while the workload draws on starts only
+        // (hist.startBf) -- each must independently clear MIN_BF before we
+        // trust it, or a reliever with heavy relief volume but a thin start
+        // sample could sail through on the rate gate and get a workload
+        // estimate from a couple of short outings. This also subsumes the
+        // old zero-starts check: hist.startBf >= MIN_BF (30) is impossible
+        // with zero starts, so hist.starts is guaranteed > 0 below and the
+        // division stays safe -- do not add back a separate starts === 0 guard.
+        if (!hist || hist.bf < MIN_BF || hist.startBf < MIN_BF) continue;
         const expBf = clamp(hist.startBf / hist.starts, BF_CLAMP[0], BF_CLAMP[1]);
         const tk = oppTeam == null ? undefined : teamK.get(oppTeam);
         const oppKFactor = tk && tk.pa > 0 ? teamKFactor(tk.so / tk.pa, league.soPerPa) : 1;

@@ -102,12 +102,26 @@ export async function getPitcherHistory(before: string): Promise<Map<number, Pit
             sum(p.so)::float8 so,
             sum(p.h)::float8 h,
             count(*)::int appearances,
-            (sum(p.bf) FILTER (WHERE pp.pitcher_id IS NOT NULL))::float8 start_bf,
-            (count(*) FILTER (WHERE pp.pitcher_id IS NOT NULL))::int starts
+            -- probable_pitchers is keyed (game_id, side), not (game_id,
+            -- pitcher_id): nothing in the schema stops the same pitcher being
+            -- recorded for both sides of one game. An EXISTS check can only
+            -- ever contribute 0 or 1 per row, unlike a join on pitcher_id,
+            -- which would fan out and double-count that appearance's bf into
+            -- start_bf/starts if such a duplicate ever showed up.
+            (sum(p.bf) FILTER (
+              WHERE EXISTS (
+                SELECT 1 FROM probable_pitchers pp
+                WHERE pp.game_id = p.game_id AND pp.pitcher_id = p.player_id
+              )
+            ))::float8 start_bf,
+            (count(*) FILTER (
+              WHERE EXISTS (
+                SELECT 1 FROM probable_pitchers pp
+                WHERE pp.game_id = p.game_id AND pp.pitcher_id = p.player_id
+              )
+            ))::int starts
      FROM player_game_pitching p
      JOIN games g ON g.id = p.game_id
-     LEFT JOIN probable_pitchers pp
-       ON pp.game_id = p.game_id AND pp.pitcher_id = p.player_id
      WHERE g.game_date < $1
      GROUP BY p.player_id`,
     [before],
