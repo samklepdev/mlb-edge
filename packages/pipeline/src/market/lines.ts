@@ -250,7 +250,8 @@ export async function captureClosing(date: string, opts: PullOptions): Promise<n
   return updated;
 }
 
-// Grade settled picks against actual box-score outcomes (TB / SO from rollups).
+// Grade settled picks against actual box-score outcomes (TB / hits / HR from
+// batting rollups, SO from pitching rollups).
 export async function settleResults(date: string): Promise<number> {
   const rows = (
     await query<{ id: number; prop_type: string; side: 'over' | 'under'; pick_line: string; tb: number | null; h: number | null; hr: number | null; so: number | null }>(

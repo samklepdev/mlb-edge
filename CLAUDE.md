@@ -6,9 +6,11 @@ table, phase map, seams). This file is the load-bearing orientation.
 ## What this is
 A TypeScript npm-workspace monorepo that measures whether an MLB player-prop
 projection model beats a betting market. The goal is **honest measurement, not
-winning**. Current state: model **v0.2** is calibrated (backtest ECE ~0.028
-out-of-sample) but has **not** been shown to beat the market — that is what the
-forward CLV loop tests, and it is the main open question.
+winning**. Current state: model **v0.2** is calibrated per-prop (see the
+`backtest` report for each prop's own ECE/Brier — a single pooled figure across
+props with different base rates is not a meaningful summary, so there is no
+one-number headline anymore) but has **not** been shown to beat the market —
+that is what the forward CLV loop tests, and it is the main open question.
 
 - `packages/db` (`@mlb-edge/db`) — pg pool, config, shared types, probability
   helpers (`prob.ts`), and the query layer. **Compiles to `dist/`.**
@@ -49,16 +51,19 @@ de-vigged market, writes edge `picks`) → `lines capture` (closing lines → CL
 vs reality; `backtest` = calibration report (reliability, ECE, Brier).
 
 ## Architecture facts (don't reverse-engineer these)
-- Model projects **only** `total_bases` and `strikeouts`. Adding a prop = a new
-  projector + a market-key mapping in `market/lines.ts` + candidate lines in
-  `project/backfill.ts`.
+- Model projects `total_bases`, `hits`, `home_runs`, and `strikeouts`. Adding a
+  prop = a new projector + a market-key mapping in `market/lines.ts` + candidate
+  lines in `project/backfill.ts`.
 - Core math is in `@mlb-edge/db/prob.ts` (`pOver`, `pOverFromPmf`, `deVig`),
   shared by pricing, backfill, and the player card. Don't duplicate it.
 - `MODEL_VERSION` lives in `project/model.ts`; bump it on model changes. Pricing
   and backtest filter by version (latest wins).
 - Projections store the exact game PMF in `projections.dist`; pricing sums it
   (`pOverFromPmf`) instead of a normal approximation. This fixed a ~9pt
-  overconfidence (v0.1 ECE 0.091 → v0.2 0.028).
+  overconfidence (v0.1 ECE 0.091 → v0.2 0.028) — both figures were measured over
+  the original two-prop population (`total_bases`, `strikeouts`) and are not
+  comparable to today's pooled four-prop numbers; see `backtest`'s per-prop
+  output for the current, comparable figures.
 - Dashboard pages are `force-dynamic`. **Never import `@mlb-edge/db` from a
   `"use client"` file** (`pg` is server-only; it's in `serverExternalPackages`).
 - Lookahead guard: projection history queries filter `game_date < target`.

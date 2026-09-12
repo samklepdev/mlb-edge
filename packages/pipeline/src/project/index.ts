@@ -69,7 +69,10 @@ export async function runProjections(date: string, props: PropKind[]): Promise<n
             const { mean, stdev, pmf } =
               prop === 'total_bases' ? projectTotalBases(a)
               : prop === 'hits' ? projectHits(a)
-              : projectHomeRuns(a);
+              : prop === 'home_runs' ? projectHomeRuns(a)
+              : ((): never => {
+                  throw new Error(`unhandled batter prop: ${prop satisfies never}`);
+                })();
             rows.push({ playerId: pid, gameId: g.id, propType: prop, mean, stdev, pmf });
           }
         }
