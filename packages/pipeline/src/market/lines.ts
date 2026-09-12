@@ -34,6 +34,18 @@ interface LineRow {
 
 const key = (p: number, g: number, prop: string) => `${p}:${g}:${prop}`;
 
+// Games on this slate whose first pitch has passed. A NULL start_time satisfies
+// neither this test nor captureClosing's `start_time > now()`, so such a game is
+// never treated as started -- only the synthetic sentinel has one, and it carries
+// no market_lines rows.
+async function startedGameIds(date: string): Promise<Set<number>> {
+  const res = await query<{ id: number }>(
+    'SELECT id FROM games WHERE game_date = $1 AND start_time <= now()',
+    [date],
+  );
+  return new Set(res.rows.map((r) => r.id));
+}
+
 // Fetch all requested books' lines for a date, resolved to our player/game ids.
 interface FetchResult {
   rows: LineRow[];
@@ -42,12 +54,14 @@ interface FetchResult {
   oddsEvents: number;   // events the Odds API returned
   dbGames: number;      // games in our DB for this date
   matchedEvents: number; // events that resolved to a DB game
+  skippedStartedGames: number; // matched events skipped because first pitch had passed
 }
 async function fetchLines(date: string, opts: PullOptions): Promise<FetchResult> {
-  const [events, gameIndex, playerIndex] = await Promise.all([
+  const [events, gameIndex, playerIndex, startedGames] = await Promise.all([
     getEvents(),
     buildGameIndex(date),
     buildPlayerIndex(),
+    startedGameIds(date),
   ]);
   const wanted = new Set([...opts.books, opts.sharp]);
 
@@ -55,11 +69,18 @@ async function fetchLines(date: string, opts: PullOptions): Promise<FetchResult>
   const gameIds = new Set<number>();
   let unmatchedPlayers = 0;
   let matchedEvents = 0;
+  let skippedStartedGames = 0;
 
   for (const ev of events) {
     const gameId = gameIndex.get(`${normalize(ev.home_team)}|${normalize(ev.away_team)}`);
     if (gameId == null) continue; // event isn't on our slate for this date
     matchedEvents++;
+    // A price quoted after first pitch is a LIVE in-game price. Skipping here --
+    // after the match so it can be counted, BEFORE getEventOdds so it costs
+    // nothing -- does double duty: the live quote never reaches market_lines
+    // (where loadStoredLines and getPlayerCard would prefer it for being newest),
+    // and no credit is spent fetching data we would refuse to use.
+    if (startedGames.has(gameId)) { skippedStartedGames++; continue; }
     const odds = await getEventOdds(ev.id, MARKETS, opts.regions);
 
     for (const bk of odds.bookmakers) {
@@ -100,6 +121,7 @@ async function fetchLines(date: string, opts: PullOptions): Promise<FetchResult>
     oddsEvents: events.length,
     dbGames: gameIndex.size,
     matchedEvents,
+    skippedStartedGames,
   };
 }
 
@@ -153,6 +175,7 @@ export interface PullResult {
   oddsEvents: number;
   dbGames: number;
   matchedEvents: number;
+  skippedStartedGames: number;
 }
 
 // Price lines against current projections and replace this slate's picks.
@@ -209,7 +232,8 @@ async function priceAndWritePicks(date: string, rows: LineRow[], edgeThreshold: 
 // Pull lines, store them, then price each projection against the reference book
 // and log a pick wherever the model beats the de-vigged market by the threshold.
 export async function pullLines(date: string, opts: PullOptions): Promise<PullResult> {
-  const { rows, gameIds, unmatchedPlayers, oddsEvents, dbGames, matchedEvents } = await fetchLines(date, opts);
+  const { rows, gameIds, unmatchedPlayers, oddsEvents, dbGames, matchedEvents, skippedStartedGames } =
+    await fetchLines(date, opts);
   await storeLines(rows);
   const picksWritten = await priceAndWritePicks(date, rows, opts.edgeThreshold);
 
@@ -221,6 +245,7 @@ export async function pullLines(date: string, opts: PullOptions): Promise<PullRe
     oddsEvents,
     dbGames,
     matchedEvents,
+    skippedStartedGames,
   };
 }
 

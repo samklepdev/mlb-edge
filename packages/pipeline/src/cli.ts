@@ -189,6 +189,12 @@ lines
       `stored ${r.linesStored} line(s); wrote ${r.picksWritten} pick(s); ` +
         `${r.unmatchedPlayers} unmatched player name(s)`,
     );
+    if (r.skippedStartedGames > 0) {
+      console.log(
+        `skipped ${r.skippedStartedGames} matched event(s) whose game had already started ` +
+          '— a price quoted after first pitch is a live in-game price, not a market you can bet',
+      );
+    }
     if (r.matchedEvents === 0) {
       if (r.oddsEvents === 0) {
         console.log(
@@ -200,6 +206,11 @@ lines
       } else {
         console.log('Hint: events and DB games both exist but none matched — likely a team-name mismatch.');
       }
+    } else if (r.skippedStartedGames === r.matchedEvents) {
+      console.log(
+        `Hint: all ${r.matchedEvents} matched event(s) had already started, so nothing was stored. ` +
+          'Run `lines pull` before first pitch.',
+      );
     } else if (r.picksWritten === 0 && r.linesStored > 0) {
       console.log('Hint: lines stored but no edges. Run `project` for this date first, or lower --edge.');
     }
