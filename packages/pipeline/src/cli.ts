@@ -9,7 +9,7 @@ import { backfill } from './project/backfill.js';
 import { backtestReport } from './backtest/report.js';
 import { healthReport } from './health/report.js';
 import { MODEL_VERSION } from './project/model.js';
-import { pullLines, captureClosing, settleResults, type PullOptions } from './market/lines.js';
+import { pullLines, captureClosing, settleResults, repriceLines, type PullOptions } from './market/lines.js';
 import { clvReport } from './clv/index.js';
 import { calibrationReport } from './calibration/index.js';
 import { dateRange } from './dates.js';
@@ -209,6 +209,15 @@ lines
   .action(async (o: { date: string; books: string; sharp: string; regions: string; edge: string }) => {
     const n = await captureClosing(o.date, pullOptions(o));
     console.log(`updated closing line + CLV on ${n} pick(s) for ${o.date}`);
+  });
+lines
+  .command('reprice')
+  .description('re-price stored lines against current projections (no API calls)')
+  .requiredOption('--date <YYYY-MM-DD>', 'slate date to re-price')
+  .option('--edge <pct>', 'minimum |model - fair| to log a pick', '0.03')
+  .action(async (o: { date: string; edge: string }) => {
+    const r = await repriceLines(o.date, Number(o.edge));
+    console.log(`re-priced ${r.linesRead} stored line(s); wrote ${r.picksWritten} pick(s) — 0 API credits`);
   });
 
 program

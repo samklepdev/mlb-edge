@@ -155,14 +155,14 @@ export interface PullResult {
   matchedEvents: number;
 }
 
-// Pull lines, store them, then price each projection against the reference book
-// and log a pick wherever the model beats the de-vigged market by the threshold.
-export async function pullLines(date: string, opts: PullOptions): Promise<PullResult> {
-  const { rows, gameIds, unmatchedPlayers, oddsEvents, dbGames, matchedEvents } = await fetchLines(date, opts);
-  await storeLines(rows);
-
+// Price lines against current projections and replace this slate's picks.
+// Shared by `lines pull` (lines fresh from the API) and `lines reprice`
+// (lines already stored, no API call). The pricing rule is identical either
+// way -- only where the lines come from differs.
+async function priceAndWritePicks(date: string, rows: LineRow[], edgeThreshold: number): Promise<number> {
   const projections = await loadProjections(date);
   const ref = referenceLines(rows);
+  const gameIds = [...new Set(rows.map((r) => r.gameId))];
 
   interface PickRow {
     playerId: number; gameId: number; prop: PropKind; side: 'over' | 'under';
@@ -178,7 +178,7 @@ export async function pullLines(date: string, opts: PullOptions): Promise<PullRe
     const edgeOver = modelOver - fairOver;
     const side: 'over' | 'under' = edgeOver >= 0 ? 'over' : 'under';
     const edge = Math.abs(edgeOver);
-    if (edge < opts.edgeThreshold) continue;
+    if (edge < edgeThreshold) continue;
     picks.push({
       playerId: r.playerId, gameId: r.gameId, prop: r.prop, side,
       prob: side === 'over' ? modelOver : 1 - modelOver,
@@ -203,15 +203,65 @@ export async function pullLines(date: string, opts: PullOptions): Promise<PullRe
     }
   });
 
+  return picks.length;
+}
+
+// Pull lines, store them, then price each projection against the reference book
+// and log a pick wherever the model beats the de-vigged market by the threshold.
+export async function pullLines(date: string, opts: PullOptions): Promise<PullResult> {
+  const { rows, gameIds, unmatchedPlayers, oddsEvents, dbGames, matchedEvents } = await fetchLines(date, opts);
+  await storeLines(rows);
+  const picksWritten = await priceAndWritePicks(date, rows, opts.edgeThreshold);
+
   return {
     linesStored: rows.length,
-    picksWritten: picks.length,
+    picksWritten,
     matchedGames: gameIds.length,
     unmatchedPlayers,
     oddsEvents,
     dbGames,
     matchedEvents,
   };
+}
+
+// Re-read the lines already stored for a slate: one row per player/game/prop,
+// preferring the sharp book and then the most recent fetch -- the same
+// preference order getPlayerCard uses.
+async function loadStoredLines(date: string): Promise<LineRow[]> {
+  const res = await query<{
+    player_id: number; game_id: number; prop_type: string; line: string;
+    over_odds: number | null; under_odds: number | null; source: string; is_sharp: boolean;
+  }>(
+    `SELECT DISTINCT ON (ml.player_id, ml.game_id, ml.prop_type)
+            ml.player_id, ml.game_id, ml.prop_type, ml.line,
+            ml.over_odds, ml.under_odds, ml.source, ml.is_sharp
+     FROM market_lines ml JOIN games g ON g.id = ml.game_id
+     WHERE g.game_date = $1
+     ORDER BY ml.player_id, ml.game_id, ml.prop_type, ml.is_sharp DESC, ml.fetched_at DESC`,
+    [date],
+  );
+  const out: LineRow[] = [];
+  for (const r of res.rows) {
+    // Both sides are required to de-vig; a one-sided row carries no fair price.
+    if (r.over_odds == null || r.under_odds == null) continue;
+    out.push({
+      playerId: r.player_id, gameId: r.game_id, prop: r.prop_type as PropKind,
+      line: Number(r.line), overOdds: r.over_odds, underOdds: r.under_odds,
+      source: r.source, isSharp: r.is_sharp,
+    });
+  }
+  return out;
+}
+
+// Re-price a slate from lines already in the database. Zero API calls, so
+// iterating on the model costs no odds quota.
+export async function repriceLines(
+  date: string,
+  edgeThreshold: number,
+): Promise<{ linesRead: number; picksWritten: number }> {
+  const rows = await loadStoredLines(date);
+  const picksWritten = await priceAndWritePicks(date, rows, edgeThreshold);
+  return { linesRead: rows.length, picksWritten };
 }
 
 // Re-fetch near game time and record closing line value on existing picks.
