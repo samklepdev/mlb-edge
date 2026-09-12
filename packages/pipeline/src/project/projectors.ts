@@ -36,25 +36,62 @@ function statsFromPmf(pmf: number[]): { mean: number; stdev: number } {
   return { mean: m, stdev: Math.sqrt(Math.max(0, e2 - m * m)) };
 }
 
-// Total bases: per-PA {0,1,2,3,4} outcome distribution (shrunk to league and
-// adjusted for matchup), convolved over expected PAs into the exact game PMF.
-export function projectTotalBases(args: {
-  hist: BatterHistory; league: LeagueBatting; expPa: number; adj: number;
-}): Projection {
-  const { hist, league, expPa } = args;
+export interface BatterPerPaRates { q0: number; q1: number; q2: number; q3: number; q4: number }
+
+// Shrunk, matchup-adjusted per-PA outcome probabilities for one batter:
+// q0 = no hit, q1..q4 = single/double/triple/home run. This is the single
+// source of the shrinkage and the 0.95 cap, so every batter prop is a marginal
+// of the SAME distribution and they cannot drift apart.
+export function batterPerPaRates(
+  hist: BatterHistory,
+  league: LeagueBatting,
+  adj: number,
+): BatterPerPaRates {
   const p1 = shrinkRate(hist.singles, hist.pa, league.p1, K_PA);
   const p2 = shrinkRate(hist.doubles, hist.pa, league.p2, K_PA);
   const p3 = shrinkRate(hist.triples, hist.pa, league.p3, K_PA);
   const p4 = shrinkRate(hist.hr, hist.pa, league.p4, K_PA);
 
-  const a = clamp(args.adj, 0.7, 1.4);
+  const a = clamp(adj, 0.7, 1.4);
   let q1 = p1 * a, q2 = p2 * a, q3 = p3 * a, q4 = p4 * a;
   const hitSum = q1 + q2 + q3 + q4;
   if (hitSum > 0.95) { const s = 0.95 / hitSum; q1 *= s; q2 *= s; q3 *= s; q4 *= s; }
   const q0 = Math.max(0, 1 - (q1 + q2 + q3 + q4));
+  return { q0, q1, q2, q3, q4 };
+}
 
-  const perPa = [q0, q1, q2, q3, q4];   // TB per plate appearance
-  const pmf = compound(perPa, expPa);
+// Total bases: the per-PA {0,1,2,3,4} outcome distribution convolved over
+// expected PAs into the exact game PMF.
+export function projectTotalBases(args: {
+  hist: BatterHistory; league: LeagueBatting; expPa: number; adj: number;
+}): Projection {
+  const { q0, q1, q2, q3, q4 } = batterPerPaRates(args.hist, args.league, args.adj);
+  const pmf = compound([q0, q1, q2, q3, q4], args.expPa);
+  return { ...statsFromPmf(pmf), pmf };
+}
+
+// Hits: did the batter get a hit this PA, yes or no -- the same distribution
+// total bases uses, collapsed to a Bernoulli, then compounded over expected PAs.
+export function projectHits(args: {
+  hist: BatterHistory; league: LeagueBatting; expPa: number; adj: number;
+}): Projection {
+  const { q1, q2, q3, q4 } = batterPerPaRates(args.hist, args.league, args.adj);
+  const pHit = q1 + q2 + q3 + q4;
+  const pmf = compound([1 - pHit, pHit], args.expPa);
+  return { ...statsFromPmf(pmf), pmf };
+}
+
+// Home runs: Bernoulli(q4) per PA, compounded over expected PAs.
+// Caveat worth knowing: the matchup adjustment folded into q4 comes from
+// pitcherTbFactor, a hits-allowed-per-BF proxy. That is a weak signal for home
+// runs specifically, and park HR factors differ from park run factors. See
+// "Documented limitations" in the spec -- expect home_runs to calibrate worse
+// than hits, and do NOT tune the factor to fix it.
+export function projectHomeRuns(args: {
+  hist: BatterHistory; league: LeagueBatting; expPa: number; adj: number;
+}): Projection {
+  const { q4 } = batterPerPaRates(args.hist, args.league, args.adj);
+  const pmf = compound([1 - q4, q4], args.expPa);
   return { ...statsFromPmf(pmf), pmf };
 }
 
