@@ -4,12 +4,13 @@ import type { Scorecard } from '../types.js';
 
 export async function getScorecard(): Promise<Scorecard> {
   const row = (
-    await query<{ settled: string; with_close: string; avg_clv: number | string | null }>(`
+    await query<{ settled: string; with_close: string; avg_clv: number | string | null; synthetic_settled: string }>(`
       SELECT
-        count(*) FILTER (WHERE result IS NOT NULL)                          AS settled,
-        count(*) FILTER (WHERE close_line IS NOT NULL)                      AS with_close,
-        (avg(clv_pct) FILTER (WHERE close_line IS NOT NULL))::float8        AS avg_clv
-      FROM picks
+        count(*) FILTER (WHERE pk.result IS NOT NULL AND NOT g.is_synthetic)     AS settled,
+        count(*) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic) AS with_close,
+        (avg(pk.clv_pct) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic))::float8 AS avg_clv,
+        count(*) FILTER (WHERE pk.result IS NOT NULL AND g.is_synthetic)         AS synthetic_settled
+      FROM picks pk JOIN games g ON g.id = pk.game_id
     `)
   ).rows[0];
 
@@ -22,5 +23,6 @@ export async function getScorecard(): Promise<Scorecard> {
     picksWithClose: Number(row.with_close),
     avgClv: row.avg_clv == null ? null : Number(row.avg_clv),
     ece,
+    syntheticSettled: Number(row.synthetic_settled),
   };
 }

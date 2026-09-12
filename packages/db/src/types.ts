@@ -15,10 +15,11 @@ export interface CalibrationBucket {
 }
 
 export interface Scorecard {
-  settledPicks: number;    // picks with a settled result
-  picksWithClose: number;  // picks that also have a captured closing line
-  avgClv: number | null;   // mean CLV across picksWithClose
-  ece: number | null;      // expected calibration error over settledPicks
+  settledPicks: number;      // REAL picks with a settled result (excludes synthetic)
+  picksWithClose: number;    // real picks that also have a captured closing line
+  avgClv: number | null;     // mean CLV across picksWithClose
+  ece: number | null;        // expected calibration error over settledPicks
+  syntheticSettled: number;  // settled DEMO picks, excluded from every figure above
 }
 
 export interface SlateGame {

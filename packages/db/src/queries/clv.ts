@@ -14,8 +14,8 @@ export async function clvByProp(): Promise<ClvRow[]> {
            count(*)::int                        AS n,
            (avg(clv_pct))::float8               AS avg_clv,
            (avg((won)::int))::float8            AS hit_rate
-    FROM picks
-    WHERE close_line IS NOT NULL
+    FROM picks pk JOIN games g ON g.id = pk.game_id
+    WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic
     GROUP BY prop_type
     ORDER BY prop_type
   `);

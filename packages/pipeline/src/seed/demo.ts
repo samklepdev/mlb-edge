@@ -29,10 +29,12 @@ export async function seedDemo(): Promise<number> {
        ON CONFLICT (id) DO NOTHING`,
       [DEMO_TEAM],
     );
+    // is_synthetic is set here, not only by the migration, so a reseed can
+    // never reintroduce unflagged demo rows into the result aggregates.
     await c.query(
-      `INSERT INTO games(id, game_date, home_team_id, away_team_id, status)
-       VALUES ($1, DATE '2099-01-01', $2, $2, 'Final')
-       ON CONFLICT (id) DO UPDATE SET game_date = DATE '2099-01-01'`,
+      `INSERT INTO games(id, game_date, home_team_id, away_team_id, status, is_synthetic)
+       VALUES ($1, DATE '2099-01-01', $2, $2, 'Final', true)
+       ON CONFLICT (id) DO UPDATE SET game_date = DATE '2099-01-01', is_synthetic = true`,
       [DEMO_GAME, DEMO_TEAM],
     );
     for (let i = 0; i < 12; i++) {

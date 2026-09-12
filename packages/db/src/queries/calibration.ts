@@ -5,7 +5,9 @@ import type { CalibrationBucket } from '../types.js';
 // time? A straight curve (gap ~ 0 everywhere) is the "did I get there" test.
 export async function calibrationBuckets(buckets = 10): Promise<CalibrationBucket[]> {
   const res = await query<{ pick_prob: number | string; won: boolean }>(
-    'SELECT pick_prob, won FROM picks WHERE result IS NOT NULL AND won IS NOT NULL',
+    `SELECT pk.pick_prob, pk.won
+     FROM picks pk JOIN games g ON g.id = pk.game_id
+     WHERE pk.result IS NOT NULL AND pk.won IS NOT NULL AND NOT g.is_synthetic`,
   );
 
   const bins = Array.from({ length: buckets }, () => ({ n: 0, predSum: 0, wins: 0 }));

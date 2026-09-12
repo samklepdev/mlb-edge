@@ -142,6 +142,18 @@ export default async function Page() {
           )}
 
           {/* --- settled real picks: CLV + market reliability (only when present) --- */}
+          {d.scorecard.settledPicks === 0 && d.scorecard.syntheticSettled > 0 && (
+            <section className="notice">
+              <h2>No real settled picks yet</h2>
+              <p>
+                The {d.scorecard.syntheticSettled} settled picks in this database are demo
+                seed data, and are deliberately excluded from CLV and calibration — they
+                carry invented results and would report an edge that does not exist. Real
+                numbers here need the forward loop: pull lines, capture closing lines, then
+                settle once the games are final.
+              </p>
+            </section>
+          )}
           {d.scorecard.settledPicks > 0 && (
             <>
               <section className="scorecard">
