@@ -10,6 +10,11 @@ export interface BatterHistory {
 }
 export interface PitcherHistory {
   bf: number; so: number; h: number; appearances: number;
+  // Starts only. Workload must be conditioned on starting: a reliever's
+  // bf/appearance is a third of a starter's, and we only ever project
+  // strikeouts for probable starters. The K RATE deliberately still uses all
+  // appearances -- strikeout ability transfers to a starting role, innings don't.
+  startBf: number; starts: number;
 }
 export interface Projection { mean: number; stdev: number; pmf: number[] }
 

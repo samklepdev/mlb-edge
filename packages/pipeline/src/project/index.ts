@@ -97,7 +97,11 @@ export async function runProjections(date: string, props: PropKind[]): Promise<n
         if (!pid) continue;
         const hist = pitchers.get(pid);
         if (!hist || hist.bf < MIN_BF) continue;
-        const expBf = clamp(hist.bf / Math.max(1, hist.appearances), BF_CLAMP[0], BF_CLAMP[1]);
+        // No prior starts means no basis for a starter's workload -- this
+        // pitcher's bf/appearance reflects relief usage only. Skip rather than
+        // guess, the same way MIN_BF declines to project a thin sample.
+        if (hist.starts === 0) continue;
+        const expBf = clamp(hist.startBf / hist.starts, BF_CLAMP[0], BF_CLAMP[1]);
         const tk = oppTeam == null ? undefined : teamK.get(oppTeam);
         const oppKFactor = tk && tk.pa > 0 ? teamKFactor(tk.so / tk.pa, league.soPerPa) : 1;
         const { mean, stdev, pmf } = projectStrikeouts({ hist, leagueSoPerBf: pLeague.soPerBf, expBf, oppKFactor });

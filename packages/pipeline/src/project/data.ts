@@ -91,16 +91,33 @@ export async function getBatterHistory(before: string): Promise<Map<number, Batt
 }
 
 export async function getPitcherHistory(before: string): Promise<Map<number, PitcherHistory>> {
-  const res = await query<{ player_id: number; bf: number; so: number; h: number; appearances: number }>(
-    `SELECT player_id, sum(bf)::float8 bf, sum(so)::float8 so, sum(h)::float8 h, count(*)::int appearances
-     FROM player_game_pitching p JOIN games g ON g.id = p.game_id
+  // A past appearance was a START iff this pitcher was the probable starter for
+  // that game -- which `probable_pitchers` records for every ingested date.
+  const res = await query<{
+    player_id: number; bf: number; so: number; h: number; appearances: number;
+    start_bf: number | null; starts: number;
+  }>(
+    `SELECT p.player_id,
+            sum(p.bf)::float8 bf,
+            sum(p.so)::float8 so,
+            sum(p.h)::float8 h,
+            count(*)::int appearances,
+            (sum(p.bf) FILTER (WHERE pp.pitcher_id IS NOT NULL))::float8 start_bf,
+            (count(*) FILTER (WHERE pp.pitcher_id IS NOT NULL))::int starts
+     FROM player_game_pitching p
+     JOIN games g ON g.id = p.game_id
+     LEFT JOIN probable_pitchers pp
+       ON pp.game_id = p.game_id AND pp.pitcher_id = p.player_id
      WHERE g.game_date < $1
-     GROUP BY player_id`,
+     GROUP BY p.player_id`,
     [before],
   );
   const map = new Map<number, PitcherHistory>();
   for (const r of res.rows) {
-    map.set(r.player_id, { bf: n(r.bf), so: n(r.so), h: n(r.h), appearances: n(r.appearances) });
+    map.set(r.player_id, {
+      bf: n(r.bf), so: n(r.so), h: n(r.h), appearances: n(r.appearances),
+      startBf: n(r.start_bf ?? 0), starts: n(r.starts),
+    });
   }
   return map;
 }
