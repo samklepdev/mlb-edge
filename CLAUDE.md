@@ -46,7 +46,9 @@ Fallback: `npm run -w @mlb-edge/pipeline cli -- <args>`.
 ## Pipeline order (stages read the previous stage's output; dates must match)
 `ingest schedule` → `ingest games` (box scores = the model's history) →
 `project` (distributions → `projections.dist`) → `lines pull` (prices vs
-de-vigged market, writes edge `picks`) → `lines capture` (closing lines → CLV) →
+de-vigged market, writes edge `picks`) → `lines capture` (closing lines → CLV; **must run BEFORE first pitch** — it
+skips started games, because a price quoted after first pitch is a live
+in-game price, not a closing one) →
 `settle` (grade vs actual outcomes). `backfill` = project a past range + evaluate
 vs reality; `backtest` = calibration report (reliability, ECE, Brier).
 
@@ -76,6 +78,12 @@ vs reality; `backtest` = calibration report (reliability, ECE, Brier).
 - Park factors are a stub table; the pitcher factor is a hits-allowed proxy.
 - The per-PA independence assumption slightly understates variance (mild residual
   overconfidence in high-probability buckets at large n).
+- CLV rows captured after first pitch are excluded structurally
+  (`picks.close_captured_at < games.start_time`). Historical values are
+  approximated from `max(market_lines.fetched_at)` per slate — conservative, but
+  estimates. Any CLV figure recorded before 2026-09-12 is contaminated: 164 of
+  the first 500 rows were live in-game prices, including 124 of the 157 behind
+  the old "+0.265%" result.
 
 ## Open work, prioritized
 1. Run the forward CLV loop — the actual unanswered question.
