@@ -25,14 +25,44 @@ function parseProps(arg: string): PropKind[] {
 
 // Ingest commands accept either a single --date or a --from/--to range, but
 // not a mix: --date plus either range flag is ambiguous (which did the user
-// mean?), and a lone --from or --to is a dangling/typo'd range. Both are
-// errors. Returns [] when nothing usable -- or something invalid -- was
-// given, so callers can error uniformly.
+// mean?), and a lone --from or --to is a dangling/typo'd range.
+//
+// - A dangling range flag, or nothing at all, returns [] -- genuinely "you
+//   gave me nothing usable" -- so the caller can print the generic
+//   "give either --date, or both --from and --to" message.
+// - --date combined with any range flag, and an invalid complete range
+//   (reversed or unparseable, via dateRange), both THROW instead: the user
+//   supplied something, just something wrong, so a specific message is
+//   accurate where the generic one would misleadingly imply nothing was
+//   given. Callers must catch and print err.message.
 function parseDates(o: { date?: string; from?: string; to?: string }): string[] {
   const hasRange = Boolean(o.from || o.to);
-  if (o.date && hasRange) return [];
+  if (o.date && hasRange) {
+    throw new Error('give either --date or --from/--to, not both');
+  }
   if (hasRange) return o.from && o.to ? dateRange(o.from, o.to) : [];
   return o.date ? [o.date] : [];
+}
+
+// Shared by the ingest commands: resolve --date/--from/--to, printing the
+// right message (specific for a thrown parseDates error, generic for an
+// empty result) and setting a non-zero exit code either way. Returns null
+// when the caller should bail out.
+function resolveDates(o: { date?: string; from?: string; to?: string }): string[] | null {
+  let dates: string[];
+  try {
+    dates = parseDates(o);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+    return null;
+  }
+  if (dates.length === 0) {
+    console.error('give either --date, or both --from and --to');
+    process.exitCode = 1;
+    return null;
+  }
+  return dates;
 }
 
 // Run `fn` per date, continuing past failures: one bad date must not abort a
@@ -82,12 +112,8 @@ ingest
   .option('--from <YYYY-MM-DD>', 'start of a date range (inclusive; needs --to)')
   .option('--to <YYYY-MM-DD>', 'end of a date range (inclusive; needs --from)')
   .action(async (o: { date?: string; from?: string; to?: string }) => {
-    const dates = parseDates(o);
-    if (dates.length === 0) {
-      console.error('give either --date, or both --from and --to');
-      process.exitCode = 1;
-      return;
-    }
+    const dates = resolveDates(o);
+    if (dates === null) return;
     const r = await forEachDate(dates, ingestSchedule);
     console.log(`ingested ${r.total} game(s) across ${r.ok} date(s); ${r.failed} failed`);
     if (r.failed > 0) process.exitCode = 1;
@@ -99,12 +125,8 @@ ingest
   .option('--from <YYYY-MM-DD>', 'start of a date range (inclusive; needs --to)')
   .option('--to <YYYY-MM-DD>', 'end of a date range (inclusive; needs --from)')
   .action(async (o: { date?: string; from?: string; to?: string }) => {
-    const dates = parseDates(o);
-    if (dates.length === 0) {
-      console.error('give either --date, or both --from and --to');
-      process.exitCode = 1;
-      return;
-    }
+    const dates = resolveDates(o);
+    if (dates === null) return;
     const r = await forEachDate(dates, ingestFinalGames);
     console.log(`ingested boxscores across ${r.ok} date(s) (${r.total} final game(s)); ${r.failed} failed`);
     if (r.failed > 0) process.exitCode = 1;
@@ -211,7 +233,14 @@ program
       process.exitCode = 1;
       return;
     }
-    const r = await backfill(o.from, o.to, props);
+    let r;
+    try {
+      r = await backfill(o.from, o.to, props);
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exitCode = 1;
+      return;
+    }
     console.log(`backfilled ${r.dates} date(s): ${r.projected} projection(s), ${r.evals} model eval(s)`);
   });
 

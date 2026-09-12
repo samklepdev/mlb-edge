@@ -88,8 +88,10 @@ export async function healthReport(): Promise<void> {
 
   const evals = (
     await query<{ prop_type: string; n: string }>(
-      `SELECT prop_type, count(*) AS n FROM model_evals
-       WHERE model_version = (SELECT max(model_version) FROM model_evals)
+      `SELECT me.prop_type, count(*) AS n
+       FROM model_evals me
+       JOIN games g ON g.id = me.game_id
+       WHERE me.model_version = (SELECT max(model_version) FROM model_evals) AND NOT g.is_synthetic
        GROUP BY 1 ORDER BY 2 DESC`,
     )
   ).rows;

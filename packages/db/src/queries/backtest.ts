@@ -7,13 +7,16 @@ import type { ReliabilityBucket, BacktestSummary } from '../types.js';
 // across a mixed prop population is misleading).
 export async function projectionReliability(buckets = 10, prop?: string): Promise<ReliabilityBucket[]> {
   const params: string[] = [];
-  let where = 'model_version = (SELECT max(model_version) FROM model_evals)';
+  let where = 'me.model_version = (SELECT max(model_version) FROM model_evals) AND NOT g.is_synthetic';
   if (prop) {
     params.push(prop);
-    where += ` AND prop_type = $${params.length}`;
+    where += ` AND me.prop_type = $${params.length}`;
   }
   const res = await query<{ model_prob: string; hit: boolean }>(
-    `SELECT model_prob, hit FROM model_evals WHERE ${where}`,
+    `SELECT me.model_prob, me.hit
+     FROM model_evals me
+     JOIN games g ON g.id = me.game_id
+     WHERE ${where}`,
     params,
   );
   const bins = Array.from({ length: buckets }, () => ({ n: 0, predSum: 0, hits: 0 }));
@@ -36,16 +39,17 @@ export async function projectionReliability(buckets = 10, prop?: string): Promis
 
 export async function backtestSummary(prop?: string): Promise<BacktestSummary> {
   const params: string[] = [];
-  let where = 'model_version = (SELECT max(model_version) FROM model_evals)';
+  let where = 'me.model_version = (SELECT max(model_version) FROM model_evals) AND NOT g.is_synthetic';
   if (prop) {
     params.push(prop);
-    where += ` AND prop_type = $${params.length}`;
+    where += ` AND me.prop_type = $${params.length}`;
   }
   const r = (
     await query<{ n: string; brier: string | null }>(
       `SELECT count(*) AS n,
-              avg(power(model_prob - (hit)::int, 2))::float8 AS brier
-       FROM model_evals
+              avg(power(me.model_prob - (me.hit)::int, 2))::float8 AS brier
+       FROM model_evals me
+       JOIN games g ON g.id = me.game_id
        WHERE ${where}`,
       params,
     )
@@ -65,9 +69,11 @@ export async function backtestSummary(prop?: string): Promise<BacktestSummary> {
 // hardcoding prop names that drift out of sync with props.ts.
 export async function evalPropTypes(): Promise<string[]> {
   const res = await query<{ prop_type: string }>(
-    `SELECT prop_type FROM model_evals
-     WHERE model_version = (SELECT max(model_version) FROM model_evals)
-     GROUP BY prop_type
+    `SELECT me.prop_type
+     FROM model_evals me
+     JOIN games g ON g.id = me.game_id
+     WHERE me.model_version = (SELECT max(model_version) FROM model_evals) AND NOT g.is_synthetic
+     GROUP BY me.prop_type
      ORDER BY count(*) DESC`,
   );
   return res.rows.map((r) => r.prop_type);

@@ -20,6 +20,8 @@ export interface Scorecard {
   avgClv: number | null;     // mean CLV across picksWithClose
   ece: number | null;        // expected calibration error over settledPicks
   syntheticSettled: number;  // settled DEMO picks, excluded from every figure above
+  clvGames: number;          // distinct real games behind picksWithClose -- picks cluster
+                              // heavily by slate, so this is the real effective sample size
 }
 
 export interface SlateGame {
