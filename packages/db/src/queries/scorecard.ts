@@ -10,10 +10,21 @@ export async function getScorecard(): Promise<Scorecard> {
     }>(`
       SELECT
         count(*) FILTER (WHERE pk.result IS NOT NULL AND NOT g.is_synthetic)     AS settled,
-        count(*) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic) AS with_close,
-        (avg(pk.clv_pct) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic))::float8 AS avg_clv,
+        -- A close taken after first pitch is a LIVE in-game price, not a closing
+        -- price; NULL means "not verifiable" (pre-backfill or demo data). Both
+        -- are excluded from every CLV aggregate below. \`settled\` and
+        -- \`synthetic_settled\` are deliberately NOT filtered -- they count
+        -- graded outcomes, which capture timing does not affect.
+        count(*) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic
+                           AND pk.close_captured_at IS NOT NULL
+                           AND pk.close_captured_at < g.start_time) AS with_close,
+        (avg(pk.clv_pct) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic
+                                   AND pk.close_captured_at IS NOT NULL
+                                   AND pk.close_captured_at < g.start_time))::float8 AS avg_clv,
         count(*) FILTER (WHERE pk.result IS NOT NULL AND g.is_synthetic)         AS synthetic_settled,
-        count(DISTINCT pk.game_id) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic) AS clv_games
+        count(DISTINCT pk.game_id) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic
+                                             AND pk.close_captured_at IS NOT NULL
+                                             AND pk.close_captured_at < g.start_time) AS clv_games
       FROM picks pk JOIN games g ON g.id = pk.game_id
     `)
   ).rows[0];
