@@ -3,7 +3,11 @@ import { runProjections, type PropKind } from './index.js';
 import { MODEL_VERSION } from './model.js';
 
 // Standard lines to evaluate the model at, sampling the CDF across its range.
-const CANDIDATE_LINES: Record<PropKind, number[]> = {
+// Partial: hits/home_runs have no candidate lines yet -- grading them is
+// Task 3's job (actual-outcome mapping below only knows tb/so). The `?? []`
+// at the call site means props without an entry simply produce no evals,
+// rather than crashing or guessing at unreviewed line values.
+const CANDIDATE_LINES: Partial<Record<PropKind, number[]>> = {
   total_bases: [0.5, 1.5, 2.5, 3.5],
   strikeouts: [3.5, 4.5, 5.5, 6.5, 7.5, 8.5],
 };

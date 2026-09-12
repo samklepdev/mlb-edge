@@ -4,13 +4,22 @@ import { migrate } from './db/migrate.js';
 import { ingestSchedule } from './ingest/schedule.js';
 import { ingestFinalGames, ingestBoxscore } from './ingest/games.js';
 import { seedDemo } from './seed/demo.js';
-import { runProjections, type PropKind } from './project/index.js';
+import { runProjections, ALL_PROPS, type PropKind } from './project/index.js';
 import { backfill } from './project/backfill.js';
 import { backtestReport } from './backtest/report.js';
 import { MODEL_VERSION } from './project/model.js';
 import { pullLines, captureClosing, settleResults, type PullOptions } from './market/lines.js';
 import { clvReport } from './clv/index.js';
 import { calibrationReport } from './calibration/index.js';
+
+// Shared by `project` and `backfill` so the two commands can never accept
+// different prop sets.
+const PROP_HELP = `${ALL_PROPS.join(' | ')} | all`;
+
+function parseProps(arg: string): PropKind[] {
+  if (arg === 'all') return [...ALL_PROPS];
+  return (ALL_PROPS as readonly string[]).includes(arg) ? [arg as PropKind] : [];
+}
 
 const program = new Command();
 program
@@ -60,13 +69,11 @@ program
   .command('project')
   .description('build projections (distributions) for a date and write them to `projections`')
   .requiredOption('--date <YYYY-MM-DD>', 'slate date to project')
-  .option('--prop <kind>', 'total_bases | strikeouts | all', 'all')
+  .option('--prop <kind>', PROP_HELP, 'all')
   .action(async (o: { date: string; prop: string }) => {
-    const valid: PropKind[] = ['total_bases', 'strikeouts'];
-    const props: PropKind[] =
-      o.prop === 'all' ? valid : valid.includes(o.prop as PropKind) ? [o.prop as PropKind] : [];
+    const props = parseProps(o.prop);
     if (props.length === 0) {
-      console.error(`unknown --prop "${o.prop}". Use: total_bases | strikeouts | all`);
+      console.error(`unknown --prop "${o.prop}". Use: ${PROP_HELP}`);
       process.exitCode = 1;
       return;
     }
@@ -143,13 +150,11 @@ program
   .description('project a date range and evaluate finished games vs reality (model calibration)')
   .requiredOption('--from <YYYY-MM-DD>', 'start date (inclusive)')
   .requiredOption('--to <YYYY-MM-DD>', 'end date (inclusive)')
-  .option('--prop <kind>', 'total_bases | strikeouts | all', 'all')
+  .option('--prop <kind>', PROP_HELP, 'all')
   .action(async (o: { from: string; to: string; prop: string }) => {
-    const valid: PropKind[] = ['total_bases', 'strikeouts'];
-    const props: PropKind[] =
-      o.prop === 'all' ? valid : valid.includes(o.prop as PropKind) ? [o.prop as PropKind] : [];
+    const props = parseProps(o.prop);
     if (props.length === 0) {
-      console.error(`unknown --prop "${o.prop}". Use: total_bases | strikeouts | all`);
+      console.error(`unknown --prop "${o.prop}". Use: ${PROP_HELP}`);
       process.exitCode = 1;
       return;
     }

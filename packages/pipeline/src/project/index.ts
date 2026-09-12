@@ -1,13 +1,19 @@
 import { withTx } from '@mlb-edge/db';
 import { MODEL_VERSION, RECENT_DAYS, MIN_PA, MIN_BF, PA_CLAMP, BF_CLAMP, clamp } from './model.js';
 import { parkFactor, tempFactor, pitcherTbFactor, teamKFactor } from './factors.js';
-import { projectTotalBases, projectStrikeouts } from './projectors.js';
+import { projectTotalBases, projectHits, projectHomeRuns, projectStrikeouts } from './projectors.js';
 import {
   getGamesOn, getLeagueBatting, getLeaguePitching, getBatterHistory, getPitcherHistory,
   getRecentBattersByTeam, getTeamKRates, getProbablePitchers,
 } from './data.js';
 
-export type PropKind = 'total_bases' | 'strikeouts';
+// Single source of truth for prop identifiers: the CLI whitelist and the type
+// are both derived from this, so they cannot drift apart.
+export const ALL_PROPS = ['total_bases', 'hits', 'home_runs', 'strikeouts'] as const;
+export type PropKind = (typeof ALL_PROPS)[number];
+
+// Props driven by the batter loop (they share rosters, matchup adj, and expPa).
+const BATTER_PROPS = ['total_bases', 'hits', 'home_runs'] as const;
 
 interface ProjectionRow {
   playerId: number;
@@ -35,7 +41,8 @@ export async function runProjections(date: string, props: PropKind[]): Promise<n
   const [pitchers, probables] = await Promise.all([getPitcherHistory(before), getProbablePitchers(gameIds)]);
   const rows: ProjectionRow[] = [];
 
-  if (props.includes('total_bases')) {
+  const batterProps = BATTER_PROPS.filter((p) => props.includes(p));
+  if (batterProps.length > 0) {
     const [league, pLeague, batters, rosters] = await Promise.all([
       getLeagueBatting(before), getLeaguePitching(before), getBatterHistory(before), getRecentBattersByTeam(before, since),
     ]);
@@ -57,8 +64,14 @@ export async function runProjections(date: string, props: PropKind[]): Promise<n
           const hist = batters.get(pid);
           if (!hist || hist.pa < MIN_PA) continue;
           const expPa = clamp(hist.pa / Math.max(1, hist.games), PA_CLAMP[0], PA_CLAMP[1]);
-          const { mean, stdev, pmf } = projectTotalBases({ hist, league, expPa, adj });
-          rows.push({ playerId: pid, gameId: g.id, propType: 'total_bases', mean, stdev, pmf });
+          const a = { hist, league, expPa, adj };
+          for (const prop of batterProps) {
+            const { mean, stdev, pmf } =
+              prop === 'total_bases' ? projectTotalBases(a)
+              : prop === 'hits' ? projectHits(a)
+              : projectHomeRuns(a);
+            rows.push({ playerId: pid, gameId: g.id, propType: prop, mean, stdev, pmf });
+          }
         }
       }
     }
