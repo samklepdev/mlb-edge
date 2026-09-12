@@ -262,6 +262,14 @@ async function loadStoredLines(date: string): Promise<LineRow[]> {
             ml.over_odds, ml.under_odds, ml.source, ml.is_sharp
      FROM market_lines ml JOIN games g ON g.id = ml.game_id
      WHERE g.game_date = $1
+       -- A quote fetched at or after first pitch is a LIVE in-game price. The
+       -- ORDER BY below prefers the newest row, so without this a late capture's
+       -- live quote would win. DISTINCT ON applies WHERE first, so excluding the
+       -- live row falls back to the newest PRE-START row for that key at no cost
+       -- -- no fallback logic is needed here.
+       -- NULL start_time makes this NULL, i.e. excluded: an unverifiable
+       -- timestamp is not trusted (matches how close_captured_at treats NULL).
+       AND ml.fetched_at < g.start_time
      ORDER BY ml.player_id, ml.game_id, ml.prop_type, ml.is_sharp DESC, ml.fetched_at DESC`,
     [date],
   );

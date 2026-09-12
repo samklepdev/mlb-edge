@@ -29,11 +29,15 @@ export async function getPlayerCard(playerId: number, date: string): Promise<Pla
 
   const lines = (
     await query<{ game_id: number; prop_type: string; line: string; over_odds: number | null; under_odds: number | null }>(
-      `SELECT DISTINCT ON (game_id, prop_type)
-              game_id, prop_type, line, over_odds, under_odds
-       FROM market_lines
-       WHERE player_id = $1
-       ORDER BY game_id, prop_type, is_sharp DESC, fetched_at DESC`,
+      // Same guard as loadStoredLines: a quote fetched at or after first pitch is
+      // a live in-game price, and this ORDER BY would otherwise prefer it for
+      // being newest. Requires the games join, which this query did not have.
+      `SELECT DISTINCT ON (ml.game_id, ml.prop_type)
+              ml.game_id, ml.prop_type, ml.line, ml.over_odds, ml.under_odds
+       FROM market_lines ml JOIN games g ON g.id = ml.game_id
+       WHERE ml.player_id = $1
+         AND ml.fetched_at < g.start_time
+       ORDER BY ml.game_id, ml.prop_type, ml.is_sharp DESC, ml.fetched_at DESC`,
       [playerId],
     )
   ).rows;
