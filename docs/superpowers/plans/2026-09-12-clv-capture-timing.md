@@ -502,7 +502,17 @@ Expected: exits 0. A type error at the `captureClosing` call site means Step 3 w
 
 - [ ] **Step 5: Prove the zero-credit early exit, spending zero credits**
 
-`2026-09-11` is a fully completed slate, so it exercises the early-exit path with no network call. Record the quota, run capture, record it again:
+`2026-09-11` is a fully completed slate, so it exercises the early-exit path with no network call.
+
+**Run the blanked-key check FIRST.** This step's whole purpose is to prove the early exit fires — but if the guard is broken, the naive command spends ~120 of 204 remaining credits proving it. Blanking the key makes being wrong free: if the early exit works the key is never needed, and if it is broken the command fails on a missing key instead of spending quota.
+
+```bash
+ODDS_API_KEY= npm run lines -- capture --date 2026-09-11
+```
+
+Expected: the normal early-exit message below, exit 0. **If this fails with a missing/invalid API key error, the early exit did not fire — the guard is broken. Stop and fix it; do NOT proceed to the quota check.**
+
+Only once that passes, confirm against real quota:
 
 ```bash
 set -a; . ./.env; set +a
