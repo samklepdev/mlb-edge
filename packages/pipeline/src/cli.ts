@@ -11,6 +11,7 @@ import { MODEL_VERSION } from './project/model.js';
 import { pullLines, captureClosing, settleResults, type PullOptions } from './market/lines.js';
 import { clvReport } from './clv/index.js';
 import { calibrationReport } from './calibration/index.js';
+import { dateRange } from './dates.js';
 
 // Shared by `project` and `backfill` so the two commands can never accept
 // different prop sets.
@@ -19,6 +20,34 @@ const PROP_HELP = `${ALL_PROPS.join(' | ')} | all`;
 function parseProps(arg: string): PropKind[] {
   if (arg === 'all') return [...ALL_PROPS];
   return (ALL_PROPS as readonly string[]).includes(arg) ? [arg as PropKind] : [];
+}
+
+// Ingest commands accept either a single --date or a --from/--to range.
+// Returns [] when nothing usable was given, so callers can error uniformly.
+function parseDates(o: { date?: string; from?: string; to?: string }): string[] {
+  if (o.from && o.to) return dateRange(o.from, o.to);
+  return o.date ? [o.date] : [];
+}
+
+// Run `fn` per date, continuing past failures: one bad date must not abort a
+// 120-day pull. Returns the totals so the caller can report honestly.
+async function forEachDate(
+  dates: string[],
+  fn: (date: string) => Promise<number>,
+): Promise<{ ok: number; failed: number; total: number }> {
+  let ok = 0, failed = 0, total = 0;
+  for (const [i, date] of dates.entries()) {
+    try {
+      const n = await fn(date);
+      total += n;
+      ok++;
+      console.log(`[${i + 1}/${dates.length}] ${date}: ${n}`);
+    } catch (err) {
+      failed++;
+      console.error(`[${i + 1}/${dates.length}] ${date}: FAILED -- ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return { ok, failed, total };
 }
 
 const program = new Command();
@@ -43,18 +72,34 @@ const ingest = program.command('ingest');
 ingest
   .command('schedule')
   .description("pull a day's schedule, teams, and probable pitchers")
-  .requiredOption('--date <YYYY-MM-DD>', 'date to pull')
-  .action(async (o: { date: string }) => {
-    const n = await ingestSchedule(o.date);
-    console.log(`ingested ${n} games for ${o.date}`);
+  .option('--date <YYYY-MM-DD>', 'single date to pull')
+  .option('--from <YYYY-MM-DD>', 'start of a date range (inclusive; needs --to)')
+  .option('--to <YYYY-MM-DD>', 'end of a date range (inclusive; needs --from)')
+  .action(async (o: { date?: string; from?: string; to?: string }) => {
+    const dates = parseDates(o);
+    if (dates.length === 0) {
+      console.error('give either --date, or both --from and --to');
+      process.exitCode = 1;
+      return;
+    }
+    const r = await forEachDate(dates, ingestSchedule);
+    console.log(`ingested ${r.total} game(s) across ${r.ok} date(s); ${r.failed} failed`);
   });
 ingest
   .command('games')
   .description('pull boxscores for FINAL games already stored for a date')
-  .requiredOption('--date <YYYY-MM-DD>', 'date to pull finals for')
-  .action(async (o: { date: string }) => {
-    const n = await ingestFinalGames(o.date);
-    console.log(`ingested boxscores for ${n} final game(s)`);
+  .option('--date <YYYY-MM-DD>', 'single date to pull finals for')
+  .option('--from <YYYY-MM-DD>', 'start of a date range (inclusive; needs --to)')
+  .option('--to <YYYY-MM-DD>', 'end of a date range (inclusive; needs --from)')
+  .action(async (o: { date?: string; from?: string; to?: string }) => {
+    const dates = parseDates(o);
+    if (dates.length === 0) {
+      console.error('give either --date, or both --from and --to');
+      process.exitCode = 1;
+      return;
+    }
+    const r = await forEachDate(dates, ingestFinalGames);
+    console.log(`ingested boxscores across ${r.ok} date(s) (${r.total} final game(s)); ${r.failed} failed`);
   });
 ingest
   .command('game')

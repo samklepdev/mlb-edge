@@ -2,6 +2,7 @@ import { query, withTx, pOver, pOverFromPmf } from '@mlb-edge/db';
 import { runProjections, type PropKind } from './index.js';
 import { MODEL_VERSION } from './model.js';
 import { actualFor } from '../props.js';
+import { dateRange } from '../dates.js';
 
 // Standard lines to evaluate the model at, sampling the CDF across its range.
 // Record<PropKind, ...> is exhaustive: a prop missing from this map fails
@@ -12,17 +13,6 @@ const CANDIDATE_LINES: Record<PropKind, number[]> = {
   home_runs: [0.5],   // HR props realistically trade only at 0.5
   strikeouts: [3.5, 4.5, 5.5, 6.5, 7.5, 8.5],
 };
-
-function dateRange(from: string, to: string): string[] {
-  const out: string[] = [];
-  const d = new Date(`${from}T00:00:00Z`);
-  const end = new Date(`${to}T00:00:00Z`);
-  while (d <= end) {
-    out.push(d.toISOString().slice(0, 10));
-    d.setUTCDate(d.getUTCDate() + 1);
-  }
-  return out;
-}
 
 export interface BackfillResult {
   dates: number;
