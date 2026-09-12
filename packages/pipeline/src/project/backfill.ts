@@ -1,14 +1,15 @@
 import { query, withTx, pOver, pOverFromPmf } from '@mlb-edge/db';
 import { runProjections, type PropKind } from './index.js';
 import { MODEL_VERSION } from './model.js';
+import { actualFor } from '../props.js';
 
 // Standard lines to evaluate the model at, sampling the CDF across its range.
-// Partial: hits/home_runs have no candidate lines yet -- grading them is
-// Task 3's job (actual-outcome mapping below only knows tb/so). The `?? []`
-// at the call site means props without an entry simply produce no evals,
-// rather than crashing or guessing at unreviewed line values.
-const CANDIDATE_LINES: Partial<Record<PropKind, number[]>> = {
+// Record<PropKind, ...> is exhaustive: a prop missing from this map fails
+// typecheck rather than silently producing zero evals.
+const CANDIDATE_LINES: Record<PropKind, number[]> = {
   total_bases: [0.5, 1.5, 2.5, 3.5],
+  hits: [0.5, 1.5, 2.5],
+  home_runs: [0.5],   // HR props realistically trade only at 0.5
   strikeouts: [3.5, 4.5, 5.5, 6.5, 7.5, 8.5],
 };
 
@@ -42,9 +43,11 @@ export async function backfill(from: string, to: string, props: PropKind[]): Pro
     const rows = (
       await query<{
         player_id: number; game_id: number; prop_type: PropKind;
-        proj_mean: string; proj_stdev: string | null; dist: number[] | null; tb: number | null; so: number | null;
+        proj_mean: string; proj_stdev: string | null; dist: number[] | null;
+        tb: number | null; h: number | null; hr: number | null; so: number | null;
       }>(
-        `SELECT p.player_id, p.game_id, p.prop_type, p.proj_mean, p.proj_stdev, p.dist, b.tb, ps.so
+        `SELECT p.player_id, p.game_id, p.prop_type, p.proj_mean, p.proj_stdev, p.dist,
+                b.tb, b.h, b.hr, ps.so
          FROM projections p
          JOIN games g ON g.id = p.game_id
          LEFT JOIN player_game_batting  b  ON b.game_id  = p.game_id AND b.player_id  = p.player_id
@@ -56,7 +59,7 @@ export async function backfill(from: string, to: string, props: PropKind[]): Pro
 
     await withTx(async (c) => {
       for (const r of rows) {
-        const actual = r.prop_type === 'total_bases' ? r.tb : r.so;
+        const actual = actualFor(r.prop_type, r);
         if (actual == null || r.proj_stdev == null) continue;
         const mean = Number(r.proj_mean);
         const stdev = Number(r.proj_stdev);

@@ -3,10 +3,13 @@ import { getEvents, getEventOdds } from '../clients/oddsApi.js';
 import { MODEL_VERSION } from '../project/model.js';
 import { pOver, pOverFromPmf, deVig } from '@mlb-edge/db';
 import { buildGameIndex, buildPlayerIndex, normalize } from './match.js';
+import type { PropKind } from '../project/index.js';
+import { actualFor } from '../props.js';
 
-type Prop = 'total_bases' | 'strikeouts';
-const MARKET_TO_PROP: Record<string, Prop> = {
+const MARKET_TO_PROP: Record<string, PropKind> = {
   batter_total_bases: 'total_bases',
+  batter_hits: 'hits',
+  batter_home_runs: 'home_runs',
   pitcher_strikeouts: 'strikeouts',
 };
 const MARKETS = Object.keys(MARKET_TO_PROP);
@@ -21,7 +24,7 @@ export interface PullOptions {
 interface LineRow {
   playerId: number;
   gameId: number;
-  prop: Prop;
+  prop: PropKind;
   line: number;
   overOdds: number;
   underOdds: number;
@@ -162,7 +165,7 @@ export async function pullLines(date: string, opts: PullOptions): Promise<PullRe
   const ref = referenceLines(rows);
 
   interface PickRow {
-    playerId: number; gameId: number; prop: Prop; side: 'over' | 'under';
+    playerId: number; gameId: number; prop: PropKind; side: 'over' | 'under';
     prob: number; line: number; odds: number; fair: number; edge: number;
   }
   const picks: PickRow[] = [];
@@ -250,8 +253,8 @@ export async function captureClosing(date: string, opts: PullOptions): Promise<n
 // Grade settled picks against actual box-score outcomes (TB / SO from rollups).
 export async function settleResults(date: string): Promise<number> {
   const rows = (
-    await query<{ id: number; prop_type: string; side: 'over' | 'under'; pick_line: string; tb: number | null; so: number | null }>(
-      `SELECT pk.id, pk.prop_type, pk.side, pk.pick_line, b.tb, ps.so
+    await query<{ id: number; prop_type: string; side: 'over' | 'under'; pick_line: string; tb: number | null; h: number | null; hr: number | null; so: number | null }>(
+      `SELECT pk.id, pk.prop_type, pk.side, pk.pick_line, b.tb, b.h, b.hr, ps.so
        FROM picks pk
        JOIN games g ON g.id = pk.game_id
        LEFT JOIN player_game_batting  b  ON b.game_id  = pk.game_id AND b.player_id  = pk.player_id
@@ -264,7 +267,7 @@ export async function settleResults(date: string): Promise<number> {
   let settled = 0;
   await withTx(async (c) => {
     for (const r of rows) {
-      const actual = r.prop_type === 'total_bases' ? r.tb : r.so;
+      const actual = actualFor(r.prop_type, r);
       if (actual == null) continue;
       const line = Number(r.pick_line);
       let won: boolean | null;
