@@ -6,14 +6,32 @@ export async function getScorecard(): Promise<Scorecard> {
   const row = (
     await query<{
       settled: string; with_close: string; avg_clv: number | string | null;
-      synthetic_settled: string; clv_games: string;
+      synthetic_settled: string; clv_games: string; excluded_close: string;
     }>(`
       SELECT
         count(*) FILTER (WHERE pk.result IS NOT NULL AND NOT g.is_synthetic)     AS settled,
-        count(*) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic) AS with_close,
-        (avg(pk.clv_pct) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic))::float8 AS avg_clv,
+        -- A close taken after first pitch is a LIVE in-game price, not a closing
+        -- price; NULL means "not verifiable" (pre-backfill or demo data). Both
+        -- are excluded from every CLV aggregate below. \`settled\` and
+        -- \`synthetic_settled\` are deliberately NOT filtered -- they count
+        -- graded outcomes, which capture timing does not affect.
+        count(*) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic
+                           AND pk.close_captured_at IS NOT NULL
+                           AND pk.close_captured_at < g.start_time) AS with_close,
+        (avg(pk.clv_pct) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic
+                                   AND pk.close_captured_at IS NOT NULL
+                                   AND pk.close_captured_at < g.start_time))::float8 AS avg_clv,
         count(*) FILTER (WHERE pk.result IS NOT NULL AND g.is_synthetic)         AS synthetic_settled,
-        count(DISTINCT pk.game_id) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic) AS clv_games
+        count(DISTINCT pk.game_id) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic
+                                             AND pk.close_captured_at IS NOT NULL
+                                             AND pk.close_captured_at < g.start_time) AS clv_games,
+        -- Real picks with a close_line that with_close above does NOT count --
+        -- captured at/after first pitch, or never stamped. Surfaced so a reader
+        -- comparing against a raw \`close_line IS NOT NULL\` count sees where the
+        -- gap went, instead of a smaller with_close and no explanation.
+        count(*) FILTER (WHERE pk.close_line IS NOT NULL AND NOT g.is_synthetic
+                           AND NOT (pk.close_captured_at IS NOT NULL
+                                     AND pk.close_captured_at < g.start_time)) AS excluded_close
       FROM picks pk JOIN games g ON g.id = pk.game_id
     `)
   ).rows[0];
@@ -29,5 +47,6 @@ export async function getScorecard(): Promise<Scorecard> {
     ece,
     syntheticSettled: Number(row.synthetic_settled),
     clvGames: Number(row.clv_games),
+    excludedClose: Number(row.excluded_close),
   };
 }

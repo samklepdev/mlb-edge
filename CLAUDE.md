@@ -46,7 +46,9 @@ Fallback: `npm run -w @mlb-edge/pipeline cli -- <args>`.
 ## Pipeline order (stages read the previous stage's output; dates must match)
 `ingest schedule` → `ingest games` (box scores = the model's history) →
 `project` (distributions → `projections.dist`) → `lines pull` (prices vs
-de-vigged market, writes edge `picks`) → `lines capture` (closing lines → CLV) →
+de-vigged market, writes edge `picks`) → `lines capture` (closing lines → CLV; **must run BEFORE first pitch** — it
+skips started games, because a price quoted after first pitch is a live
+in-game price, not a closing one) →
 `settle` (grade vs actual outcomes). `backfill` = project a past range + evaluate
 vs reality; `backtest` = calibration report (reliability, ECE, Brier).
 
@@ -76,6 +78,16 @@ vs reality; `backtest` = calibration report (reliability, ECE, Brier).
 - Park factors are a stub table; the pitcher factor is a hits-allowed proxy.
 - The per-PA independence assumption slightly understates variance (mild residual
   overconfidence in high-probability buckets at large n).
+- CLV **reads** (`clv.ts`, `scorecard.ts`) structurally exclude any row where
+  `close_captured_at` is null or `>= games.start_time` — this guarantee covers
+  CLV only, not the whole pipeline: live quotes still land in `market_lines`,
+  and `lines reprice` prefers the newest row, so a late capture can still feed
+  a live price into `pick_fair_prob` on reprice. Historical `close_captured_at`
+  is a conservative proxy (`max(market_lines.fetched_at)` per slate), not a
+  true timestamp. Of the 164 rows this excludes from the pre-2026-09-12
+  baseline, only 105 are provably post-first-pitch (a later quote exists for
+  that player/game/prop); the other 59 (all 2026-09-11) have no post-start
+  quote and are excluded as unverifiable, not proven contaminated.
 
 ## Open work, prioritized
 1. Run the forward CLV loop — the actual unanswered question.

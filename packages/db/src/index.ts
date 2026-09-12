@@ -2,7 +2,7 @@ export { config } from './config.js';
 export { pool, query, withTx } from './pool.js';
 export * from './types.js';
 export { normalCdf, pOver, pOverFromPmf, americanToImplied, deVig } from './prob.js';
-export { clvByProp } from './queries/clv.js';
+export { clvByProp, clvExcludedCount } from './queries/clv.js';
 export { calibrationBuckets } from './queries/calibration.js';
 export { getScorecard } from './queries/scorecard.js';
 export { latestSlateDate, getSlateGames, getTopEdges, getSlateRoster } from './queries/slate.js';

@@ -156,6 +156,12 @@ program
     console.log(`wrote ${count} projection(s) for ${o.date} (model ${MODEL_VERSION})`);
   });
 
+// Game times are stored as timestamptz; report them in UTC so the output does
+// not silently change meaning with the operator's local timezone.
+function fmtUtc(d: Date): string {
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`;
+}
+
 function pullOptions(o: { books: string; sharp: string; regions: string; edge: string }): PullOptions {
   return {
     books: o.books.split(',').map((s) => s.trim()).filter(Boolean),
@@ -207,8 +213,27 @@ lines
   .option('--regions <regions>', 'odds regions', 'us')
   .option('--edge <pct>', 'unused for capture', '0.03')
   .action(async (o: { date: string; books: string; sharp: string; regions: string; edge: string }) => {
-    const n = await captureClosing(o.date, pullOptions(o));
-    console.log(`updated closing line + CLV on ${n} pick(s) for ${o.date}`);
+    const r = await captureClosing(o.date, pullOptions(o));
+    if (!r.fetched) {
+      if (r.gamesStarted === 0) {
+        console.log(`no games for ${o.date} — 0 upcoming, 0 started; nothing to capture, 0 API credits spent`);
+        console.log(`Hint: no games in the DB for ${o.date}. Run: npm run ingest -- schedule --date ${o.date}`);
+      } else {
+        console.log(
+          `no upcoming games for ${o.date} — all ${r.gamesStarted} game(s) have started; ` +
+            `skipped ${r.skipped} pick(s), 0 API credits spent`,
+        );
+      }
+      return;
+    }
+    console.log(
+      `captured ${r.updated} pick(s)` +
+        (r.skipped > 0 ? `; skipped ${r.skipped} on ${r.gamesStarted} game(s) already started` : ''),
+    );
+    if (r.nextFirstPitch != null && r.lastFirstPitch != null) {
+      const mins = Math.round((r.nextFirstPitch.getTime() - Date.now()) / 60000);
+      console.log(`next first pitch ${fmtUtc(r.nextFirstPitch)} (in ${mins}m) · last ${fmtUtc(r.lastFirstPitch)}`);
+    }
   });
 lines
   .command('reprice')

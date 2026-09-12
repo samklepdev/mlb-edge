@@ -264,17 +264,68 @@ export async function repriceLines(
   return { linesRead: rows.length, picksWritten };
 }
 
-// Re-fetch near game time and record closing line value on existing picks.
-export async function captureClosing(date: string, opts: PullOptions): Promise<number> {
+export interface CaptureResult {
+  updated: number;
+  skipped: number;
+  gamesStarted: number;
+  nextFirstPitch: Date | null;
+  lastFirstPitch: Date | null;
+  fetched: boolean;
+}
+
+// Capture closing lines, but only for games that have not started. A price
+// quoted after first pitch is a LIVE in-game price: recording it as a "closing"
+// line is what contaminated 164 of the first 500 CLV rows.
+export async function captureClosing(date: string, opts: PullOptions): Promise<CaptureResult> {
+  // Slate timing BEFORE any network call. If nothing is upcoming there is no
+  // closing market left to capture, and a full fetch costs ~120 credits against
+  // a 500/month free tier -- so this early exit is the difference between
+  // spending 120 credits and spending 0.
+  const timing = (
+    await query<{ upcoming: string; started: string; next_start: Date | null; last_start: Date | null }>(
+      `SELECT count(*) FILTER (WHERE g.start_time >  now()) AS upcoming,
+              count(*) FILTER (WHERE g.start_time <= now()) AS started,
+              min(g.start_time) FILTER (WHERE g.start_time > now()) AS next_start,
+              max(g.start_time) AS last_start
+       FROM games g
+       WHERE g.game_date = $1 AND NOT g.is_synthetic`,
+      [date],
+    )
+  ).rows[0];
+
+  const upcoming = Number(timing.upcoming);
+  const gamesStarted = Number(timing.started);
+
+  const skipped = Number(
+    (
+      await query<{ n: string }>(
+        `SELECT count(*) AS n
+         FROM picks pk JOIN games g ON g.id = pk.game_id
+         WHERE g.game_date = $1 AND g.start_time <= now() AND NOT g.is_synthetic`,
+        [date],
+      )
+    ).rows[0].n,
+  );
+
+  if (upcoming === 0) {
+    return {
+      updated: 0, skipped, gamesStarted,
+      nextFirstPitch: null, lastFirstPitch: timing.last_start, fetched: false,
+    };
+  }
+
   const { rows } = await fetchLines(date, opts);
   await storeLines(rows);
   const ref = referenceLines(rows);
 
+  // `g.start_time > now()` is the guard: a started game's picks are never
+  // written. Wall-clock at capture time, so a rain-delayed game counts as
+  // started -- correct, because its market is no longer a closing market either.
   const openPicks = (
     await query<{ id: number; player_id: number; game_id: number; prop_type: string; side: 'over' | 'under' }>(
       `SELECT pk.id, pk.player_id, pk.game_id, pk.prop_type, pk.side
        FROM picks pk JOIN games g ON g.id = pk.game_id
-       WHERE g.game_date = $1`,
+       WHERE g.game_date = $1 AND g.start_time > now()`,
       [date],
     )
   ).rows;
@@ -290,14 +341,18 @@ export async function captureClosing(date: string, opts: PullOptions): Promise<n
       await c.query(
         `UPDATE picks
          SET close_line = $1, close_odds = $2, close_fair_prob = $3,
-             clv_pct = $3 - pick_fair_prob
+             clv_pct = $3 - pick_fair_prob, close_captured_at = now()
          WHERE id = $4`,
         [r.line, closeOdds, closeFair.toFixed(4), pk.id],
       );
       updated++;
     }
   });
-  return updated;
+
+  return {
+    updated, skipped, gamesStarted,
+    nextFirstPitch: timing.next_start, lastFirstPitch: timing.last_start, fetched: true,
+  };
 }
 
 // Grade settled picks against actual box-score outcomes (TB / hits / HR from

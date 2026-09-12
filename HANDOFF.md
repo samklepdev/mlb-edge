@@ -44,14 +44,14 @@ Verified: `npm run typecheck` and `npm run web:build` are green.
 
 | Command | What it does |
 |---|---|
-| `npm run db:migrate` | apply migrations 001–006 |
+| `npm run db:migrate` | apply migrations 001–008 |
 | `npm run seed:demo` | synthetic settled picks (no API key) |
 | `npm run ingest -- schedule --date <d>` / `-- games --date <d>` | schedule / box scores |
 | `npm run project -- --date <d> [--prop ..]` | projections (distributions) |
 | `npm run backfill -- --from <d> --to <d> [--prop ..]` | project a range + eval vs reality |
 | `npm run backtest` | model-calibration report, per prop (ECE + Brier + reliability); pooled total is not comparable across prop mixes |
 | `npm run lines -- pull --date <d> [--books ..][--sharp ..][--regions ..][--edge ..]` | store lines + log edge picks |
-| `npm run lines -- capture --date <d> [..]` | closing line + CLV on the slate's picks |
+| `npm run lines -- capture --date <d> [..]` | closing line + CLV on the slate's picks — run before first pitch; skips started games and spends 0 credits if the whole slate has started |
 | `npm run settle -- --date <d>` | grade picks vs actual box-score outcomes |
 | `npm run clv` / `npm run calibrate` | CLI reports on settled picks |
 | `npm run web:dev` / `web:build` | dashboard at :3000 / prod build |

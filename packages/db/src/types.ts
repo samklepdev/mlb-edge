@@ -22,6 +22,8 @@ export interface Scorecard {
   syntheticSettled: number;  // settled DEMO picks, excluded from every figure above
   clvGames: number;          // distinct real games behind picksWithClose -- picks cluster
                               // heavily by slate, so this is the real effective sample size
+  excludedClose: number;     // real picks with a close_line NOT counted in picksWithClose --
+                              // captured at/after first pitch, or never stamped
 }
 
 export interface SlateGame {
