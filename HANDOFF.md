@@ -16,11 +16,12 @@ educated prop guesses.
 | Phase 5 — model-calibration backtest (`backfill`/`backtest`) | ✅ |
 | Model v0.2 — exact total-bases / strikeout distributions | ✅ (replaces normal approx) |
 | Dashboard — backtest plot, slate browse, top edges, **player card** | ✅ |
-| Team win / margin ("by how much") | ⛔ needs a game model — see Next steps |
+| Game-outcome model v0.1 — team runs → moneyline / run_line / total | ✅ built; roughly calibrated, **no measurable resolution** |
+| Game model — market lines, CLV, dashboard page | ⛔ not built (deliberate — see Next steps) |
 
 Verified: `npm run typecheck` and `npm run web:build` are green.
 
-## Two kinds of "is it any good?"
+## Kinds of "is it any good?"
 
 1. **Model calibration (no market needed).** Do the model's probabilities match
    reality? `backfill` projects past slates and, for finished games, evaluates
@@ -40,11 +41,24 @@ Verified: `npm run typecheck` and `npm run web:build` are green.
    market. The free Odds API has no *historical* odds, so this only accrues
    forward, slate by slate, via `lines pull` → `lines capture` → `settle`.
 
+And, for the **game-outcome model**, a third question that the prop side does not
+ask yet:
+
+3. **Resolution (no market needed).** Does the model carry any *information*, or
+   is it just tracking base rates? `team-backtest` reports, per market, the
+   advantage of the model's Brier score over a baseline that predicts each
+   candidate line's own hit rate, with a 95% interval clustered by `game_id` (one
+   game contributes up to 4 evals scored against one realized outcome). A
+   well-calibrated model can score zero here; calibration and resolution are
+   different properties, and this is the one that decides whether the model is
+   worth pricing. **Current answer: no market has measurable resolution, and
+   `total` is significantly worse than its baseline.**
+
 ## Commands (run from repo root; args after `--` pass through)
 
 | Command | What it does |
 |---|---|
-| `npm run db:migrate` | apply migrations 001–008 |
+| `npm run db:migrate` | apply migrations 001–009 |
 | `npm run seed:demo` | synthetic settled picks (no API key) |
 | `npm run ingest -- schedule --date <d>` / `-- games --date <d>` | schedule / box scores |
 | `npm run project -- --date <d> [--prop ..]` | projections (distributions) |
@@ -54,6 +68,9 @@ Verified: `npm run typecheck` and `npm run web:build` are green.
 | `npm run lines -- capture --date <d> [..]` | closing line + CLV on the slate's picks — run before first pitch; skips started games and spends 0 credits if the whole slate has started |
 | `npm run settle -- --date <d>` | grade picks vs actual box-score outcomes |
 | `npm run clv` / `npm run calibrate` | CLI reports on settled picks |
+| `npm run team-backfill -- --from <d> --to <d>` | **game model:** project team run distributions over a range (`team_projections`) + evaluate `moneyline`/`run_line`/`total` vs actual outcomes (`team_model_evals`) |
+| `npm run team-backtest` | **game model:** per-market reliability, ECE, Brier, and the resolution verdict vs the per-line base rate |
+| `npm run verify:resolution` | executable checks for the resolution statistics — pure invariants plus SQL oracles pinned to the current eval population; run after any change to `resolution.ts` / `teamBacktest.ts` |
 | `npm run web:dev` / `web:build` | dashboard at :3000 / prod build |
 | `npm run typecheck` | build db + typecheck all packages |
 
@@ -69,6 +86,11 @@ done
 npm run backfill -- --from 2026-08-25 --to 2026-09-07
 npm run backtest            # ECE / Brier / reliability — is the model calibrated?
 npm run web:dev             # same plot on the dashboard
+
+# the SEPARATE game-outcome model over the same history:
+npm run team-backfill -- --from 2026-08-25 --to 2026-09-07
+npm run team-backtest       # per-market ECE/Brier AND the resolution verdict
+npm run verify:resolution   # the resolution math's own checks
 
 # forward, for market edge (odds only exist for UPCOMING games):
 npm run ingest  -- schedule --date <today>
@@ -90,11 +112,16 @@ npm run lines   -- capture --date <today> --sharp pinnacle --regions us,eu   # b
 ## Layout
 
 ```
-packages/db/       @mlb-edge/db — pool, config, types, prob helpers, and the
-                   query layer (clv, calibration, scorecard, slate, player,
-                   backtest). Compiles to dist/.
-packages/pipeline/ ingest/ project/ (+backfill) market/ backtest/ clients/
+packages/db/       @mlb-edge/db — pool, config, types, prob helpers,
+                   resolution.ts (the advantage/interval/verdict math, pure),
+                   and the query layer (clv, calibration, scorecard, slate,
+                   player, backtest, teamBacktest). Compiles to dist/.
+packages/pipeline/ ingest/ project/ (+backfill) game/ market/ backtest/ clients/
+                   game/  = the SEPARATE game-outcome model: model.ts (its own
+                            constants + TEAM_MODEL_VERSION), distribution.ts,
+                            outcomes.ts, project.ts, backfill.ts
 apps/web/          Next.js 16 — page.tsx, player/, _components/, api/
+                   (prop model only; the game model has no page)
 ```
 
 ## Known seams
@@ -107,27 +134,64 @@ apps/web/          Next.js 16 — page.tsx, player/, _components/, api/
   (ECE 0.091 on v0.1). Re-run `backfill` then `backtest` to see the v0.2 curve —
   note the 0.091 → 0.028 v0.1/v0.2 figures were both measured on the original
   two-prop population (`total_bases`, `strikeouts`); read per-prop, not pooled,
-  now that `hits`/`home_runs` are in the mix (see "Two kinds of 'is it any good'"
+  now that `hits`/`home_runs` are in the mix (see "Kinds of 'is it any good?'"
   above).
 - **`hits`@0.5 duplicates `total_bases`@0.5.** A batter records >=1 total base
   iff they record >=1 hit, so at the 0.5 line these two props grade the exact
   same event. `backtest` reports them separately (correctly — the market prices
   them as separate lines) but don't mistake two rows for two pieces of evidence.
-- **Park/pitcher factors** are a stub table + a hits-allowed proxy.
+- **Park/pitcher factors** are a stub table + a hits-allowed proxy. In the game
+  model park factors are simply neutral (`PARK_FACTOR = 1.0`) and the bullpen is
+  held at league average.
+- **Game model: independent convolution.** `game/outcomes.ts` treats the two
+  teams' run distributions as independent. They are not — a home team leading
+  after 8.5 innings does not bat again — and this is the largest v0
+  approximation.
+- **Game model: in-sample league constants.** `RUNS_DISPERSION`, `LEAGUE_RUNS*`,
+  `LEAGUE_ER_PER_BF`, `STARTER_OUT_SHARE` were measured over ~4730 team-games;
+  `team-backtest` evaluates 4710 team-games. Essentially the same population, so
+  the ECE figures are optimistic by an unmeasured amount.
+- **Game model: the resolution baseline is per `(market, line)`.** Not per
+  market — the model is told which line it is pricing, so the baseline must be
+  too. `verify:resolution` pins this; don't collapse `baseRateBrier` back to
+  `baseRate*(1-baseRate)`.
 - **@mlb-edge/db compiles to dist** — after editing it, `npm run build:db`
   (or `npm run -w @mlb-edge/db dev` to watch). Never import it from a
   `"use client"` file; `pg` is in `serverExternalPackages`.
 
 ## Next steps
 
-**Team win / margin — the next real modeling phase.** The current model is
-player-props only; it does not predict who wins or by how much. That needs a
-game-outcome model: e.g. aggregate the batting projections into expected team
-runs (or a Poisson/Elo team model), then win probability and expected margin.
-The honest interim is to pull game lines (`h2h`, `spreads`, `totals`) from the
-Odds API into a `game_lines` table and show the **market's** de-vigged win prob
-and run line on a `/game` page — clearly labeled as market consensus, not the
-model. Then build the model version and compare, exactly like the player side.
+**Game-outcome model — built, but it has not earned a market path.** A separate
+model now exists (`packages/pipeline/src/game/`, `TEAM_MODEL_VERSION =
+game-v0.1`, tables `team_projections` / `team_model_evals`, migration
+`009_team_model.sql`). It projects each team's runs as a negative binomial,
+convolves the two, and derives `moneyline`, `run_line` (±1.5) and `total`
+(7.5–10.5). It is **not** an extension of the prop model: separate version
+column, separate tables, separate report, and no prop-model constants imported
+under `game/`.
+
+Measured on 2355 games (`npm run team-backtest`): ECE 0.031–0.051 per market,
+so roughly calibrated — but **no market shows measurable resolution**. Against a
+baseline that predicts each candidate line's own hit rate, `run_line` (+0.00036)
+and `moneyline` (−0.00213) are indistinguishable from that baseline, and `total`
+(−0.00581, 95% CI [−0.0098, −0.0019]) is *significantly worse*. The baseline is
+per `(market, line)` on purpose: a pooled per-market rate would credit the model
+for merely knowing which line it is pricing, since pooled
+`r(1-r) = E[r_k(1-r_k)] + Var(r_k)`.
+
+Two known approximations to attack before believing any of these numbers:
+the two run distributions are convolved as **independent** (a home team leading
+after 8.5 innings does not bat again), and the league constants in
+`game/model.ts` were fitted on essentially the same team-games the backtest
+evaluates, so the calibration figures are optimistic by an unmeasured amount.
+
+Next steps on the game side, in order: (1) an innings-aware / correlated
+convolution, with a `TEAM_MODEL_VERSION` bump and a re-`team-backfill`, judged
+on *resolution*, not ECE; (2) out-of-sample constants; (3) only then a market
+path — game lines (`h2h`, `spreads`, `totals`) into a `game_lines` table and a
+`/game` page. Pulling market prices first would just show the market's consensus
+next to a model that has not been shown to know anything, so it is deliberately
+not built.
 
 **Model quality.** v0.2 replaced the normal approximation with exact distributions
 (the biggest miscalibration fix). After pulling v0.2, re-measure:
