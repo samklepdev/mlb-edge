@@ -17,7 +17,8 @@ educated prop guesses.
 | Model v0.2 — exact total-bases / strikeout distributions | ✅ (replaces normal approx) |
 | Dashboard — backtest plot, slate browse, top edges, **player card** | ✅ |
 | Game-outcome model v0.1 — team runs → moneyline / run_line / total | ✅ built; roughly calibrated, **no measurable resolution** |
-| Game model — market lines, CLV, dashboard page | ⛔ not built (deliberate — see Next steps) |
+| Game model — `/team` measurement page (calibration + resolution verdict) | ✅ verdict-first; nothing priced |
+| Game model — market lines, CLV, edge display | ⛔ not built (deliberate — see Next steps) |
 
 Verified: `npm run typecheck` and `npm run web:build` are green.
 
@@ -189,9 +190,10 @@ Next steps on the game side, in order: (1) an innings-aware / correlated
 convolution, with a `TEAM_MODEL_VERSION` bump and a re-`team-backfill`, judged
 on *resolution*, not ECE; (2) out-of-sample constants; (3) only then a market
 path — game lines (`h2h`, `spreads`, `totals`) into a `game_lines` table and a
-`/game` page. Pulling market prices first would just show the market's consensus
-next to a model that has not been shown to know anything, so it is deliberately
-not built.
+pricing view separate from the existing `/team` measurement page. Pulling market
+prices first would just show the market's consensus next to a model that has not
+been shown to know anything, so it is deliberately not built. `/team` is not that
+path: it reports calibration and the resolution verdict and prices nothing.
 
 **Model quality.** v0.2 replaced the normal approximation with exact distributions
 (the biggest miscalibration fix). After pulling v0.2, re-measure:

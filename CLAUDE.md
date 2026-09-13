@@ -30,8 +30,10 @@ Never mix their numbers:
   layer. **Compiles to `dist/`.**
 - `packages/pipeline` (`@mlb-edge/pipeline`) — the CLI; runs from source via tsx.
   Modules: `ingest/ project/ game/ market/ backtest/ clients/`.
-- `apps/web` (`@mlb-edge/web`) — Next.js 16 App Router dashboard. **Prop model
-  only** — it does not surface the game model yet.
+- `apps/web` (`@mlb-edge/web`) — Next.js 16 App Router dashboard. `/` and
+  `/player` are **prop model only**. `/team` is the game model's **measurement**
+  page — per-market calibration and the resolution verdict, nothing priced. The
+  two models' figures are never shown together; don't merge the routes.
 
 ## Two build rules that cause every stumble here
 1. **`@mlb-edge/db` runs from compiled `dist/`, not source.** After ANY edit to
@@ -193,9 +195,11 @@ has no market/CLV stage at all.
    re-`team-backfill`; judge it on resolution, not ECE.
 5. Game model: re-fit the `game/model.ts` league constants out-of-sample, or at
    minimum re-measure calibration on a range they were not fitted on.
-6. Game model: no market/CLV path exists (no `game_lines` table, no dashboard
-   page). Deliberate — there is nothing worth pricing until something beats its
-   baseline.
+6. Game model: no market/CLV path exists (no `game_lines` table, no pricing or
+   edge display). Deliberate — there is nothing worth pricing until something
+   beats its baseline. The `/team` page is a **measurement** readout only: it
+   reports calibration and the resolution verdict and presents no probability
+   as an edge. Keep it that way until a market earns it.
 
 ## Discipline to preserve (this is the point of the project)
 - A large edge is a **hypothesis, not a green light**. The model is calibrated but
