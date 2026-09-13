@@ -6,6 +6,7 @@ import { ingestFinalGames, ingestBoxscore } from './ingest/games.js';
 import { seedDemo } from './seed/demo.js';
 import { runProjections, ALL_PROPS, type PropKind } from './project/index.js';
 import { backfill } from './project/backfill.js';
+import { backfillTeams } from './game/backfill.js';
 import { backtestReport } from './backtest/report.js';
 import { healthReport } from './health/report.js';
 import { MODEL_VERSION } from './project/model.js';
@@ -311,6 +312,16 @@ program
       return;
     }
     console.log(`backfilled ${r.dates} date(s): ${r.projected} projection(s), ${r.evals} model eval(s)`);
+  });
+
+program
+  .command('team-backfill')
+  .description('project team run distributions over a date range and evaluate them vs actual outcomes')
+  .requiredOption('--from <YYYY-MM-DD>', 'start date')
+  .requiredOption('--to <YYYY-MM-DD>', 'end date')
+  .action(async (o: { from: string; to: string }) => {
+    const r = await backfillTeams(o.from, o.to);
+    console.log(`team-backfilled ${r.dates} date(s): ${r.projected} projection(s), ${r.evals} eval(s)`);
   });
 
 program
