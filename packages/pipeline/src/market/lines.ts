@@ -270,6 +270,16 @@ async function loadStoredLines(date: string): Promise<LineRow[]> {
             ml.over_odds, ml.under_odds, ml.source, ml.is_sharp
      FROM market_lines ml JOIN games g ON g.id = ml.game_id
      WHERE g.game_date = $1
+       -- Only games that are still bettable. This does double duty: reprice
+       -- stops writing picks nobody can act on, AND -- because
+       -- priceAndWritePicks derives its DELETE scope from the rows it is
+       -- handed -- an excluded game is never named in the delete, so its
+       -- picks and any captured closing lines survive untouched. That
+       -- preservation is load-bearing; do not "optimise" the gameIds
+       -- derivation to use the slate's games instead of the returned rows.
+       -- NULL start_time is excluded, matching startedGameIds: an
+       -- unverifiable start time is never trusted.
+       AND g.start_time > now()
        -- A quote fetched at or after first pitch is a LIVE in-game price. The
        -- ORDER BY below prefers the newest row, so without this a late capture's
        -- live quote would win. DISTINCT ON applies WHERE first, so excluding the
@@ -301,13 +311,22 @@ export interface RepriceResult {
   // captured closing lines and `force` was not passed. When true, linesRead
   // and picksWritten are both 0 -- nothing was read or written.
   refused: boolean;
-  // Count of this slate's picks with a non-null close_line, checked BEFORE
-  // any write. If refused is true, this is what refusing avoided destroying.
-  // If refused is false and this is > 0, `force` was passed and repricing
-  // just deleted and re-inserted all of this slate's picks, destroying that
-  // many rows' close_line/close_odds/close_fair_prob/clv_pct/
-  // close_captured_at/result.
+  // Count of this slate's picks with a non-null close_line ON AN UPCOMING GAME,
+  // checked BEFORE any write. Scoped to upcoming games because those are the
+  // only picks reprice can still delete -- a started game's picks are no longer
+  // touched at all. Counting the whole slate here would refuse on a fully
+  // started slate where repricing is provably harmless, which would train the
+  // operator to reach for --force.
+  // If refused is true, this is what refusing avoided destroying. If refused is
+  // false and this is > 0, `force` was passed and repricing just deleted and
+  // re-inserted the upcoming games' picks, destroying that many rows'
+  // close_line/close_odds/close_fair_prob/clv_pct/close_captured_at/result.
   capturedCount: number;
+  // Distinct games on this slate that HAVE stored market_lines rows and have
+  // already started -- i.e. exactly what the loadStoredLines filter excluded,
+  // not simply how many games are underway. A game that was never pulled had
+  // nothing to skip and is not counted.
+  startedGamesSkipped: number;
 }
 
 // Re-price a slate from lines already in the database. Zero API calls, so
@@ -320,24 +339,43 @@ export async function repriceLines(
   edgeThreshold: number,
   force = false,
 ): Promise<RepriceResult> {
+  // Scoped to upcoming games: those are the only picks reprice can still
+  // delete, so they are the only ones worth refusing over.
   const capturedCount = Number(
     (
       await query<{ n: string }>(
         `SELECT count(*) AS n
          FROM picks pk JOIN games g ON g.id = pk.game_id
-         WHERE g.game_date = $1 AND NOT g.is_synthetic AND pk.close_line IS NOT NULL`,
+         WHERE g.game_date = $1 AND NOT g.is_synthetic
+           AND pk.close_line IS NOT NULL
+           AND g.start_time > now()`,
+        [date],
+      )
+    ).rows[0].n,
+  );
+
+  // What the loadStoredLines filter excluded: games with stored lines that have
+  // already started. Computed even when refusing, so the CLI can always explain
+  // itself.
+  const startedGamesSkipped = Number(
+    (
+      await query<{ n: string }>(
+        `SELECT count(DISTINCT ml.game_id) AS n
+         FROM market_lines ml JOIN games g ON g.id = ml.game_id
+         WHERE g.game_date = $1 AND NOT g.is_synthetic
+           AND (g.start_time <= now() OR g.start_time IS NULL)`,
         [date],
       )
     ).rows[0].n,
   );
 
   if (capturedCount > 0 && !force) {
-    return { linesRead: 0, picksWritten: 0, refused: true, capturedCount };
+    return { linesRead: 0, picksWritten: 0, refused: true, capturedCount, startedGamesSkipped };
   }
 
   const rows = await loadStoredLines(date);
   const picksWritten = await priceAndWritePicks(date, rows, edgeThreshold);
-  return { linesRead: rows.length, picksWritten, refused: false, capturedCount };
+  return { linesRead: rows.length, picksWritten, refused: false, capturedCount, startedGamesSkipped };
 }
 
 export interface CaptureResult {

@@ -264,7 +264,16 @@ lines
       return;
     }
     const destroyed = r.capturedCount > 0 ? `; destroyed ${r.capturedCount} captured closing line(s)` : '';
-    console.log(`re-priced ${r.linesRead} stored line(s); wrote ${r.picksWritten} pick(s) — 0 API credits${destroyed}`);
+    const skipped = r.startedGamesSkipped > 0 ? `; skipped ${r.startedGamesSkipped} started game(s)` : '';
+    console.log(
+      `re-priced ${r.linesRead} stored line(s); wrote ${r.picksWritten} pick(s) — 0 API credits${skipped}${destroyed}`,
+    );
+    if (r.linesRead === 0 && r.startedGamesSkipped > 0) {
+      console.log(
+        `Hint: every game with stored lines on ${o.date} has started; nothing is still bettable, ` +
+          'and existing picks were left untouched.',
+      );
+    }
   });
 
 program
