@@ -1,8 +1,11 @@
 import { query } from '@mlb-edge/db';
 
 // Team outcomes are DERIVED, not ingested: player_game_batting carries r and
-// team_id, and every non-synthetic game has exactly two teams with batting
-// rows. This is the ground truth the model is graded against.
+// team_id. Every non-synthetic game currently has exactly two teams with
+// batting rows; teamOutcomes() enforces that rather than assuming it, so a
+// malformed game (wrong number of sides, or a derived tie) is excluded
+// instead of silently corrupting the population. This is the ground truth
+// the model is graded against.
 export interface TeamGameOutcome {
   gameId: number;
   teamId: number;
@@ -32,6 +35,9 @@ export async function teamOutcomes(before?: string): Promise<TeamGameOutcome[]> 
        JOIN games g ON g.id = b.game_id
        WHERE NOT g.is_synthetic ${dateFilter}
        GROUP BY b.game_id, b.team_id
+     ),
+     two_sided AS (
+       SELECT game_id FROM s GROUP BY game_id HAVING count(*) = 2
      )
      SELECT s.game_id, s.team_id,
             o.team_id AS opp_team_id,
@@ -39,12 +45,15 @@ export async function teamOutcomes(before?: string): Promise<TeamGameOutcome[]> 
             s.runs AS runs_for,
             o.runs AS runs_against
      FROM s
+     JOIN two_sided t ON t.game_id = s.game_id
      JOIN s o ON o.game_id = s.game_id AND o.team_id <> s.team_id
      JOIN games g ON g.id = s.game_id
-     -- A completed MLB game cannot end tied. Equal derived runs means an
-     -- incomplete or suspended box score; scoring it as a draw would inject an
-     -- impossible outcome into calibration, so it is excluded here and counted
-     -- by outcomeExclusions().
+     -- Malformed games are excluded, not scored: a game without exactly two
+     -- distinct teams in player_game_batting (missing side, or a mis-tagged
+     -- team_id fanning out to 3+) is dropped by the two_sided join above, and
+     -- a completed MLB game cannot end tied -- equal derived runs means an
+     -- incomplete or suspended box score. Both classes are counted by
+     -- outcomeExclusions() rather than silently scored here.
      WHERE s.runs <> o.runs`,
     params,
   );
