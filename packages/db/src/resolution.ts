@@ -9,8 +9,8 @@ export const MIN_GAMES = 30;
 // t(0.975, df), as [df breakpoint, t] ascending by df.
 //
 // Selection rule: take the row with the largest breakpoint not exceeding df.
-// t decreases with df, so this always returns a t at least as large as the true
-// value -- the interval errs wide.
+// t decreases with df, so within the table's range this returns a t at least as
+// large as the true value -- the interval errs wide.
 //
 // The table bottoms out at 1.980 and deliberately has no 1.960 row: the true
 // t(0.975, 200) is 1.972, so a 1.960 row would narrow the interval BELOW truth
@@ -23,6 +23,17 @@ const T_TABLE: ReadonlyArray<readonly [number, number]> = [
   [120, 1.98],
 ];
 
+// PRECONDITION: df >= 29. The conservatism guarantee above holds only there.
+// The table's first row is the df=29 breakpoint, so any smaller df is clamped up
+// to 2.045 -- which is SMALLER than the true t and would narrow the interval
+// below truth. t(0.975, 10) is 2.228, t(0.975, 5) is 2.571.
+//
+// This is an exported `@mlb-edge/db` symbol, so the precondition belongs on the
+// function and not only on the table. It is not enforced at runtime because the
+// only call site enforces it structurally: resolutionFromStats() returns
+// 'insufficient' before reaching here unless games >= MIN_GAMES (30), and it
+// passes df = games - 1 >= 29. A new caller that does not gate on MIN_GAMES must
+// gate on df itself.
 export function tCritical(df: number): number {
   let t = T_TABLE[0][1];
   for (const [breakpoint, value] of T_TABLE) {
