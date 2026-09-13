@@ -78,16 +78,22 @@ vs reality; `backtest` = calibration report (reliability, ECE, Brier).
 - Park factors are a stub table; the pitcher factor is a hits-allowed proxy.
 - The per-PA independence assumption slightly understates variance (mild residual
   overconfidence in high-probability buckets at large n).
-- CLV **reads** (`clv.ts`, `scorecard.ts`) structurally exclude any row where
-  `close_captured_at` is null or `>= games.start_time` — this guarantee covers
-  CLV only, not the whole pipeline: live quotes still land in `market_lines`,
-  and `lines reprice` prefers the newest row, so a late capture can still feed
-  a live price into `pick_fair_prob` on reprice. Historical `close_captured_at`
-  is a conservative proxy (`max(market_lines.fetched_at)` per slate), not a
-  true timestamp. Of the 164 rows this excludes from the pre-2026-09-12
-  baseline, only 105 are provably post-first-pitch (a later quote exists for
-  that player/game/prop); the other 59 (all 2026-09-11) have no post-start
-  quote and are excluded as unverifiable, not proven contaminated.
+- Live in-game quotes are excluded at both ends: `fetchLines` skips games whose
+  first pitch has passed (so they never reach `market_lines`, and no credit is
+  spent on them), and both readers — `loadStoredLines` and `getPlayerCard` —
+  require `market_lines.fetched_at < games.start_time`. That guard is exact:
+  `fetched_at` is `NOT NULL` on every row. 271 live rows stored before the guard
+  remain in the table but are inert.
+- CLV reads (`clv.ts`, `scorecard.ts`) separately exclude any pick whose
+  `close_captured_at` is null or `>= games.start_time`. Historical
+  `close_captured_at` is a conservative proxy (`max(market_lines.fetched_at)` per
+  slate), NOT a true timestamp — unlike the `fetched_at` guard above. Of the 164
+  rows it excludes from the pre-2026-09-12 baseline, only 105 are provably
+  post-first-pitch; the other 59 (all 2026-09-11) have no post-start quote and
+  are excluded as unverifiable, not proven contaminated.
+- Capture lead time has no LOWER bound: the guard only enforces "not after first
+  pitch". Only 22 of the 336 kept CLV rows were captured within an hour of first
+  pitch; 153 were 3-7 hours out. "Closing line value" is still a generous label.
 
 ## Open work, prioritized
 1. Run the forward CLV loop — the actual unanswered question.
