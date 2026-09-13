@@ -34,6 +34,26 @@ interface LineRow {
 
 const key = (p: number, g: number, prop: string) => `${p}:${g}:${prop}`;
 
+// Games on this slate whose first pitch has passed, or whose start_time is
+// unverifiable. A NULL start_time satisfies neither `<= now()` nor `> now()`
+// under a naive test, but the read guards (loadStoredLines below, and
+// getPlayerCard) already treat an unverifiable start_time as excluded --
+// `ml.fetched_at < g.start_time` is NULL, hence false, when start_time is
+// NULL. Fetching such a game would spend a credit on a quote the read side
+// can never surface, so this treats NULL as started too, keeping the write
+// and read guards from disagreeing. `NOT is_synthetic` matches the
+// population captureClosing's timing query counts. Only the synthetic
+// sentinel has a NULL start_time today, and it carries no market_lines rows,
+// so this is a no-op on current data.
+async function startedGameIds(date: string): Promise<Set<number>> {
+  const res = await query<{ id: number }>(
+    `SELECT id FROM games
+     WHERE game_date = $1 AND NOT is_synthetic AND (start_time <= now() OR start_time IS NULL)`,
+    [date],
+  );
+  return new Set(res.rows.map((r) => r.id));
+}
+
 // Fetch all requested books' lines for a date, resolved to our player/game ids.
 interface FetchResult {
   rows: LineRow[];
@@ -42,12 +62,14 @@ interface FetchResult {
   oddsEvents: number;   // events the Odds API returned
   dbGames: number;      // games in our DB for this date
   matchedEvents: number; // events that resolved to a DB game
+  skippedStartedGames: number; // matched events skipped because first pitch had passed
 }
 async function fetchLines(date: string, opts: PullOptions): Promise<FetchResult> {
-  const [events, gameIndex, playerIndex] = await Promise.all([
+  const [events, gameIndex, playerIndex, startedGames] = await Promise.all([
     getEvents(),
     buildGameIndex(date),
     buildPlayerIndex(),
+    startedGameIds(date),
   ]);
   const wanted = new Set([...opts.books, opts.sharp]);
 
@@ -55,11 +77,18 @@ async function fetchLines(date: string, opts: PullOptions): Promise<FetchResult>
   const gameIds = new Set<number>();
   let unmatchedPlayers = 0;
   let matchedEvents = 0;
+  let skippedStartedGames = 0;
 
   for (const ev of events) {
     const gameId = gameIndex.get(`${normalize(ev.home_team)}|${normalize(ev.away_team)}`);
     if (gameId == null) continue; // event isn't on our slate for this date
     matchedEvents++;
+    // A price quoted after first pitch is a LIVE in-game price. Skipping here --
+    // after the match so it can be counted, BEFORE getEventOdds so it costs
+    // nothing -- does double duty: the live quote never reaches market_lines
+    // (where loadStoredLines and getPlayerCard would prefer it for being newest),
+    // and no credit is spent fetching data we would refuse to use.
+    if (startedGames.has(gameId)) { skippedStartedGames++; continue; }
     const odds = await getEventOdds(ev.id, MARKETS, opts.regions);
 
     for (const bk of odds.bookmakers) {
@@ -100,6 +129,7 @@ async function fetchLines(date: string, opts: PullOptions): Promise<FetchResult>
     oddsEvents: events.length,
     dbGames: gameIndex.size,
     matchedEvents,
+    skippedStartedGames,
   };
 }
 
@@ -153,6 +183,7 @@ export interface PullResult {
   oddsEvents: number;
   dbGames: number;
   matchedEvents: number;
+  skippedStartedGames: number;
 }
 
 // Price lines against current projections and replace this slate's picks.
@@ -209,7 +240,8 @@ async function priceAndWritePicks(date: string, rows: LineRow[], edgeThreshold: 
 // Pull lines, store them, then price each projection against the reference book
 // and log a pick wherever the model beats the de-vigged market by the threshold.
 export async function pullLines(date: string, opts: PullOptions): Promise<PullResult> {
-  const { rows, gameIds, unmatchedPlayers, oddsEvents, dbGames, matchedEvents } = await fetchLines(date, opts);
+  const { rows, gameIds, unmatchedPlayers, oddsEvents, dbGames, matchedEvents, skippedStartedGames } =
+    await fetchLines(date, opts);
   await storeLines(rows);
   const picksWritten = await priceAndWritePicks(date, rows, opts.edgeThreshold);
 
@@ -221,6 +253,7 @@ export async function pullLines(date: string, opts: PullOptions): Promise<PullRe
     oddsEvents,
     dbGames,
     matchedEvents,
+    skippedStartedGames,
   };
 }
 
@@ -237,6 +270,14 @@ async function loadStoredLines(date: string): Promise<LineRow[]> {
             ml.over_odds, ml.under_odds, ml.source, ml.is_sharp
      FROM market_lines ml JOIN games g ON g.id = ml.game_id
      WHERE g.game_date = $1
+       -- A quote fetched at or after first pitch is a LIVE in-game price. The
+       -- ORDER BY below prefers the newest row, so without this a late capture's
+       -- live quote would win. DISTINCT ON applies WHERE first, so excluding the
+       -- live row falls back to the newest PRE-START row for that key at no cost
+       -- -- no fallback logic is needed here.
+       -- NULL start_time makes this NULL, i.e. excluded: an unverifiable
+       -- timestamp is not trusted (matches how close_captured_at treats NULL).
+       AND ml.fetched_at < g.start_time
      ORDER BY ml.player_id, ml.game_id, ml.prop_type, ml.is_sharp DESC, ml.fetched_at DESC`,
     [date],
   );
@@ -253,15 +294,50 @@ async function loadStoredLines(date: string): Promise<LineRow[]> {
   return out;
 }
 
+export interface RepriceResult {
+  linesRead: number;
+  picksWritten: number;
+  // True when the run aborted before writing anything, because the slate has
+  // captured closing lines and `force` was not passed. When true, linesRead
+  // and picksWritten are both 0 -- nothing was read or written.
+  refused: boolean;
+  // Count of this slate's picks with a non-null close_line, checked BEFORE
+  // any write. If refused is true, this is what refusing avoided destroying.
+  // If refused is false and this is > 0, `force` was passed and repricing
+  // just deleted and re-inserted all of this slate's picks, destroying that
+  // many rows' close_line/close_odds/close_fair_prob/clv_pct/
+  // close_captured_at/result.
+  capturedCount: number;
+}
+
 // Re-price a slate from lines already in the database. Zero API calls, so
-// iterating on the model costs no odds quota.
+// iterating on the model costs no odds quota -- but `priceAndWritePicks`
+// deletes and re-inserts every pick on the slate, which destroys any
+// captured closing line. Refuse to do that silently: a slate with a captured
+// close only reprices when `force` is true.
 export async function repriceLines(
   date: string,
   edgeThreshold: number,
-): Promise<{ linesRead: number; picksWritten: number }> {
+  force = false,
+): Promise<RepriceResult> {
+  const capturedCount = Number(
+    (
+      await query<{ n: string }>(
+        `SELECT count(*) AS n
+         FROM picks pk JOIN games g ON g.id = pk.game_id
+         WHERE g.game_date = $1 AND NOT g.is_synthetic AND pk.close_line IS NOT NULL`,
+        [date],
+      )
+    ).rows[0].n,
+  );
+
+  if (capturedCount > 0 && !force) {
+    return { linesRead: 0, picksWritten: 0, refused: true, capturedCount };
+  }
+
   const rows = await loadStoredLines(date);
   const picksWritten = await priceAndWritePicks(date, rows, edgeThreshold);
-  return { linesRead: rows.length, picksWritten };
+  return { linesRead: rows.length, picksWritten, refused: false, capturedCount };
 }
 
 export interface CaptureResult {

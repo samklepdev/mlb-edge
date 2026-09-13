@@ -78,16 +78,43 @@ vs reality; `backtest` = calibration report (reliability, ECE, Brier).
 - Park factors are a stub table; the pitcher factor is a hits-allowed proxy.
 - The per-PA independence assumption slightly understates variance (mild residual
   overconfidence in high-probability buckets at large n).
-- CLV **reads** (`clv.ts`, `scorecard.ts`) structurally exclude any row where
-  `close_captured_at` is null or `>= games.start_time` — this guarantee covers
-  CLV only, not the whole pipeline: live quotes still land in `market_lines`,
-  and `lines reprice` prefers the newest row, so a late capture can still feed
-  a live price into `pick_fair_prob` on reprice. Historical `close_captured_at`
-  is a conservative proxy (`max(market_lines.fetched_at)` per slate), not a
-  true timestamp. Of the 164 rows this excludes from the pre-2026-09-12
-  baseline, only 105 are provably post-first-pitch (a later quote exists for
-  that player/game/prop); the other 59 (all 2026-09-11) have no post-start
-  quote and are excluded as unverifiable, not proven contaminated.
+- Live in-game quotes are excluded at both ends: `fetchLines` skips games whose
+  first pitch has passed (so they never reach `market_lines`, and no credit is
+  spent on them), and both readers — `loadStoredLines` and `getPlayerCard` —
+  require `market_lines.fetched_at < games.start_time`. That guard is exact:
+  `fetched_at` is `NOT NULL` on every row. 271 live rows stored before the guard
+  remain in the table but are inert.
+- CLV reads (`clv.ts`, `scorecard.ts`) separately exclude any pick whose
+  `close_captured_at` is null or `>= games.start_time`. Historical
+  `close_captured_at` is a conservative proxy (`max(market_lines.fetched_at)` per
+  slate), NOT a true timestamp — unlike the `fetched_at` guard above. Of the 164
+  rows it excludes from the pre-2026-09-12 baseline, only 105 are provably
+  post-first-pitch; the other 59 (all 2026-09-11) have no post-start quote and
+  are excluded as unverifiable, not proven contaminated.
+- Capture lead time has no LOWER bound: the guard only enforces "not after first
+  pitch". None of the 33 kept CLV rows were captured within an hour of first
+  pitch; all 33 were captured 1-3 hours out. "Closing line value" is still a
+  generous label. (n was 336 as of the last count; it is 33 now because a
+  `lines reprice` run against the 2026-09-12 slate, done as a verification step
+  in this branch's own plan, deleted and re-inserted all of that slate's picks
+  after its closes had been captured — wiping close_line/close_odds/
+  close_fair_prob/clv_pct/close_captured_at/result on the 343 that had them,
+  303 of which were clean. 14 of the slate's 15 games had already started, so
+  those closes cannot be recaptured; the loss is permanent. The reported
+  average CLV moving from −0.228% to −0.127% afterward is an artifact of that
+  deletion, not a finding — see the `reprice` seam below for the guard added
+  so this can't happen silently again.)
+- `lines reprice` still deletes and re-inserts every pick on the slate before
+  writing (`priceAndWritePicks`'s `DELETE FROM picks WHERE game_id = ANY(...)`),
+  which destroys `close_line`/`close_odds`/`close_fair_prob`/`clv_pct`/
+  `close_captured_at`/`result` on any of them that had been captured — even
+  though `reprice` no longer feeds a live price into `pick_fair_prob` (that
+  hole was closed by the live-quote read guard above). `lines pull` and
+  `lines capture` both refuse to touch a game that has started; `reprice`
+  does not check game start at all, only whether a closing line was captured,
+  and only refuses by default — it aborts unless `--force` is passed, and
+  `--force` still deletes them. This is the mechanism that destroyed the
+  2026-09-12 slate's captured closes, described above.
 
 ## Open work, prioritized
 1. Run the forward CLV loop — the actual unanswered question.

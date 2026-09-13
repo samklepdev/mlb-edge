@@ -189,6 +189,12 @@ lines
       `stored ${r.linesStored} line(s); wrote ${r.picksWritten} pick(s); ` +
         `${r.unmatchedPlayers} unmatched player name(s)`,
     );
+    if (r.skippedStartedGames > 0) {
+      console.log(
+        `skipped ${r.skippedStartedGames} matched event(s) whose game had already started ` +
+          '— a price quoted after first pitch is a live in-game price, not a market you can bet',
+      );
+    }
     if (r.matchedEvents === 0) {
       if (r.oddsEvents === 0) {
         console.log(
@@ -200,6 +206,11 @@ lines
       } else {
         console.log('Hint: events and DB games both exist but none matched — likely a team-name mismatch.');
       }
+    } else if (r.skippedStartedGames === r.matchedEvents) {
+      console.log(
+        `Hint: all ${r.matchedEvents} matched event(s) had already started, so nothing was stored. ` +
+          'Run `lines pull` before first pitch.',
+      );
     } else if (r.picksWritten === 0 && r.linesStored > 0) {
       console.log('Hint: lines stored but no edges. Run `project` for this date first, or lower --edge.');
     }
@@ -240,9 +251,20 @@ lines
   .description('re-price stored lines against current projections (no API calls)')
   .requiredOption('--date <YYYY-MM-DD>', 'slate date to re-price')
   .option('--edge <pct>', 'minimum |model - fair| to log a pick', '0.03')
-  .action(async (o: { date: string; edge: string }) => {
-    const r = await repriceLines(o.date, Number(o.edge));
-    console.log(`re-priced ${r.linesRead} stored line(s); wrote ${r.picksWritten} pick(s) — 0 API credits`);
+  .option('--force', 'reprice even though it will destroy captured closing lines')
+  .action(async (o: { date: string; edge: string; force?: boolean }) => {
+    const r = await repriceLines(o.date, Number(o.edge), Boolean(o.force));
+    if (r.refused) {
+      console.error(
+        `refusing to reprice ${o.date}: ${r.capturedCount} pick(s) have a captured closing line and ` +
+          `repricing deletes them (closing lines cannot be recaptured once a game has started). ` +
+          `Re-run with --force if you are sure.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const destroyed = r.capturedCount > 0 ? `; destroyed ${r.capturedCount} captured closing line(s)` : '';
+    console.log(`re-priced ${r.linesRead} stored line(s); wrote ${r.picksWritten} pick(s) — 0 API credits${destroyed}`);
   });
 
 program
