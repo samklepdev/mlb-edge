@@ -30,3 +30,15 @@ export const STARTER_OUT_SHARE = 0.5680;
 // Park factors are NEUTRAL in v0: game_conditions holds weather only, and
 // deriving a factor from ~30 venues at ~80 games each would overfit.
 export const PARK_FACTOR = 1.0;
+
+// Minimum batters faced, as a STARTER, before a probable pitcher's own ER/BF
+// rate is used at all; below it the starter falls back to league average.
+//
+// Deliberately independent of the prop model's MIN_BF even though the value is
+// identical today. The game model used to import that constant from
+// project/model.ts directly, which meant the prop model's pending
+// shrinkage-constant sweep (K_PA and its per-batter-faced counterpart -- open
+// work #2 in CLAUDE.md) could silently move game-model output: different
+// projections under the same TEAM_MODEL_VERSION, with no record that the numbers
+// moved. Two models, two constants.
+export const MIN_BF_TEAM = 30;

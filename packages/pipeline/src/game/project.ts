@@ -4,8 +4,8 @@ import { runsPmf } from './distribution.js';
 import {
   TEAM_MODEL_VERSION, K_G, RUNS_DISPERSION, LEAGUE_RUNS,
   LEAGUE_RUNS_HOME, LEAGUE_RUNS_AWAY, LEAGUE_ER_PER_BF, STARTER_OUT_SHARE, PARK_FACTOR,
+  MIN_BF_TEAM,
 } from './model.js';
-import { K_BF, MIN_BF } from '../project/model.js';
 
 interface TeamRates { scoredPerGame: number; allowedPerGame: number; games: number }
 
@@ -67,7 +67,7 @@ export async function runTeamProjections(date: string): Promise<TeamProjectionRe
        FROM probable_pitchers pp
        JOIN games g ON g.id = pp.game_id
        WHERE g.game_date = $1`,
-      [date, MIN_BF],
+      [date, MIN_BF_TEAM],
     )
   ).rows;
   const starterBy = new Map<string, number | null>();
