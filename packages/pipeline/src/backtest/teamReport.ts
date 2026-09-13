@@ -91,6 +91,20 @@ export async function teamBacktestReport(): Promise<void> {
 
   console.log('How to read this:');
   console.log(
+    '  * ~160 games per team-season is an order of magnitude less signal than per-PA\n' +
+      '    props, which have thousands of events. A worse ECE than the prop model is\n' +
+      '    EXPECTED and is not a failure. The bar here is calibrated, not sharp.',
+  );
+  console.log(
+    '  * The two run distributions are convolved as INDEPENDENT, which they are not --\n' +
+      '    a home team leading after 8.5 innings does not bat again. This biases the\n' +
+      '    model in a known direction and is the largest v0 approximation.',
+  );
+  console.log(
+    '  * Park factors are neutral and bullpens are league-average. Systematic gaps in\n' +
+      '    the totals market are the place those two assumptions would show up first.',
+  );
+  console.log(
     '  * ECE measures CALIBRATION (do predicted probabilities match observed frequencies)\n' +
       '    -- it does not measure RESOLUTION (does the model separate likely games from\n' +
       "    unlikely ones). A model that always predicts a market's own base rate can score\n" +
