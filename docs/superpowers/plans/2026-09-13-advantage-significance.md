@@ -37,10 +37,16 @@ so clustering is impossible where the code sits today.
 - **Verdict strings are exact:** `BEATS THE BASE RATE`,
   `WORSE THAN THE BASE RATE`, `INDISTINGUISHABLE FROM THE BASE RATE`,
   `INSUFFICIENT DATA`.
-- **Throwaway scripts live at `packages/pipeline/*.tmp.ts`** (never `git add`ed,
-  deleted in the task's commit step). They must sit inside `packages/pipeline`
-  so the workspace import of `@mlb-edge/db` resolves; a scratchpad path cannot
-  resolve it. Run them from the repo root with `./node_modules/.bin/tsx`.
+- **Verification checks are COMMITTED**, at
+  `packages/pipeline/src/backtest/verifyResolution.ts`, exposed as the CLI
+  command `verify-resolution` and the root npm script `verify:resolution`. They
+  use `node:assert` and the `tsx` already in the repo, so no dependency is
+  added. This **supersedes the spec's "throwaway tsx script" wording** (decided
+  before execution): once the scripts are deleted nothing executable checks the
+  clustering algebra or the t-table's conservatism, and the oracle numbers would
+  survive only in prose. Run with `npm run verify:resolution`.
+- **An assertion failure must exit non-zero.** `node:assert` throws, and the CLI
+  action must not swallow it.
 
 ## File Structure
 
@@ -51,6 +57,9 @@ so clustering is impossible where the code sits today.
 | `packages/db/src/queries/teamBacktest.ts` (modify) | Add `teamResolution()`: one SQL aggregate → `resolutionFromStats()`. |
 | `packages/db/src/index.ts` (modify) | Export `teamResolution`, `resolutionFromStats`, `tCritical`, `MIN_GAMES`. |
 | `packages/pipeline/src/backtest/teamReport.ts` (modify) | Formatting only. Replace `printResolutionLine`, add game count to headers, extend the "How to read this" bullet. |
+| `packages/pipeline/src/backtest/verifyResolution.ts` (create) | Committed executable checks: pure invariants (Task 1) and DB oracles (Task 2). Exports `verifyResolution()`. |
+| `packages/pipeline/src/cli.ts` (modify) | Register the `verify-resolution` command (pattern: the `team-backtest` block at lines 336-341). |
+| `package.json` (modify) | Add the `verify:resolution` root script next to `team-backtest`. |
 
 `BacktestSummary` is deliberately **not** touched — it is shared with the prop
 model (`queries/backtest.ts:40`, `backtest/report.ts:14`), so team-only fields
@@ -64,7 +73,9 @@ would leak there and be `null` forever.
 - Create: `packages/db/src/resolution.ts`
 - Modify: `packages/db/src/types.ts` (append after `BacktestSummary`, currently ends line 80)
 - Modify: `packages/db/src/index.ts` (append a new export line)
-- Test: `packages/pipeline/verify-pure.tmp.ts` (throwaway, not committed)
+- Test: `packages/pipeline/src/backtest/verifyResolution.ts` (create, committed)
+- Modify: `packages/pipeline/src/cli.ts` (register `verify-resolution`)
+- Modify: `package.json` (add the `verify:resolution` script)
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks.
@@ -112,12 +123,22 @@ export interface ResolutionCheck {
 
 - [ ] **Step 2: Write the failing verification script**
 
-Create `packages/pipeline/verify-pure.tmp.ts`:
+Create `packages/pipeline/src/backtest/verifyResolution.ts`. Task 2 appends a
+`verifyQuery()` to this same file, so keep `verifyResolution()` as the single
+entry point that calls each check group in turn:
 
 ```ts
 import assert from 'node:assert/strict';
 import { resolutionFromStats, tCritical, MIN_GAMES } from '@mlb-edge/db';
 import type { ResolutionStats } from '@mlb-edge/db';
+
+// Executable checks for the resolution statistics. Committed rather than
+// throwaway: these are the only thing that verifies the game-clustering
+// algebra and the t-table's conservatism, and the expected values below are
+// an independent SQL derivation (see the plan/spec), not a snapshot of
+// whatever the code happens to produce.
+//
+// Run: npm run verify:resolution
 
 // --- helpers -------------------------------------------------------------
 // Build sufficient statistics from raw (game, d) pairs, the way SQL will.
@@ -154,107 +175,153 @@ function rnd(): number {
   return seed / 2147483647;
 }
 
-// --- 1. t lookup ---------------------------------------------------------
-assert.equal(tCritical(29), 2.045, 't(29)');
-assert.equal(tCritical(39), 2.045, 'df below the 40 breakpoint keeps the 29 row');
-assert.equal(tCritical(40), 2.021, 't(40)');
-assert.equal(tCritical(50), 2.021, 'df=50 rounds down to the 40 row');
-assert.equal(tCritical(60), 2.000, 't(60)');
-assert.equal(tCritical(120), 1.980, 't(120)');
-assert.equal(tCritical(100000), 1.980, 'never drops to the anti-conservative 1.960');
-for (const df of [29, 40, 50, 60, 120, 500, 100000]) {
-  assert.ok(tCritical(df) >= 1.98, `t must stay conservative at df=${df}`);
+// Pure invariants: no database, no I/O.
+function verifyPure(): void {
+  // --- 1. t lookup -------------------------------------------------------
+  assert.equal(tCritical(29), 2.045, 't(29)');
+  assert.equal(tCritical(39), 2.045, 'df below the 40 breakpoint keeps the 29 row');
+  assert.equal(tCritical(40), 2.021, 't(40)');
+  assert.equal(tCritical(50), 2.021, 'df=50 rounds down to the 40 row');
+  assert.equal(tCritical(60), 2.0, 't(60)');
+  assert.equal(tCritical(120), 1.98, 't(120)');
+  assert.equal(tCritical(100000), 1.98, 'never drops to the anti-conservative 1.960');
+  for (const df of [29, 40, 50, 60, 120, 500, 100000]) {
+    assert.ok(tCritical(df) >= 1.98, `t must stay conservative at df=${df}`);
+  }
+
+  // --- 2. one-pass SE equals the two-pass reference ----------------------
+  // Multi-eval games (the `total` shape: 4 evals per game).
+  const clustered = Array.from({ length: 200 * 4 }, (_, i) => ({ game: Math.floor(i / 4), d: rnd() - 0.5 }));
+  {
+    const ref = referenceSe(clustered);
+    const got = resolutionFromStats(statsFrom(clustered));
+    assert.ok(Math.abs(got.advantage! - ref.a) < 1e-12, `advantage ${got.advantage} vs ${ref.a}`);
+    assert.ok(Math.abs(got.se! - ref.se) < 1e-12, `clustered se ${got.se} vs ${ref.se}`);
+  }
+
+  // --- 3. with one eval per game, clustered SE == naive SE exactly -------
+  const unclustered = Array.from({ length: 400 }, (_, i) => ({ game: i, d: rnd() - 0.5 }));
+  {
+    const n = unclustered.length;
+    const a = unclustered.reduce((s, e) => s + e.d, 0) / n;
+    const ss = unclustered.reduce((s, e) => s + (e.d - a) ** 2, 0);
+    const naiveSe = Math.sqrt(ss / (n - 1)) / Math.sqrt(n);
+    const got = resolutionFromStats(statsFrom(unclustered));
+    assert.ok(Math.abs(got.se! - naiveSe) < 1e-12, `n_g=1 must reduce to naive se: ${got.se} vs ${naiveSe}`);
+  }
+
+  // --- 4. verdicts -------------------------------------------------------
+  // Advantage far above zero -> beats.
+  const strong = Array.from({ length: 100 }, (_, i) => ({ game: i, d: 0.05 + (rnd() - 0.5) * 0.01 }));
+  assert.equal(resolutionFromStats(statsFrom(strong)).verdict, 'beats', 'large positive advantage');
+
+  // Mirror image -> worse.
+  const weak = strong.map((e) => ({ game: e.game, d: -e.d }));
+  assert.equal(resolutionFromStats(statsFrom(weak)).verdict, 'worse', 'large negative advantage');
+
+  // Noise centred on zero -> indistinguishable (the default).
+  // Built as mirrored +/- pairs so the mean is EXACTLY zero. Do not replace
+  // this with unpaired random draws: the advantage would then be a random
+  // variable and the assertion would fire on roughly 5% of seeds.
+  const mags = Array.from({ length: 50 }, () => 0.05 + (rnd() - 0.5) * 0.02);
+  const noise = mags.flatMap((m, i) => [
+    { game: 2 * i, d: m },
+    { game: 2 * i + 1, d: -m },
+  ]);
+  assert.equal(resolutionFromStats(statsFrom(noise)).verdict, 'indistinguishable', 'noise must not read as a finding');
+
+  // --- 5. guards ---------------------------------------------------------
+  const zero: ResolutionStats = {
+    n: 0, games: 0, baseRate: null, modelBrier: null,
+    sumDg: 0, sumDg2: 0, sumNgDg: 0, sumNg2: 0,
+  };
+  assert.equal(resolutionFromStats(zero).verdict, 'insufficient', 'no evaluations');
+  assert.equal(resolutionFromStats(zero).advantage, null, 'no advantage without evaluations');
+
+  // G below the floor, with an otherwise screamingly significant advantage.
+  // The jitter is load-bearing: with every d identical the SE would be 0 and
+  // this would pass via the zero-variance guard instead of the cluster-count one.
+  const tooFew = Array.from({ length: MIN_GAMES - 1 }, (_, i) => ({ game: i, d: 0.05 + (rnd() - 0.5) * 0.01 }));
+  assert.ok(resolutionFromStats(statsFrom(tooFew)).se! > 0, 'tooFew must have non-zero spread to isolate the G guard');
+  assert.equal(resolutionFromStats(statsFrom(tooFew)).verdict, 'insufficient', `G < ${MIN_GAMES}`);
+  const atFloor = Array.from({ length: MIN_GAMES }, (_, i) => ({ game: i, d: 0.05 + (rnd() - 0.5) * 0.01 }));
+  assert.equal(resolutionFromStats(statsFrom(atFloor)).verdict, 'beats', `G == ${MIN_GAMES} is allowed`);
+
+  // SE == 0: every d identical, so there is no spread to test.
+  const flat = Array.from({ length: 100 }, (_, i) => ({ game: i, d: 0.02 }));
+  assert.equal(resolutionFromStats(statsFrom(flat)).verdict, 'insufficient', 'zero variance');
+
+  // Degenerate base rates: baseRateBrier == 0, so the comparison is vacuous.
+  for (const r of [0, 1]) {
+    const got = resolutionFromStats(statsFrom(noise, r, 0.1));
+    assert.equal(got.verdict, 'insufficient', `base rate ${r} is vacuous`);
+    assert.equal(got.skillScore, null, `no skill score at base rate ${r}`);
+  }
+
+  // --- 6. derived fields -------------------------------------------------
+  {
+    const got = resolutionFromStats(statsFrom(strong, 0.5, 0.2));
+    assert.equal(got.baseRateBrier, 0.25, 'r=0.5 -> r(1-r)=0.25');
+    assert.ok(Math.abs(got.skillScore! - got.advantage! / 0.25) < 1e-12, 'skill score is advantage / baseRateBrier');
+    assert.ok(got.ciLo! < got.advantage! && got.advantage! < got.ciHi!, 'advantage sits inside its interval');
+  }
+
+  console.log('PURE CHECKS PASSED');
 }
 
-// --- 2. one-pass SE equals the two-pass reference ------------------------
-// Multi-eval games (the `total` shape: 4 evals per game).
-const clustered = Array.from({ length: 200 * 4 }, (_, i) => ({ game: Math.floor(i / 4), d: rnd() - 0.5 }));
-{
-  const ref = referenceSe(clustered);
-  const got = resolutionFromStats(statsFrom(clustered));
-  assert.ok(Math.abs(got.advantage! - ref.a) < 1e-12, `advantage ${got.advantage} vs ${ref.a}`);
-  assert.ok(Math.abs(got.se! - ref.se) < 1e-12, `clustered se ${got.se} vs ${ref.se}`);
+// Entry point for the `verify-resolution` CLI command. Task 2 adds a
+// verifyQuery() call here; keep this the single place that sequences the
+// check groups.
+export async function verifyResolution(): Promise<void> {
+  verifyPure();
 }
-
-// --- 3. with one eval per game, clustered SE == naive SE exactly ---------
-const unclustered = Array.from({ length: 400 }, (_, i) => ({ game: i, d: rnd() - 0.5 }));
-{
-  const n = unclustered.length;
-  const a = unclustered.reduce((s, e) => s + e.d, 0) / n;
-  const ss = unclustered.reduce((s, e) => s + (e.d - a) ** 2, 0);
-  const naiveSe = Math.sqrt(ss / (n - 1)) / Math.sqrt(n);
-  const got = resolutionFromStats(statsFrom(unclustered));
-  assert.ok(Math.abs(got.se! - naiveSe) < 1e-12, `n_g=1 must reduce to naive se: ${got.se} vs ${naiveSe}`);
-}
-
-// --- 4. verdicts ---------------------------------------------------------
-// Advantage far above zero -> beats. 100 games, each d = +0.05.
-const strong = Array.from({ length: 100 }, (_, i) => ({ game: i, d: 0.05 + (rnd() - 0.5) * 0.01 }));
-assert.equal(resolutionFromStats(statsFrom(strong)).verdict, 'beats', 'large positive advantage');
-
-// Mirror image -> worse.
-const weak = strong.map((e) => ({ game: e.game, d: -e.d }));
-assert.equal(resolutionFromStats(statsFrom(weak)).verdict, 'worse', 'large negative advantage');
-
-// Noise centred on zero -> indistinguishable (the default).
-// Built as mirrored +/- pairs so the mean is EXACTLY zero. Do not replace this
-// with unpaired random draws: the advantage would then be a random variable and
-// the assertion would fire on roughly 5% of seeds.
-const mags = Array.from({ length: 50 }, () => 0.05 + (rnd() - 0.5) * 0.02);
-const noise = mags.flatMap((m, i) => [
-  { game: 2 * i, d: m },
-  { game: 2 * i + 1, d: -m },
-]);
-assert.equal(resolutionFromStats(statsFrom(noise)).verdict, 'indistinguishable', 'noise must not read as a finding');
-
-// --- 5. guards -----------------------------------------------------------
-const zero: ResolutionStats = { n: 0, games: 0, baseRate: null, modelBrier: null, sumDg: 0, sumDg2: 0, sumNgDg: 0, sumNg2: 0 };
-assert.equal(resolutionFromStats(zero).verdict, 'insufficient', 'no evaluations');
-assert.equal(resolutionFromStats(zero).advantage, null, 'no advantage without evaluations');
-
-// G below the floor, with an otherwise screamingly significant advantage.
-// The jitter is load-bearing: with every d identical the SE would be 0 and this
-// would pass via the zero-variance guard instead of the cluster-count one.
-const tooFew = Array.from({ length: MIN_GAMES - 1 }, (_, i) => ({ game: i, d: 0.05 + (rnd() - 0.5) * 0.01 }));
-assert.ok(resolutionFromStats(statsFrom(tooFew)).se! > 0, 'tooFew must have non-zero spread to isolate the G guard');
-assert.equal(resolutionFromStats(statsFrom(tooFew)).verdict, 'insufficient', `G < ${MIN_GAMES}`);
-const atFloor = Array.from({ length: MIN_GAMES }, (_, i) => ({ game: i, d: 0.05 + (rnd() - 0.5) * 0.01 }));
-assert.equal(resolutionFromStats(statsFrom(atFloor)).verdict, 'beats', `G == ${MIN_GAMES} is allowed`);
-
-// SE == 0: every d identical, so there is no spread to test.
-const flat = Array.from({ length: 100 }, (_, i) => ({ game: i, d: 0.02 }));
-assert.equal(resolutionFromStats(statsFrom(flat)).verdict, 'insufficient', 'zero variance');
-
-// Degenerate base rates: baseRateBrier == 0, so the comparison is vacuous.
-for (const r of [0, 1]) {
-  const got = resolutionFromStats(statsFrom(noise, r, 0.1));
-  assert.equal(got.verdict, 'insufficient', `base rate ${r} is vacuous`);
-  assert.equal(got.skillScore, null, `no skill score at base rate ${r}`);
-}
-
-// --- 6. derived fields ---------------------------------------------------
-{
-  const got = resolutionFromStats(statsFrom(strong, 0.5, 0.2));
-  assert.equal(got.baseRateBrier, 0.25, 'r=0.5 -> r(1-r)=0.25');
-  assert.ok(Math.abs(got.skillScore! - got.advantage! / 0.25) < 1e-12, 'skill score is advantage / baseRateBrier');
-  assert.ok(got.ciLo! < got.advantage! && got.advantage! < got.ciHi!, 'advantage sits inside its interval');
-}
-
-console.log('PURE CHECKS PASSED');
 ```
 
-- [ ] **Step 3: Run it to confirm it fails**
+Note the `rnd()` state is module-level, so `verifyPure()` is deterministic only
+on a fresh process — which is how the CLI runs it. Do not call it twice in one
+process and expect identical draws.
+
+- [ ] **Step 3: Wire the CLI command and npm script**
+
+In `packages/pipeline/src/cli.ts`, add to the imports at the top:
+
+```ts
+import { verifyResolution } from './backtest/verifyResolution.js';
+```
+
+and register the command immediately after the existing `team-backtest` block
+(lines 336-341), following that same shape:
+
+```ts
+program
+  .command('verify-resolution')
+  .description('run the resolution-statistics checks (pure invariants + DB oracles)')
+  .action(async () => {
+    await verifyResolution();
+  });
+```
+
+In the root `package.json`, add this script directly after `"team-backtest"`:
+
+```json
+    "verify:resolution": "npm run -w @mlb-edge/pipeline cli -- verify-resolution",
+```
+
+Do not wrap the action in a try/catch — an assertion failure must propagate and
+exit non-zero.
+
+- [ ] **Step 4: Run it to confirm it fails**
 
 ```bash
-npm run build:db && ./node_modules/.bin/tsx packages/pipeline/verify-pure.tmp.ts
+npm run build:db && npm run verify:resolution
 ```
 
 Expected: failure. `resolutionFromStats` does not exist yet, so this dies with
 `SyntaxError: The requested module '@mlb-edge/db' does not provide an export
-named 'resolutionFromStats'` (or a TS resolution error). It must NOT print
-`PURE CHECKS PASSED`.
+named 'resolutionFromStats'` (or a TS resolution error), and a non-zero exit
+code. It must NOT print `PURE CHECKS PASSED`.
 
-- [ ] **Step 4: Implement the pure module**
+- [ ] **Step 5: Implement the pure module**
 
 Create `packages/db/src/resolution.ts`:
 
@@ -351,7 +418,7 @@ export function resolutionFromStats(s: ResolutionStats): ResolutionCheck {
 }
 ```
 
-- [ ] **Step 5: Export it**
+- [ ] **Step 6: Export it**
 
 In `packages/db/src/index.ts`, add after the `prob.js` export line:
 
@@ -359,16 +426,16 @@ In `packages/db/src/index.ts`, add after the `prob.js` export line:
 export { MIN_GAMES, tCritical, resolutionFromStats } from './resolution.js';
 ```
 
-- [ ] **Step 6: Run the verification script to green**
+- [ ] **Step 7: Run the verification script to green**
 
 ```bash
-npm run build:db && ./node_modules/.bin/tsx packages/pipeline/verify-pure.tmp.ts
+npm run build:db && npm run verify:resolution
 ```
 
 Expected: `PURE CHECKS PASSED` and exit code 0. If an assertion fires, the
 message names the specific invariant — fix the implementation, not the assertion.
 
-- [ ] **Step 7: Typecheck**
+- [ ] **Step 8: Typecheck**
 
 ```bash
 npm run typecheck
@@ -376,11 +443,11 @@ npm run typecheck
 
 Expected: no output past the tsc invocations (clean).
 
-- [ ] **Step 8: Commit (script excluded)**
+- [ ] **Step 9: Commit**
 
 ```bash
-rm packages/pipeline/verify-pure.tmp.ts
-git add packages/db/src/resolution.ts packages/db/src/types.ts packages/db/src/index.ts
+git add packages/db/src/resolution.ts packages/db/src/types.ts packages/db/src/index.ts \
+  packages/pipeline/src/backtest/verifyResolution.ts packages/pipeline/src/cli.ts package.json
 git commit -m "Add pure game-clustered resolution statistics
 
 The advantage over a base-rate forecast needs a standard error clustered by
@@ -390,10 +457,15 @@ conservative t lookup and sufficient-statistics -> ResolutionCheck, with
 INDISTINGUISHABLE as the default verdict so neither direction can report noise
 as a finding.
 
+Ship the checks as a committed 'verify-resolution' command rather than
+throwaway scaffolding: they are the only executable verification of the
+clustering algebra and of the t table's deliberate refusal to drop to 1.960.
+
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
-Verify nothing stray was staged first with `git status --short`.
+Run `git status --short` first and confirm only the six intended files are
+staged.
 
 ---
 
@@ -402,7 +474,7 @@ Verify nothing stray was staged first with `git status --short`.
 **Files:**
 - Modify: `packages/db/src/queries/teamBacktest.ts` (append after `teamEvalMarkets`, currently ends line 63)
 - Modify: `packages/db/src/index.ts:11` (extend the existing `teamBacktest.js` export)
-- Test: `packages/pipeline/verify-query.tmp.ts` (throwaway, not committed)
+- Test: `packages/pipeline/src/backtest/verifyResolution.ts` (extend — created in Task 1)
 
 **Interfaces:**
 - Consumes: `resolutionFromStats(s: ResolutionStats): ResolutionCheck` and types
@@ -416,12 +488,23 @@ session, by a different route (two-pass, using the literal
 `(r-y)^2 - (p-y)^2`). The implementation uses the one-pass algebraic expansion,
 so agreement is a genuine two-implementation cross-check.
 
-Create `packages/pipeline/verify-query.tmp.ts`:
+Extend `packages/pipeline/src/backtest/verifyResolution.ts` (created in Task 1).
+Add `teamResolution` and `pool` to its `@mlb-edge/db` import, add the
+`verifyQuery` function below `verifyPure`, and add the call to
+`verifyResolution()` so it reads:
 
 ```ts
-import assert from 'node:assert/strict';
-import { teamResolution, pool } from '@mlb-edge/db';
+export async function verifyResolution(): Promise<void> {
+  verifyPure();
+  await verifyQuery();
+}
+```
 
+The new function — note it is NOT top-level code, and it does not call
+`pool.end()`; the existing CLI commands (`team-backtest`) leave the pool alone
+and the process exits cleanly:
+
+```ts
 // Oracle values from the design session's independent SQL, matched to 5 dp.
 const EXPECTED = [
   { market: 'total', n: 9420, games: 2355, advantage: 0.00192, se: 0.00206, verdict: 'indistinguishable' },
@@ -431,65 +514,67 @@ const EXPECTED = [
 
 const r5 = (x: number) => Number(x.toFixed(5));
 
-for (const e of EXPECTED) {
-  const got = await teamResolution(e.market);
-  assert.equal(got.n, e.n, `${e.market} n`);
-  assert.equal(got.games, e.games, `${e.market} games`);
-  assert.equal(r5(got.advantage!), r5(e.advantage), `${e.market} advantage: got ${got.advantage}`);
-  assert.equal(r5(got.se!), r5(e.se), `${e.market} clustered se: got ${got.se}`);
-  assert.equal(got.verdict, e.verdict, `${e.market} verdict: got ${got.verdict}`);
-  assert.ok(got.ciLo! < got.ciHi!, `${e.market} interval ordering`);
-  console.log(`${e.market}: advantage ${got.advantage!.toFixed(5)} se ${got.se!.toFixed(5)} -> ${got.verdict}`);
-}
+async function verifyQuery(): Promise<void> {
+  for (const e of EXPECTED) {
+    const got = await teamResolution(e.market);
+    assert.equal(got.n, e.n, `${e.market} n`);
+    assert.equal(got.games, e.games, `${e.market} games`);
+    assert.equal(r5(got.advantage!), r5(e.advantage), `${e.market} advantage: got ${got.advantage}`);
+    assert.equal(r5(got.se!), r5(e.se), `${e.market} clustered se: got ${got.se}`);
+    assert.equal(got.verdict, e.verdict, `${e.market} verdict: got ${got.verdict}`);
+    assert.ok(got.ciLo! < got.ciHi!, `${e.market} interval ordering`);
+    console.log(`${e.market}: advantage ${got.advantage!.toFixed(5)} se ${got.se!.toFixed(5)} -> ${got.verdict}`);
+  }
 
-// moneyline has exactly one eval per game, so clustering is a no-op and the
-// clustered SE must reduce EXACTLY to the naive SE. This is an algebraic
-// identity, not an approximation -- see the spec. Recompute the naive SE from
-// raw rows here so the check does not depend on the query's own clustering.
-{
-  const ml = await teamResolution('moneyline');
-  assert.equal(ml.n, ml.games, 'moneyline must be one eval per game for this check to mean anything');
-  const rows = (
-    await pool.query<{ p: number; y: number; r: number }>(
-      `WITH e AS (
-         SELECT model_prob::float8 AS p, (hit)::int AS y
-         FROM team_model_evals
-         WHERE model_version = (SELECT max(model_version) FROM team_model_evals)
-           AND market = 'moneyline'
-       )
-       SELECT p, y, (SELECT avg(y)::float8 FROM e) AS r FROM e`,
-    )
-  ).rows;
-  const r = Number(rows[0].r);
-  const d = rows.map((row) => (r - row.y) ** 2 - (Number(row.p) - row.y) ** 2);
-  const n = d.length;
-  const a = d.reduce((s, x) => s + x, 0) / n;
-  const naiveSe = Math.sqrt(d.reduce((s, x) => s + (x - a) ** 2, 0) / (n - 1)) / Math.sqrt(n);
-  assert.ok(Math.abs(ml.se! - naiveSe) < 1e-12, `n_g=1 identity: clustered ${ml.se} vs naive ${naiveSe}`);
-  assert.ok(Math.abs(ml.advantage! - a) < 1e-12, `advantage from raw rows: ${ml.advantage} vs ${a}`);
-  console.log('n_g=1 identity holds exactly');
-}
+  // moneyline has exactly one eval per game, so clustering is a no-op and the
+  // clustered SE must reduce EXACTLY to the naive SE. This is an algebraic
+  // identity, not an approximation -- see the spec. Recompute the naive SE from
+  // raw rows here so the check does not depend on the query's own clustering.
+  {
+    const ml = await teamResolution('moneyline');
+    assert.equal(ml.n, ml.games, 'moneyline must be one eval per game for this check to mean anything');
+    const rows = (
+      await pool.query<{ p: number; y: number; r: number }>(
+        `WITH e AS (
+           SELECT model_prob::float8 AS p, (hit)::int AS y
+           FROM team_model_evals
+           WHERE model_version = (SELECT max(model_version) FROM team_model_evals)
+             AND market = 'moneyline'
+         )
+         SELECT p, y, (SELECT avg(y)::float8 FROM e) AS r FROM e`,
+      )
+    ).rows;
+    const r = Number(rows[0].r);
+    const d = rows.map((row) => (r - row.y) ** 2 - (Number(row.p) - row.y) ** 2);
+    const n = d.length;
+    const a = d.reduce((s, x) => s + x, 0) / n;
+    const naiveSe = Math.sqrt(d.reduce((s, x) => s + (x - a) ** 2, 0) / (n - 1)) / Math.sqrt(n);
+    assert.ok(Math.abs(ml.se! - naiveSe) < 1e-12, `n_g=1 identity: clustered ${ml.se} vs naive ${naiveSe}`);
+    assert.ok(Math.abs(ml.advantage! - a) < 1e-12, `advantage from raw rows: ${ml.advantage} vs ${a}`);
+    console.log('n_g=1 identity holds exactly');
+  }
 
-// The unfiltered call pools every market; it must at least aggregate cleanly.
-{
-  const all = await teamResolution();
-  assert.equal(all.n, 9420 + 4710 + 2355, 'pooled n');
-  assert.equal(all.games, 2355, 'pooled games');
-  console.log(`pooled: n=${all.n} games=${all.games}`);
-}
+  // The unfiltered call pools every market; it must at least aggregate cleanly.
+  {
+    const all = await teamResolution();
+    assert.equal(all.n, 9420 + 4710 + 2355, 'pooled n');
+    assert.equal(all.games, 2355, 'pooled games');
+    console.log(`pooled: n=${all.n} games=${all.games}`);
+  }
 
-await pool.end();
-console.log('QUERY CHECKS PASSED');
+  console.log('QUERY CHECKS PASSED');
+}
 ```
 
 - [ ] **Step 2: Run it to confirm it fails**
 
 ```bash
-docker compose up -d && npm run build:db && ./node_modules/.bin/tsx packages/pipeline/verify-query.tmp.ts
+docker compose up -d && npm run build:db && npm run verify:resolution
 ```
 
-Expected: failure — no export named `teamResolution`. It must NOT print
-`QUERY CHECKS PASSED`.
+Expected: failure — no export named `teamResolution`, and a non-zero exit code.
+`PURE CHECKS PASSED` may still print (Task 1's checks are intact); it must NOT
+print `QUERY CHECKS PASSED`.
 
 - [ ] **Step 3: Implement the query**
 
@@ -613,10 +698,10 @@ export { teamReliability, teamBacktestSummary, teamEvalMarkets, teamResolution }
 - [ ] **Step 5: Run the verification script to green**
 
 ```bash
-npm run build:db && ./node_modules/.bin/tsx packages/pipeline/verify-query.tmp.ts
+npm run build:db && npm run verify:resolution
 ```
 
-Expected, exactly:
+Expected, exactly (after the `PURE CHECKS PASSED` line from Task 1):
 
 ```
 total: advantage 0.00192 se 0.00206 -> indistinguishable
@@ -638,11 +723,11 @@ npm run typecheck
 
 Expected: clean.
 
-- [ ] **Step 7: Commit (script excluded)**
+- [ ] **Step 7: Commit**
 
 ```bash
-rm packages/pipeline/verify-query.tmp.ts
-git add packages/db/src/queries/teamBacktest.ts packages/db/src/index.ts
+git add packages/db/src/queries/teamBacktest.ts packages/db/src/index.ts \
+  packages/pipeline/src/backtest/verifyResolution.ts
 git commit -m "Add teamResolution(): game-clustered advantage over the base rate
 
 One SQL aggregate yields the sufficient statistics (n, games, base rate, model
@@ -817,13 +902,15 @@ npm run team-backtest 2>&1 | grep -c "WORSE THAN GUESSING"
 
 Expected: `0`.
 
-- [ ] **Step 6: Typecheck**
+- [ ] **Step 6: Typecheck and re-run the committed checks**
 
 ```bash
-npm run typecheck
+npm run typecheck && npm run verify:resolution
 ```
 
-Expected: clean.
+Expected: typecheck clean, then `PURE CHECKS PASSED` and `QUERY CHECKS PASSED`.
+This task only changes formatting, so the checks must still pass untouched — if
+they fail, the report change reached further than it should have.
 
 - [ ] **Step 7: Commit**
 
@@ -847,13 +934,16 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 git status --short
 ```
 
-Expected: empty. If either `*.tmp.ts` script shows up, delete it — those are
-never committed.
+Expected: empty. Every file this plan touches is committed by the end of Task 3;
+nothing should be left untracked or modified.
 
 ---
 
 ## Notes for the implementer
 
+- **`npm run verify:resolution` is the gate for this change.** It is committed
+  on purpose (see Global Constraints) — do not convert it back to a throwaway
+  script, and do not relax an assertion to make it pass.
 - **`ResolutionCheck.games` is the cluster count**, not a row count. It drives
   both the `MIN_GAMES` guard and the t lookup. Do not substitute `n`.
 - **Don't "fix" the conservative t table** by adding a 1.960 row for large df.

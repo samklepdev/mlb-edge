@@ -207,6 +207,15 @@ pass, and to carry the multiplicity note.
 No test runner exists in this repo (no vitest/jest, zero `*.test.ts`), so the
 spec pins oracles rather than asserting tests.
 
+**Amended before implementation:** the checks below are **committed**, as
+`packages/pipeline/src/backtest/verifyResolution.ts` behind the
+`verify-resolution` CLI command and the `npm run verify:resolution` script,
+rather than run as throwaway scripts. They use `node:assert` and the `tsx`
+already present, so no dependency is added and the "no test framework"
+constraint holds. The reason: once throwaway scripts are deleted, nothing
+executable verifies the clustering algebra or the t-table's conservatism, and
+the oracle values below would survive only as prose.
+
 1. **Independent-implementation oracle.** The table above was computed in SQL by
    a different route (two-pass, literal `(r-y)^2 - (p-y)^2`). The one-pass
    algebraic implementation must reproduce all three pairs, **matching each
@@ -249,7 +258,8 @@ spec pins oracles rather than asserting tests.
 
 ## Out of scope
 
-- Introducing a test framework. Worth doing; not here.
+- Introducing a test framework (vitest/jest). The committed
+  `verify-resolution` command above covers this change's math without one.
 - Any change to the model, the convolution, or calibration. This spec only
   changes how the existing numbers are *reported*. The known next lever for
   moneyline remains correlated/innings-aware convolution, not calibration
