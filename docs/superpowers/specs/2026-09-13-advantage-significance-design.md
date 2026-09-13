@@ -111,8 +111,7 @@ it.
 | 29 | 2.045 |
 | 40 | 2.021 |
 | 60 | 2.000 |
-| 120 | 1.980 |
-| above 120 | 1.960 |
+| 120 and above | 1.980 |
 
 **Selection rule:** take the row with the largest breakpoint that does not
 exceed `G-1`. Since `t` decreases with df, this always returns a `t` at least as
@@ -120,6 +119,13 @@ large as the true `t(0.975, G-1)`, so the interval errs wide. (Example: `df = 50
 selects the `40` row, `t = 2.021`, against a true `t(50) ≈ 2.009`.) This avoids
 an inverse-t implementation for what is at most a 4% effect above the `G ≥ 30`
 floor.
+
+**The table deliberately bottoms out at 1.980 rather than the asymptotic 1.960.**
+A `1.960` row for large df would be *anti*-conservative: the true
+`t(0.975, 200) = 1.972 > 1.960`, so such a row narrows the interval below truth
+and breaks the guarantee above. Holding 1.980 for all `df ≥ 120` stays
+conservative everywhere, overstating the half-width by at most 1% as
+`df → ∞`. Given `G = 2355` today, the live reports use `t = 1.980`.
 
 ### Verdict
 
@@ -186,7 +192,7 @@ database.
   verdict         = BEATS THE BASE RATE
 
 -- moneyline (2355 evaluations, 2355 games) --
-  model advantage = -0.0021  95% CI [-0.0064, +0.0022]  (clustered by game)
+  model advantage = -0.0021  95% CI [-0.0065, +0.0022]  (clustered by game)
   skill score     = -0.9%
   verdict         = INDISTINGUISHABLE FROM THE BASE RATE
                     (no evidence this market carries information)
