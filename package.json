@@ -23,6 +23,7 @@
     "backfill": "npm run -w @mlb-edge/pipeline backfill --",
     "team-backfill": "npm run -w @mlb-edge/pipeline cli -- team-backfill",
     "backtest": "npm run -w @mlb-edge/pipeline backtest",
+    "team-backtest": "npm run -w @mlb-edge/pipeline cli -- team-backtest",
     "health": "npm run -w @mlb-edge/pipeline health"
   }
 }

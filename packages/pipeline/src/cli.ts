@@ -8,6 +8,7 @@ import { runProjections, ALL_PROPS, type PropKind } from './project/index.js';
 import { backfill } from './project/backfill.js';
 import { backfillTeams } from './game/backfill.js';
 import { backtestReport } from './backtest/report.js';
+import { teamBacktestReport } from './backtest/teamReport.js';
 import { healthReport } from './health/report.js';
 import { MODEL_VERSION } from './project/model.js';
 import { pullLines, captureClosing, settleResults, repriceLines, type PullOptions } from './market/lines.js';
@@ -329,6 +330,13 @@ program
   .description('report model calibration (reliability + ECE + Brier) from model_evals')
   .action(async () => {
     await backtestReport();
+  });
+
+program
+  .command('team-backtest')
+  .description('calibration report for the game-outcome model, by market')
+  .action(async () => {
+    await teamBacktestReport();
   });
 
 program
