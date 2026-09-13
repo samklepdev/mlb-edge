@@ -251,9 +251,20 @@ lines
   .description('re-price stored lines against current projections (no API calls)')
   .requiredOption('--date <YYYY-MM-DD>', 'slate date to re-price')
   .option('--edge <pct>', 'minimum |model - fair| to log a pick', '0.03')
-  .action(async (o: { date: string; edge: string }) => {
-    const r = await repriceLines(o.date, Number(o.edge));
-    console.log(`re-priced ${r.linesRead} stored line(s); wrote ${r.picksWritten} pick(s) — 0 API credits`);
+  .option('--force', 'reprice even though it will destroy captured closing lines')
+  .action(async (o: { date: string; edge: string; force?: boolean }) => {
+    const r = await repriceLines(o.date, Number(o.edge), Boolean(o.force));
+    if (r.refused) {
+      console.error(
+        `refusing to reprice ${o.date}: ${r.capturedCount} pick(s) have a captured closing line and ` +
+          `repricing deletes them (closing lines cannot be recaptured once a game has started). ` +
+          `Re-run with --force if you are sure.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const destroyed = r.capturedCount > 0 ? `; destroyed ${r.capturedCount} captured closing line(s)` : '';
+    console.log(`re-priced ${r.linesRead} stored line(s); wrote ${r.picksWritten} pick(s) — 0 API credits${destroyed}`);
   });
 
 program

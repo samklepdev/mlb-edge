@@ -16,7 +16,7 @@
 - **`@mlb-edge/db` compiles to `dist/` and runs from there.** Task 2 edits `packages/db/src/queries/player.ts`; without `npm run build:db` the change is invisible at runtime. This is the most common false-pass in this repo.
 - **Do not change `MODEL_VERSION`, `K_BF`, `K_PA`, the edge threshold, or the de-vig method.** This is measurement plumbing, not the model.
 - **No schema change, no migration, and no mutation of existing `market_lines` rows.** The 271 live rows stay; the read guard makes them inert.
-- **"Started" means `g.start_time <= now()`** — the same wall-clock test `captureClosing` already uses, so the two guards cannot disagree.
+- **"Started" means `g.start_time <= now() OR g.start_time IS NULL`** — the same wall-clock test `captureClosing` already uses, plus NULL treated as started so an unverifiable start time can't diverge from the read guard (which already excludes NULL), so the two guards cannot disagree.
 - **`reprice` reading fewer lines is the intended outcome, not a regression.** Say so in the commit message rather than burying it.
 
 ## A note on testing
@@ -64,13 +64,15 @@ docker compose up -d
 In `packages/pipeline/src/market/lines.ts`, add immediately **above** the `FetchResult` interface (currently at line 38):
 
 ```ts
-// Games on this slate whose first pitch has passed. A NULL start_time satisfies
-// neither this test nor captureClosing's `start_time > now()`, so such a game is
-// never treated as started -- only the synthetic sentinel has one, and it carries
-// no market_lines rows.
+// Games on this slate whose first pitch has passed, or whose start_time is
+// unverifiable. A NULL start_time satisfies neither `<= now()` nor `> now()`
+// under a naive test, but the read guard (loadStoredLines, Task 2) already
+// excludes an unverifiable start time's rows -- so this treats NULL as
+// started too, to keep the two guards from disagreeing. Only the synthetic
+// sentinel has one, and it carries no market_lines rows.
 async function startedGameIds(date: string): Promise<Set<number>> {
   const res = await query<{ id: number }>(
-    'SELECT id FROM games WHERE game_date = $1 AND start_time <= now()',
+    'SELECT id FROM games WHERE game_date = $1 AND (start_time <= now() OR start_time IS NULL)',
     [date],
   );
   return new Set(res.rows.map((r) => r.id));
@@ -614,7 +616,7 @@ still no lower bound on capture lead time."
 | Spec section | Covered by |
 |---|---|
 | Skip started games before `getEventOdds` | Task 1, Step 5 |
-| "Started" = `start_time <= now()`; NULL is not started | Task 1, Step 1 (helper + comment) |
+| "Started" = `start_time <= now()`; NULL is treated as started | Task 1, Step 1 (helper + comment) |
 | Guard not placed in `buildGameIndex` | Task 1, Step 1 (helper lives in `lines.ts`) |
 | Applies to both `pull` and `capture` | Task 1, Step 7 (`captureClosing` needs no change; both use `fetchLines`) |
 | `skippedStarted` on `FetchResult` | Task 1, Steps 2, 4, 6 |

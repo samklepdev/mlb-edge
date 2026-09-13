@@ -49,9 +49,14 @@ Quota is 204 of 500; a full fetch costs ~120.
 
 "Started" means `g.start_time <= now()` — the same wall-clock test
 `captureClosing` already uses, so the two guards cannot disagree. A game with a
-NULL `start_time` satisfies neither `<= now()` nor `> now()` and is therefore
-**not** treated as started; only the synthetic sentinel has one, and it carries
-zero `market_lines` rows (verified), so no real row is affected either way.
+NULL `start_time` satisfies neither `<= now()` nor `> now()` under a naive
+reading of that test, but an unverifiable start time can never be proven
+*not* started either, and the read guard (`ml.fetched_at < g.start_time`,
+Section 2) already excludes such a game's rows for exactly that reason. So
+the write guard treats NULL as started too, to match: `startedGameIds`'s
+query is `start_time <= now() OR start_time IS NULL`. Only the synthetic
+sentinel has one, and it carries zero `market_lines` rows (verified), so no
+real row is affected either way.
 
 In `fetchLines`, fetch the slate's started-game ids once, then inside the event
 loop, **after** the name match resolves a `gameId` but **before**

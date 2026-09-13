@@ -34,13 +34,21 @@ interface LineRow {
 
 const key = (p: number, g: number, prop: string) => `${p}:${g}:${prop}`;
 
-// Games on this slate whose first pitch has passed. A NULL start_time satisfies
-// neither this test nor captureClosing's `start_time > now()`, so such a game is
-// never treated as started -- only the synthetic sentinel has one, and it carries
-// no market_lines rows.
+// Games on this slate whose first pitch has passed, or whose start_time is
+// unverifiable. A NULL start_time satisfies neither `<= now()` nor `> now()`
+// under a naive test, but the read guards (loadStoredLines below, and
+// getPlayerCard) already treat an unverifiable start_time as excluded --
+// `ml.fetched_at < g.start_time` is NULL, hence false, when start_time is
+// NULL. Fetching such a game would spend a credit on a quote the read side
+// can never surface, so this treats NULL as started too, keeping the write
+// and read guards from disagreeing. `NOT is_synthetic` matches the
+// population captureClosing's timing query counts. Only the synthetic
+// sentinel has a NULL start_time today, and it carries no market_lines rows,
+// so this is a no-op on current data.
 async function startedGameIds(date: string): Promise<Set<number>> {
   const res = await query<{ id: number }>(
-    'SELECT id FROM games WHERE game_date = $1 AND start_time <= now()',
+    `SELECT id FROM games
+     WHERE game_date = $1 AND NOT is_synthetic AND (start_time <= now() OR start_time IS NULL)`,
     [date],
   );
   return new Set(res.rows.map((r) => r.id));
@@ -286,15 +294,50 @@ async function loadStoredLines(date: string): Promise<LineRow[]> {
   return out;
 }
 
+export interface RepriceResult {
+  linesRead: number;
+  picksWritten: number;
+  // True when the run aborted before writing anything, because the slate has
+  // captured closing lines and `force` was not passed. When true, linesRead
+  // and picksWritten are both 0 -- nothing was read or written.
+  refused: boolean;
+  // Count of this slate's picks with a non-null close_line, checked BEFORE
+  // any write. If refused is true, this is what refusing avoided destroying.
+  // If refused is false and this is > 0, `force` was passed and repricing
+  // just deleted and re-inserted all of this slate's picks, destroying that
+  // many rows' close_line/close_odds/close_fair_prob/clv_pct/
+  // close_captured_at/result.
+  capturedCount: number;
+}
+
 // Re-price a slate from lines already in the database. Zero API calls, so
-// iterating on the model costs no odds quota.
+// iterating on the model costs no odds quota -- but `priceAndWritePicks`
+// deletes and re-inserts every pick on the slate, which destroys any
+// captured closing line. Refuse to do that silently: a slate with a captured
+// close only reprices when `force` is true.
 export async function repriceLines(
   date: string,
   edgeThreshold: number,
-): Promise<{ linesRead: number; picksWritten: number }> {
+  force = false,
+): Promise<RepriceResult> {
+  const capturedCount = Number(
+    (
+      await query<{ n: string }>(
+        `SELECT count(*) AS n
+         FROM picks pk JOIN games g ON g.id = pk.game_id
+         WHERE g.game_date = $1 AND NOT g.is_synthetic AND pk.close_line IS NOT NULL`,
+        [date],
+      )
+    ).rows[0].n,
+  );
+
+  if (capturedCount > 0 && !force) {
+    return { linesRead: 0, picksWritten: 0, refused: true, capturedCount };
+  }
+
   const rows = await loadStoredLines(date);
   const picksWritten = await priceAndWritePicks(date, rows, edgeThreshold);
-  return { linesRead: rows.length, picksWritten };
+  return { linesRead: rows.length, picksWritten, refused: false, capturedCount };
 }
 
 export interface CaptureResult {

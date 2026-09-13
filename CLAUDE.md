@@ -92,8 +92,29 @@ vs reality; `backtest` = calibration report (reliability, ECE, Brier).
   post-first-pitch; the other 59 (all 2026-09-11) have no post-start quote and
   are excluded as unverifiable, not proven contaminated.
 - Capture lead time has no LOWER bound: the guard only enforces "not after first
-  pitch". Only 22 of the 336 kept CLV rows were captured within an hour of first
-  pitch; 153 were 3-7 hours out. "Closing line value" is still a generous label.
+  pitch". None of the 33 kept CLV rows were captured within an hour of first
+  pitch; all 33 were captured 1-3 hours out. "Closing line value" is still a
+  generous label. (n was 336 as of the last count; it is 33 now because a
+  `lines reprice` run against the 2026-09-12 slate, done as a verification step
+  in this branch's own plan, deleted and re-inserted all of that slate's picks
+  after its closes had been captured — wiping close_line/close_odds/
+  close_fair_prob/clv_pct/close_captured_at/result on the 343 that had them,
+  303 of which were clean. 14 of the slate's 15 games had already started, so
+  those closes cannot be recaptured; the loss is permanent. The reported
+  average CLV moving from −0.228% to −0.127% afterward is an artifact of that
+  deletion, not a finding — see the `reprice` seam below for the guard added
+  so this can't happen silently again.)
+- `lines reprice` still deletes and re-inserts every pick on the slate before
+  writing (`priceAndWritePicks`'s `DELETE FROM picks WHERE game_id = ANY(...)`),
+  which destroys `close_line`/`close_odds`/`close_fair_prob`/`clv_pct`/
+  `close_captured_at`/`result` on any of them that had been captured — even
+  though `reprice` no longer feeds a live price into `pick_fair_prob` (that
+  hole was closed by the live-quote read guard above). `lines pull` and
+  `lines capture` both refuse to touch a game that has started; `reprice`
+  does not check game start at all, only whether a closing line was captured,
+  and only refuses by default — it aborts unless `--force` is passed, and
+  `--force` still deletes them. This is the mechanism that destroyed the
+  2026-09-12 slate's captured closes, described above.
 
 ## Open work, prioritized
 1. Run the forward CLV loop — the actual unanswered question.
