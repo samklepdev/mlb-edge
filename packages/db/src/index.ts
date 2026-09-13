@@ -9,4 +9,4 @@ export { getScorecard } from './queries/scorecard.js';
 export { latestSlateDate, getSlateGames, getTopEdges, getSlateRoster } from './queries/slate.js';
 export { getPlayerCard } from './queries/player.js';
 export { projectionReliability, backtestSummary, evalPropTypes } from './queries/backtest.js';
-export { teamReliability, teamBacktestSummary, teamEvalMarkets } from './queries/teamBacktest.js';
+export { teamReliability, teamBacktestSummary, teamEvalMarkets, teamResolution } from './queries/teamBacktest.js';

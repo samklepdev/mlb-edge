@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { resolutionFromStats, tCritical, MIN_GAMES } from '@mlb-edge/db';
+import { resolutionFromStats, tCritical, MIN_GAMES, teamResolution, pool } from '@mlb-edge/db';
 import type { ResolutionStats } from '@mlb-edge/db';
 
 // Executable checks for the resolution statistics. Committed rather than
@@ -139,9 +139,70 @@ function verifyPure(): void {
   console.log('PURE CHECKS PASSED');
 }
 
+// Oracle values from the design session's independent SQL, matched to 5 dp.
+const EXPECTED = [
+  { market: 'total', n: 9420, games: 2355, advantage: 0.00192, se: 0.00206, verdict: 'indistinguishable' },
+  { market: 'run_line', n: 4710, games: 2355, advantage: 0.0194, se: 0.00207, verdict: 'beats' },
+  { market: 'moneyline', n: 2355, games: 2355, advantage: -0.00213, se: 0.0022, verdict: 'indistinguishable' },
+] as const;
+
+const r5 = (x: number) => Number(x.toFixed(5));
+
+async function verifyQuery(): Promise<void> {
+  for (const e of EXPECTED) {
+    const got = await teamResolution(e.market);
+    assert.equal(got.n, e.n, `${e.market} n`);
+    assert.equal(got.games, e.games, `${e.market} games`);
+    assert.equal(r5(got.advantage!), r5(e.advantage), `${e.market} advantage: got ${got.advantage}`);
+    assert.equal(r5(got.se!), r5(e.se), `${e.market} clustered se: got ${got.se}`);
+    assert.equal(got.verdict, e.verdict, `${e.market} verdict: got ${got.verdict}`);
+    assert.ok(got.ciLo! < got.ciHi!, `${e.market} interval ordering`);
+    console.log(`${e.market}: advantage ${got.advantage!.toFixed(5)} se ${got.se!.toFixed(5)} -> ${got.verdict}`);
+  }
+
+  // moneyline has exactly one eval per game, so clustering is a no-op and the
+  // clustered SE must reduce EXACTLY to the naive SE. This is an algebraic
+  // identity, not an approximation -- see the spec. Recompute the naive SE from
+  // raw rows here so the check does not depend on the query's own clustering.
+  {
+    const ml = await teamResolution('moneyline');
+    assert.equal(ml.n, ml.games, 'moneyline must be one eval per game for this check to mean anything');
+    const rows = (
+      await pool.query<{ p: number; y: number; r: number }>(
+        `WITH e AS (
+           SELECT model_prob::float8 AS p, (hit)::int AS y
+           FROM team_model_evals
+           WHERE model_version = (SELECT max(model_version) FROM team_model_evals)
+             AND market = 'moneyline'
+         )
+         SELECT p, y, (SELECT avg(y)::float8 FROM e) AS r FROM e`,
+      )
+    ).rows;
+    const r = Number(rows[0].r);
+    const d = rows.map((row) => (r - row.y) ** 2 - (Number(row.p) - row.y) ** 2);
+    const n = d.length;
+    const a = d.reduce((s, x) => s + x, 0) / n;
+    const naiveSe = Math.sqrt(d.reduce((s, x) => s + (x - a) ** 2, 0) / (n - 1)) / Math.sqrt(n);
+    assert.ok(Math.abs(ml.se! - naiveSe) < 1e-12, `n_g=1 identity: clustered ${ml.se} vs naive ${naiveSe}`);
+    assert.ok(Math.abs(ml.advantage! - a) < 1e-12, `advantage from raw rows: ${ml.advantage} vs ${a}`);
+    console.log('n_g=1 identity holds exactly');
+  }
+
+  // The unfiltered call pools every market; it must at least aggregate cleanly.
+  {
+    const all = await teamResolution();
+    assert.equal(all.n, 9420 + 4710 + 2355, 'pooled n');
+    assert.equal(all.games, 2355, 'pooled games');
+    console.log(`pooled: n=${all.n} games=${all.games}`);
+  }
+
+  console.log('QUERY CHECKS PASSED');
+}
+
 // Entry point for the `verify-resolution` CLI command. Task 2 adds a
 // verifyQuery() call here; keep this the single place that sequences the
 // check groups.
 export async function verifyResolution(): Promise<void> {
   verifyPure();
+  await verifyQuery();
 }
