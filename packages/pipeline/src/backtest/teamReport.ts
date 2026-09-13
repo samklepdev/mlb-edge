@@ -38,20 +38,28 @@ function printResolution(r: ResolutionCheck): void {
     console.log('  base-rate Brier = n/a (no evaluations)');
     return;
   }
-  // One line: the baseline is just that line's rate, so name it. Several lines:
-  // naming a single pooled percentage would misdescribe the baseline, so report
-  // the line count and the spread of per-line rates instead.
+  // One line: the baseline is just that line's rate, so name it -- with a single
+  // line the pooled baseRate IS that line's rate. Several lines: naming one
+  // pooled percentage would misdescribe the baseline, so report the line count
+  // and the spread of per-line rates instead. If the spread is somehow missing,
+  // fall back to the vaguer multi-line wording rather than asserting a single
+  // rate that is not what the baseline used.
   const basis =
-    r.lines === 1 || r.baseRateLo == null || r.baseRateHi == null
+    r.lines === 1
       ? `predicting the ${(r.baseRate * 100).toFixed(1)}% base rate for every game`
-      : `predicting each line's own hit rate; ${r.lines} lines, ` +
-        `${(r.baseRateLo * 100).toFixed(1)}%-${(r.baseRateHi * 100).toFixed(1)}%`;
+      : r.baseRateLo == null || r.baseRateHi == null
+        ? `predicting each line's own hit rate; ${r.lines} lines`
+        : `predicting each line's own hit rate; ${r.lines} lines, ` +
+          `${(r.baseRateLo * 100).toFixed(1)}%-${(r.baseRateHi * 100).toFixed(1)}%`;
   console.log(`  base-rate Brier = ${r.baseRateBrier.toFixed(4)}  (${basis})`);
 
   if (r.ciLo == null || r.ciHi == null || r.skillScore == null) {
     console.log(`  model advantage = ${signed(r.advantage)}  (no interval)`);
     console.log(`  verdict         = ${VERDICT_TEXT.insufficient}`);
-    console.log(`                    (needs ${MIN_GAMES}+ games and a non-degenerate base rate)`);
+    console.log(
+      `                    (needs ${MIN_GAMES}+ games, some spread in the per-eval\n` +
+        '                    differences, and a base-rate Brier above zero)',
+    );
     return;
   }
 
@@ -112,9 +120,9 @@ export async function teamBacktestReport(): Promise<void> {
   console.log(
     '  * ECE measures CALIBRATION (do predicted probabilities match observed frequencies)\n' +
       '    -- it does not measure RESOLUTION (does the model separate likely games from\n' +
-      "    unlikely ones). A model that always predicts a market's own base rate can score\n" +
-      '    a fine ECE while carrying zero information. The base-rate Brier above is that\n' +
-      '    no-information baseline.',
+      "    unlikely ones). A model that always predicts each candidate line's own base\n" +
+      '    rate can score a fine ECE while carrying zero information. The base-rate Brier\n' +
+      '    above is that no-information baseline.',
   );
   console.log(
     "  * A market's evaluations span several candidate lines with very different base\n" +
@@ -122,7 +130,11 @@ export async function teamBacktestReport(): Promise<void> {
       "    line it is pricing. So the baseline is each line's OWN hit rate, not one pooled\n" +
       '    rate per market. Pooling would credit the model for merely knowing which line\n' +
       '    it is pricing: pooled r(1-r) = E[r_k(1-r_k)] + Var(r_k), and that Var(r_k) term\n' +
-      '    is line identity, not skill.',
+      '    is line identity, not skill.\n' +
+      '    NB `line` is a threshold on the HOME margin (hit = margin > line), so -1.5 is\n' +
+      '    "home wins by more than -1.5", i.e. home +1.5 -- not the betting-convention\n' +
+      '    reading where -1.5 is the favourite. Var(r_k) does not depend on which side is\n' +
+      '    which, so nothing computed above is affected by the labelling.',
   );
   console.log(
     '  * The verdict is a SIGNIFICANCE TEST, not a sign test, and the interval is\n' +

@@ -1,5 +1,40 @@
 # Advantage Significance Threshold Implementation Plan
 
+> ## ⚠️ EXECUTED AND SUPERSEDED IN PART — read before following any step
+>
+> This plan was executed (commits `50671e3..839e3a0`). The final whole-branch
+> review then found that the estimand it prescribes is **wrong**, and it was
+> corrected in `4ab4868`. The unchecked `- [ ]` boxes below are historical, not
+> work to do.
+>
+> **What changed:** the baseline must be computed per `(market, line)`, not per
+> market. A market's evals span several candidate lines with very different hit
+> rates, and the model is told which line it is pricing — so a pooled baseline
+> hands the model `Var(r_k)` for free, which is line identity, not skill
+> (`pooled r(1-r) = E[r_k(1-r_k)] + Var(r_k)`; for `run_line`,
+> `Var(r_k) = 0.01905` against this plan's pinned advantage of `+0.01940` —
+> essentially all of it).
+>
+> **Therefore, specifically superseded below:**
+> - Every pinned `run_line` figure: **`+0.0194` / `beats` is an artifact.** The
+>   correct values are `+0.00036`, SE `0.00171`, **INDISTINGUISHABLE** — see the
+>   oracle table (Task 2 Step 1), the expected `verify:resolution` output
+>   (Task 2 Step 5) and the pinned report sample (Task 3 Step 5).
+> - `total` is **`-0.00581`, WORSE THAN THE BASE RATE**, not the `+0.0019`
+>   silent pass pinned here. `moneyline` is unchanged at `-0.00213`.
+> - Task 1 Step 5's `const baseRateBrier = baseRate == null ? null : baseRate * (1 - baseRate);`
+>   — `baseRateBrier` now comes from SQL and must NOT be re-derived from
+>   `baseRate`.
+> - Task 1 Step 5's `if (baseRate == null || baseRate === 0 || baseRate === 1) return out;`
+>   — the degeneracy guard is now `baseRateBrier === 0`.
+> - The "inflates `total`'s SE 1.46x but shrinks `run_line`'s to 0.88x" ratios
+>   (Task 2 Step 3, and the Step 7 commit message) belong to the pooled
+>   estimand. Per-line they are **1.81x and 1.23x**; the sign flip was itself a
+>   pooled-baseline artifact.
+>
+> The authoritative description is the spec:
+> `docs/superpowers/specs/2026-09-13-advantage-significance-design.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the team-backtest resolution check's bare sign test with a
@@ -372,6 +407,9 @@ export function tCritical(df: number): number {
 export function resolutionFromStats(s: ResolutionStats): ResolutionCheck {
   const { n, games, baseRate, modelBrier, sumDg, sumDg2, sumNgDg, sumNg2 } = s;
 
+  // ⚠️ SUPERSEDED (4ab4868): baseRateBrier now comes from SQL as the n-weighted
+  // mean of r_k(1-r_k) over the market's lines. Do NOT re-derive it from
+  // baseRate -- that is the pooled baseline this branch had to correct.
   const baseRateBrier = baseRate == null ? null : baseRate * (1 - baseRate);
   const advantage = n === 0 ? null : sumDg / n;
 
@@ -406,6 +444,8 @@ export function resolutionFromStats(s: ResolutionStats): ResolutionCheck {
   // by construction: the baseline is a perfect in-sample predictor and the
   // comparison is vacuous. Without this guard such a market prints a confident
   // WORSE.
+  // ⚠️ SUPERSEDED (4ab4868): the degeneracy guard is now `baseRateBrier === 0`,
+  // which is the general condition (it holds iff every line's rate is 0 or 1).
   if (baseRate == null || baseRate === 0 || baseRate === 1) return out;
   if (baseRateBrier == null || baseRateBrier === 0) return out;
 
@@ -505,6 +545,11 @@ The new function — note it is NOT top-level code, and it does not call
 and the process exits cleanly:
 
 ```ts
+// ⚠️ SUPERSEDED (see banner at top of plan): these are POOLED-baseline values.
+// The per-(market, line) baseline in 4ab4868 gives:
+//   total    -0.00581  se 0.00199  worse
+//   run_line +0.00036  se 0.00171  indistinguishable   <- NOT 'beats'
+//   moneyline -0.00213 se 0.00220  indistinguishable
 // Oracle values from the design session's independent SQL, matched to 5 dp.
 const EXPECTED = [
   { market: 'total', n: 9420, games: 2355, advantage: 0.00192, se: 0.00206, verdict: 'indistinguishable' },
@@ -605,6 +650,9 @@ Then append the function to the end of the file:
 // misstates the standard error, and not in a predictable direction: clustering
 // inflates `total`'s SE 1.46x but shrinks `run_line`'s to 0.88x, because the two
 // sides' errors offset within a game.
+// ⚠️ SUPERSEDED (4ab4868): those ratios are the POOLED estimand. Per-line they
+// are 1.81x and 1.23x -- the correction inflates both, and the sign flip was
+// itself an artifact of scoring both sides against one pooled rate.
 //
 // Returns sufficient statistics only; all arithmetic lives in resolution.ts so
 // it is exercisable without a database.
@@ -700,6 +748,11 @@ export { teamReliability, teamBacktestSummary, teamEvalMarkets, teamResolution }
 ```bash
 npm run build:db && npm run verify:resolution
 ```
+
+⚠️ SUPERSEDED — these are pooled-baseline values; see the banner at the top of
+this plan. The current expected output is `total -0.00581 -> worse`,
+`run_line +0.00036 -> indistinguishable`, `moneyline -0.00213 ->
+indistinguishable`.
 
 Expected, exactly (after the `PURE CHECKS PASSED` line from Task 1):
 
@@ -867,6 +920,12 @@ Replace the final `console.log(...)` block (lines 80-87) with:
 ```bash
 npm run build:db && npm run team-backtest
 ```
+
+⚠️ SUPERSEDED — this sample is the pooled baseline; see the banner at the top of
+this plan. Under the corrected per-line baseline `total` prints
+`-0.0058 … WORSE THAN THE BASE RATE  <<<` and `run_line` prints
+`+0.0004 … INDISTINGUISHABLE FROM THE BASE RATE`. **No market beats its
+baseline.**
 
 Expected — `run_line` earns BEATS while the other two are downgraded from the
 old silent-pass / loud-flag behaviour. These are **excerpts**: the `ECE` /

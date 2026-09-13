@@ -20,10 +20,9 @@ rate) and the model's advantage over it. It flags a negative advantage with
 `<<< WORSE THAN GUESSING THE BASE RATE`.
 
 That flag is a **sign test on a noisy quantity**, and it is wrong in both
-directions. Measured on the current eval population:
-
-Under the **per-(market, line)** baseline this spec settles on (see *Baseline must
-be given the line* below), measured on the current eval population:
+directions. Measured on the current eval population, under the
+**per-(market, line)** baseline this spec settles on (see *Baseline must be
+given the line* below):
 
 | market | n | games | lines | advantage | naive SE | clustered SE | z (naive) | z (clustered) |
 |---|---|---|---|---|---|---|---|---|
@@ -147,11 +146,14 @@ CI        = A ± t(0.975, G-1) * SE
 The expansion means one grouped query yields the sufficient statistics
 (`n`, `G`, `Σ D_g`, `Σ D_g^2`, `Σ n_g D_g`, `Σ n_g^2`) — no second pass.
 
-`r` is treated as fixed though it is estimated from the same rows. This is an
-`O(1/n)` approximation and it **leans against the model**: `r(1-r)` is the
-in-sample *optimal* constant forecast, so the bar it sets is slightly too high.
-Erring conservative is the right direction here and is preferred to correcting
-it.
+Each `r_k` is treated as fixed though it is estimated from the same rows — now
+`k` fitted rates per market rather than one, so the approximation is `O(k/n)`
+(with `k` at most 4 and `n_k = 2355`, still negligible: the per-cell in-sample
+optimum biases `baseRateBrier` low by about `r_k(1-r_k)/n_k ≈ 0.0001` per cell,
+well inside every SE). The **direction is unchanged**: `r_k(1-r_k)` is the
+in-sample *optimal* constant forecast for that cell, so the bar it sets is
+slightly too high. Erring conservative is the right direction here and is
+preferred to correcting it.
 
 `t(0.975, G-1)` comes from a conservative lookup table:
 
@@ -179,7 +181,7 @@ conservative everywhere, overstating the half-width by at most 1% as
 ### Verdict
 
 ```
-INSUFFICIENT DATA                       if G < 30, n = 0, SE = 0, or r ∈ {0,1}
+INSUFFICIENT DATA                       if G < 30, n = 0, SE = 0, or baseRateBrier = 0
 BEATS THE BASE RATE                     if CI.lo > 0
 WORSE THAN THE BASE RATE                if CI.hi < 0     # keeps the loud <<< marker
 INDISTINGUISHABLE FROM THE BASE RATE    otherwise        # the default
