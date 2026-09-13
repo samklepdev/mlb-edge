@@ -9,6 +9,7 @@ import { backfill } from './project/backfill.js';
 import { backfillTeams } from './game/backfill.js';
 import { backtestReport } from './backtest/report.js';
 import { teamBacktestReport } from './backtest/teamReport.js';
+import { verifyResolution } from './backtest/verifyResolution.js';
 import { healthReport } from './health/report.js';
 import { MODEL_VERSION } from './project/model.js';
 import { pullLines, captureClosing, settleResults, repriceLines, type PullOptions } from './market/lines.js';
@@ -337,6 +338,13 @@ program
   .description('calibration report for the game-outcome model, by market')
   .action(async () => {
     await teamBacktestReport();
+  });
+
+program
+  .command('verify-resolution')
+  .description('run the resolution-statistics checks (pure invariants + DB oracles)')
+  .action(async () => {
+    await verifyResolution();
   });
 
 program

@@ -79,6 +79,36 @@ export interface BacktestSummary {
   brier: number | null; // mean squared error of probabilities
 }
 
+export type ResolutionVerdict = 'beats' | 'worse' | 'indistinguishable' | 'insufficient';
+
+// Sufficient statistics for the game-clustered advantage test. One row per
+// market, aggregated in SQL; everything else is derived purely from these.
+// D_g = sum of per-eval differences d_i within game g; n_g = evals in game g.
+export interface ResolutionStats {
+  n: number;                  // evals
+  games: number;              // clusters (distinct game_id)
+  baseRate: number | null;    // mean(hit)
+  modelBrier: number | null;  // mean((p - y)^2)
+  sumDg: number;              // sum of D_g
+  sumDg2: number;             // sum of D_g^2
+  sumNgDg: number;            // sum of n_g * D_g
+  sumNg2: number;             // sum of n_g^2
+}
+
+export interface ResolutionCheck {
+  n: number;
+  games: number;
+  baseRate: number | null;
+  baseRateBrier: number | null;  // r*(1-r)
+  modelBrier: number | null;
+  advantage: number | null;      // baseRateBrier - modelBrier
+  se: number | null;             // clustered by game
+  ciLo: number | null;
+  ciHi: number | null;
+  skillScore: number | null;     // advantage / baseRateBrier
+  verdict: ResolutionVerdict;
+}
+
 export interface RosterPlayer {
   playerId: number;
   playerName: string;

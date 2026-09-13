@@ -24,6 +24,7 @@
     "team-backfill": "npm run -w @mlb-edge/pipeline cli -- team-backfill",
     "backtest": "npm run -w @mlb-edge/pipeline backtest",
     "team-backtest": "npm run -w @mlb-edge/pipeline cli -- team-backtest",
+    "verify:resolution": "npm run -w @mlb-edge/pipeline cli -- verify-resolution",
     "health": "npm run -w @mlb-edge/pipeline health"
   }
 }
