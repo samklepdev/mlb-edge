@@ -28,20 +28,25 @@ function signed(x: number, dp = 4): string {
 }
 
 // Resolution check: does the model separate likely games from unlikely ones, or
-// does it just track the market's overall base rate? A model can be
+// does it just track the base rate of the line it is pricing? A model can be
 // well-calibrated (good ECE) and still carry zero information. The base-rate
-// Brier is what a model that always predicts the market's own hit rate scores;
-// beating it -- significantly, clustered by game -- is the bar for "this model
-// knows something."
+// Brier is what a baseline that always predicts each candidate line's own hit
+// rate scores; beating it -- significantly, clustered by game -- is the bar for
+// "this model knows something."
 function printResolution(r: ResolutionCheck): void {
   if (r.baseRateBrier == null || r.advantage == null || r.baseRate == null) {
     console.log('  base-rate Brier = n/a (no evaluations)');
     return;
   }
-  console.log(
-    `  base-rate Brier = ${r.baseRateBrier.toFixed(4)}  ` +
-      `(predicting the ${(r.baseRate * 100).toFixed(1)}% base rate for every game)`,
-  );
+  // One line: the baseline is just that line's rate, so name it. Several lines:
+  // naming a single pooled percentage would misdescribe the baseline, so report
+  // the line count and the spread of per-line rates instead.
+  const basis =
+    r.lines === 1 || r.baseRateLo == null || r.baseRateHi == null
+      ? `predicting the ${(r.baseRate * 100).toFixed(1)}% base rate for every game`
+      : `predicting each line's own hit rate; ${r.lines} lines, ` +
+        `${(r.baseRateLo * 100).toFixed(1)}%-${(r.baseRateHi * 100).toFixed(1)}%`;
+  console.log(`  base-rate Brier = ${r.baseRateBrier.toFixed(4)}  (${basis})`);
 
   if (r.ciLo == null || r.ciHi == null || r.skillScore == null) {
     console.log(`  model advantage = ${signed(r.advantage)}  (no interval)`);
@@ -110,6 +115,14 @@ export async function teamBacktestReport(): Promise<void> {
       "    unlikely ones). A model that always predicts a market's own base rate can score\n" +
       '    a fine ECE while carrying zero information. The base-rate Brier above is that\n' +
       '    no-information baseline.',
+  );
+  console.log(
+    "  * A market's evaluations span several candidate lines with very different base\n" +
+      '    rates (run_line -1.5 hits 64.2%, +1.5 hits 36.6%), and the model is TOLD which\n' +
+      "    line it is pricing. So the baseline is each line's OWN hit rate, not one pooled\n" +
+      '    rate per market. Pooling would credit the model for merely knowing which line\n' +
+      '    it is pricing: pooled r(1-r) = E[r_k(1-r_k)] + Var(r_k), and that Var(r_k) term\n' +
+      '    is line identity, not skill.',
   );
   console.log(
     '  * The verdict is a SIGNIFICANCE TEST, not a sign test, and the interval is\n' +

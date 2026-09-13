@@ -84,22 +84,38 @@ export type ResolutionVerdict = 'beats' | 'worse' | 'indistinguishable' | 'insuf
 // Sufficient statistics for the game-clustered advantage test. One row per
 // market, aggregated in SQL; everything else is derived purely from these.
 // D_g = sum of per-eval differences d_i within game g; n_g = evals in game g.
+//
+// The baseline is PER (market, line), not per market: a market's evaluations
+// span several candidate lines whose hit rates differ a lot (run_line -1.5 hits
+// 64.2%, +1.5 hits 36.6%), and the model is told which line it is pricing. A
+// pooled base rate would hand the model the across-line variance for free,
+// because pooled r(1-r) = E[r_k(1-r_k)] + Var(r_k). So d_i is measured against
+// eval i's OWN line's hit rate r_k, and baseRateBrier is the n-weighted mean of
+// r_k(1-r_k) -- which equals mean((r_k - y_i)^2) identically, so
+// advantage = baseRateBrier - modelBrier still holds exactly.
 export interface ResolutionStats {
-  n: number;                  // evals
-  games: number;              // clusters (distinct game_id)
-  baseRate: number | null;    // mean(hit)
-  modelBrier: number | null;  // mean((p - y)^2)
-  sumDg: number;              // sum of D_g
-  sumDg2: number;             // sum of D_g^2
-  sumNgDg: number;            // sum of n_g * D_g
-  sumNg2: number;             // sum of n_g^2
+  n: number;                       // evals
+  games: number;                   // clusters (distinct game_id)
+  baseRate: number | null;         // pooled mean(hit) across all lines
+  baseRateBrier: number | null;    // n-weighted mean of r_k(1-r_k) over lines
+  lines: number;                   // distinct (market, line) baseline cells
+  baseRateLo: number | null;       // lowest per-line hit rate
+  baseRateHi: number | null;       // highest per-line hit rate
+  modelBrier: number | null;       // mean((p - y)^2)
+  sumDg: number;                   // sum of D_g
+  sumDg2: number;                  // sum of D_g^2
+  sumNgDg: number;                 // sum of n_g * D_g
+  sumNg2: number;                  // sum of n_g^2
 }
 
 export interface ResolutionCheck {
   n: number;
   games: number;
-  baseRate: number | null;
-  baseRateBrier: number | null;  // r*(1-r)
+  baseRate: number | null;       // pooled mean(hit); display only
+  baseRateBrier: number | null;  // n-weighted mean of r_k(1-r_k) over lines
+  lines: number;                 // distinct (market, line) baseline cells
+  baseRateLo: number | null;
+  baseRateHi: number | null;
   modelBrier: number | null;
   advantage: number | null;      // baseRateBrier - modelBrier
   se: number | null;             // clustered by game

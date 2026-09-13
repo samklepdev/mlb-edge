@@ -34,17 +34,28 @@ export function tCritical(df: number): number {
 // Turn one market's sufficient statistics into the advantage, its
 // game-clustered interval, and a three-state verdict.
 //
-// The advantage is baseRateBrier - modelBrier, where baseRateBrier = r(1-r) is
-// the Brier score of always predicting the market's own hit rate. Positive means
-// the model beats that no-information baseline.
+// The advantage is baseRateBrier - modelBrier. baseRateBrier is the Brier score
+// of a baseline that predicts, for every game, the hit rate of the specific
+// (market, line) being evaluated -- i.e. the n-weighted mean of r_k(1-r_k)
+// across that market's candidate lines, supplied by SQL. Positive means the
+// model beats that no-information baseline.
+//
+// The baseline is deliberately GIVEN THE LINE. Pooling one base rate per market
+// would make the baseline weaker than the model's own information set, since
+//   pooled r(1-r) = E[r_k(1-r_k)] + Var(r_k),
+// so the model would collect Var(r_k) -- pure line identity -- as "skill". For
+// run_line that term alone is 0.01905, which was essentially the whole apparent
+// advantage under the pooled baseline.
 //
 // INDISTINGUISHABLE is the default: both BEATS and WORSE must earn significance.
 // A bare sign test on this quantity reports noise as a finding in both
 // directions.
 export function resolutionFromStats(s: ResolutionStats): ResolutionCheck {
-  const { n, games, baseRate, modelBrier, sumDg, sumDg2, sumNgDg, sumNg2 } = s;
+  const {
+    n, games, baseRate, baseRateBrier, lines, baseRateLo, baseRateHi,
+    modelBrier, sumDg, sumDg2, sumNgDg, sumNg2,
+  } = s;
 
-  const baseRateBrier = baseRate == null ? null : baseRate * (1 - baseRate);
   const advantage = n === 0 ? null : sumDg / n;
 
   let se: number | null = null;
@@ -63,6 +74,9 @@ export function resolutionFromStats(s: ResolutionStats): ResolutionCheck {
     games,
     baseRate,
     baseRateBrier,
+    lines,
+    baseRateLo,
+    baseRateHi,
     modelBrier,
     advantage,
     se,
@@ -74,11 +88,15 @@ export function resolutionFromStats(s: ResolutionStats): ResolutionCheck {
 
   if (n === 0 || games < MIN_GAMES) return out;
   if (advantage == null || se == null || se === 0) return out;
-  // r of exactly 0 or 1 makes baseRateBrier 0, so advantage = -modelBrier <= 0
-  // by construction: the baseline is a perfect in-sample predictor and the
-  // comparison is vacuous. Without this guard such a market prints a confident
-  // WORSE.
-  if (baseRate == null || baseRate === 0 || baseRate === 1) return out;
+  // baseRateBrier == 0 holds exactly when EVERY line's rate r_k is 0 or 1, and
+  // then advantage = -modelBrier <= 0 by construction: the baseline is a perfect
+  // in-sample predictor and the comparison is vacuous. Without this guard such a
+  // market prints a confident WORSE.
+  //
+  // This is tested on baseRateBrier, not on the pooled baseRate: with a per-line
+  // baseline the pooled rate can sit anywhere (two lines at r=0 and r=1 pool to
+  // 0.5) while every cell is still degenerate, and conversely a non-degenerate
+  // set of lines can never make baseRateBrier 0.
   if (baseRateBrier == null || baseRateBrier === 0) return out;
 
   const t = tCritical(games - 1);
