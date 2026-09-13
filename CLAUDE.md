@@ -104,17 +104,15 @@ vs reality; `backtest` = calibration report (reliability, ECE, Brier).
   average CLV moving from −0.228% to −0.127% afterward is an artifact of that
   deletion, not a finding — see the `reprice` seam below for the guard added
   so this can't happen silently again.)
-- `lines reprice` still deletes and re-inserts every pick on the slate before
-  writing (`priceAndWritePicks`'s `DELETE FROM picks WHERE game_id = ANY(...)`),
-  which destroys `close_line`/`close_odds`/`close_fair_prob`/`clv_pct`/
-  `close_captured_at`/`result` on any of them that had been captured — even
-  though `reprice` no longer feeds a live price into `pick_fair_prob` (that
-  hole was closed by the live-quote read guard above). `lines pull` and
-  `lines capture` both refuse to touch a game that has started; `reprice`
-  does not check game start at all, only whether a closing line was captured,
-  and only refuses by default — it aborts unless `--force` is passed, and
-  `--force` still deletes them. This is the mechanism that destroyed the
-  2026-09-12 slate's captured closes, described above.
+- `lines reprice` prices only games that have not started
+  (`loadStoredLines` filters `g.start_time > now()`), so it writes no picks on
+  games already underway. Started games' picks — and any captured closing lines
+  on them — are preserved because `priceAndWritePicks` derives its
+  `DELETE FROM picks WHERE game_id = ANY(...)` scope from the rows it is handed,
+  and an excluded game never appears there. For upcoming games it still deletes
+  and re-inserts, so it still refuses by default when an upcoming game already
+  has a captured closing line; `--force` overrides and destroys them. All three
+  `lines` commands now agree: none of them touch a game that has started.
 
 ## Open work, prioritized
 1. Run the forward CLV loop — the actual unanswered question.
