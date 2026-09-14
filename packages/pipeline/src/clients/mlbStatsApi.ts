@@ -46,8 +46,28 @@ export function getBoxscore(gamePk: number): Promise<BoxscoreResponse> {
   return getJson(`/api/v1/game/${gamePk}/boxscore`);
 }
 
+// Only `weather` was typed here for a long time, which hid the fact that the
+// same payload carries every plate appearance of the game with the batter's
+// side and the pitcher's hand on it. That is the source for platoon splits,
+// and it costs no extra request -- ingestBoxscore already fetches this.
+export interface LivePlay {
+  result?: { type?: string; eventType?: string };
+  // `runners` is what tells a completed plate appearance from a play that
+  // merely happened while someone was batting; see isCompletedPa.
+  runners?: Array<{
+    details?: { runner?: { id?: number } };
+    movement?: { originBase?: string | null };
+  }>;
+  matchup?: {
+    batter?: { id?: number };
+    pitcher?: { id?: number };
+    batSide?: { code?: string };
+    pitchHand?: { code?: string };
+  };
+}
 export interface LiveFeedResponse {
   gameData?: { weather?: { condition?: string; temp?: string; wind?: string } };
+  liveData?: { plays?: { allPlays?: LivePlay[] } };
 }
 export function getLiveFeed(gamePk: number): Promise<LiveFeedResponse> {
   return getJson(`/api/v1.1/game/${gamePk}/feed/live`);

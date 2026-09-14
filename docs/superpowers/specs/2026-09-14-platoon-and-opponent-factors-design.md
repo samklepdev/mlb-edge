@@ -102,6 +102,28 @@ CREATE TABLE player_game_platoon (
 `bat_side` is in the key, not derived from `players.bats`, because a switch
 hitter legitimately produces two rows per game.
 
+### Amendment: `result.type === 'atBat'` does not mean a PA happened
+
+Found by the reconciliation gate during phase 2, not by reading documentation.
+The feed types a play as `atBat` whenever someone was at the plate — including
+when the half-inning ends on a **baserunner**, where the batter's plate
+appearance never completes and carries over. The boxscore does not count those.
+
+Three rules were tried against real games:
+
+| rule | leaks |
+|---|---|
+| `result.type === 'atBat'` | `pickoff_caught_stealing_2b` (game 823737): feed pa=5, boxscore pa=4 |
+| last `playEvent` is a pitch | a runner can be caught stealing *on* a pitch — `caught_stealing_2b` (game 824712) passes while the PA never completed |
+| **batter moved from the plate** | none observed |
+
+The rule used is the third: a completed PA puts the batter in the play's
+`runners` with `movement.originBase === null`, whether they reached base or
+were put out. It asks the same question the boxscore is answering, rather than
+maintaining a list of event codes. Note the second rule also has to handle
+`intent_walk`, which legitimately ends on `no_pitch` — a detail that makes the
+event-code approach worse, not better.
+
 **Reconciliation gate (hard requirement).** For every (game, player),
 `sum(player_game_platoon.pa)` must equal `player_game_batting.pa`, and the same
 for each of singles/doubles/triples/hr/so. Play-by-play event parsing is the
@@ -109,6 +131,33 @@ risky part of this whole change — `allPlays` includes non-atBat rows, and even
 strings must map to the same outcomes the boxscore counted. A per-game
 reconciliation against a source already known to be correct is a stronger check
 than any unit test here, and it must pass before the model reads the table.
+
+## Do not read the pooled splits as a platoon effect
+
+An early slice of the captured data (~14k PA):
+
+| bat side | pitch hand | PA | hit/PA | HR/PA |
+|---|---|---|---|---|
+| L | L | 1,604 | 0.2307 | 0.0231 |
+| L | R | 5,433 | 0.2135 | 0.0363 |
+| R | L | 3,079 | 0.2215 | 0.0335 |
+| R | R | 4,293 | 0.2257 | 0.0282 |
+
+HR/PA moves the textbook way — both batter sides homer more against opposite
+handedness. **hit/PA moves backwards**: lefties appear to hit *better* against
+LHP.
+
+That is almost certainly not a real effect, it is selection. Managers bench
+left-handed batters against left-handed starters, so the L-vs-L sample is
+disproportionately lefties good enough to be left in against one. The pooled
+split measures who was allowed to bat, not how batters perform.
+
+**This is the argument for the two-stage shrink below, and against a league
+platoon multiplier folded into `adj`.** A pooled league factor would import
+this selection bias directly into every batter's projection. Shrinking a
+batter's own vs-hand rate toward *their own* overall rate conditions on the
+player and avoids it — a batter who never faces LHP simply degrades to their
+current v0.3 estimate rather than being adjusted by a biased league constant.
 
 ## Model change
 
