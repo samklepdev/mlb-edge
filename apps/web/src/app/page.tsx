@@ -46,6 +46,11 @@ export default async function Page() {
           Is the model calibrated, and does it beat the closing line? Those two
           answers decide whether an edge is real. Everything else is noise.
         </p>
+        <p className="purpose">
+          Measured separately: <Link href="/team">the game-outcome model →</Link>.
+          A different model on a different population — never pool the two sets of
+          figures.
+        </p>
       </header>
 
       {!d.ok ? (

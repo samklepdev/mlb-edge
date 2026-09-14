@@ -130,6 +130,142 @@ a:hover { text-decoration: underline; }
 .rname { font-weight: 500; white-space: nowrap; }
 .rmeta { color: var(--faint); font-size: 0.85rem; text-align: right; }
 
+/* ---- resolution verdict banner (game-outcome model) ----
+   Deliberately the first and loudest element on the page: a calibration plot
+   that looks good above a buried "WORSE THAN THE BASE RATE" would mislead. */
+.banner {
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  border-left: 4px solid var(--faint);
+  padding: 1.5rem 1.75rem;
+  margin: 2rem 0 0;
+}
+.banner.bad { border-left-color: var(--bad); }
+.banner.watch { border-left-color: var(--good); }
+.banner-eyebrow {
+  margin: 0;
+  color: var(--faint);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.banner-headline {
+  margin: 0.4rem 0 0.6rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.banner.bad .banner-headline { color: var(--bad); }
+.banner-body { margin: 0; color: var(--muted); font-size: 0.95rem; max-width: 62ch; }
+.banner-body strong { color: var(--ink); font-weight: 600; }
+
+/* ---- scope form ---- */
+.scope-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  padding: 1.1rem 1.25rem;
+  margin: 2rem 0 0;
+}
+.scope-field { border: 1px solid var(--grid); padding: 0.6rem 0.9rem 0.8rem; margin: 0; display: flex; gap: 0.9rem; flex-wrap: wrap; }
+.scope-field legend { color: var(--muted); font-size: 0.78rem; padding: 0 0.35rem; }
+.scope-field label { display: flex; flex-direction: column; gap: 0.2rem; }
+.scope-field label span { color: var(--faint); font-size: 0.72rem; letter-spacing: 0.03em; }
+.scope-field select, .scope-field input {
+  border: 1px solid var(--hair);
+  background: var(--paper);
+  color: var(--ink);
+  padding: 0.35rem 0.45rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+}
+.scope-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.88rem; }
+.scope-actions button {
+  border: 1px solid var(--good);
+  background: var(--good);
+  color: #fff;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.scope-actions button:hover { filter: brightness(1.1); }
+
+/* ---- A/B comparison ---- */
+.compare { margin: 2.5rem 0 0; }
+.compare h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.25rem; }
+.compare p.cap { color: var(--muted); font-size: 0.9rem; margin: 0 0 1rem; }
+.compare td, .compare th { padding: 0.55rem 0.6rem; }
+.warn {
+  margin: 1.25rem 0 0;
+  padding: 0.9rem 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  border-left: 4px solid var(--bad);
+  color: var(--muted);
+  font-size: 0.9rem;
+  max-width: 68ch;
+}
+.warn strong { color: var(--ink); }
+
+/* ---- verdict pill ---- */
+.pill {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.pill.bad { color: var(--bad); }
+.pill.good { color: var(--good); }
+.pill.flat { color: var(--muted); }
+.pill-mark { font-weight: 700; }
+
+/* ---- per-market block ---- */
+.market { margin: 2.75rem 0 0; padding-top: 2rem; border-top: 1px solid var(--hair); }
+.market-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.25rem;
+}
+.market-head h2 { font-size: 1.1rem; font-weight: 600; margin: 0; font-variant-numeric: tabular-nums; }
+.market p.cap { color: var(--muted); font-size: 0.9rem; margin: 0 0 1.25rem; max-width: 58ch; }
+.market .scorecard { margin: 0 0 1.5rem; }
+.market .plot-frame { margin-top: 1.5rem; }
+table.stats { width: auto; min-width: 22rem; font-size: 0.9rem; margin: 0 0 0.5rem; }
+table.stats td { border-bottom: 1px solid var(--grid); }
+table.stats td:first-child { color: var(--muted); }
+details.buckets { margin: 1.25rem 0 0; }
+details.buckets summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 0.35rem 0;
+}
+details.buckets summary:hover { color: var(--ink); }
+details.buckets table { margin-top: 0.5rem; }
+
+/* ---- how to read this ---- */
+.readme { margin: 3rem 0 0; padding-top: 2rem; border-top: 1px solid var(--hair); }
+.readme h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 1rem; }
+.readme ul { margin: 0; padding-left: 1.1rem; }
+.readme li { color: var(--muted); font-size: 0.92rem; margin: 0 0 0.9rem; max-width: 68ch; }
+.readme li strong { color: var(--ink); font-weight: 600; }
+.readme code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  color: var(--ink);
+}
+.readme p.cap { color: var(--faint); font-size: 0.88rem; margin: 1.25rem 0 0; max-width: 62ch; }
+
 /* ---- player identity ---- */
 .player-id { display: flex; align-items: center; gap: 0.85rem; margin: 0 0 1rem; }
 .player-id h2 { margin: 0; }

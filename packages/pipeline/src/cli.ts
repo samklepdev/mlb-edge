@@ -6,7 +6,10 @@ import { ingestFinalGames, ingestBoxscore } from './ingest/games.js';
 import { seedDemo } from './seed/demo.js';
 import { runProjections, ALL_PROPS, type PropKind } from './project/index.js';
 import { backfill } from './project/backfill.js';
+import { backfillTeams } from './game/backfill.js';
 import { backtestReport } from './backtest/report.js';
+import { teamBacktestReport } from './backtest/teamReport.js';
+import { verifyResolution } from './backtest/verifyResolution.js';
 import { healthReport } from './health/report.js';
 import { MODEL_VERSION } from './project/model.js';
 import { pullLines, captureClosing, settleResults, repriceLines, type PullOptions } from './market/lines.js';
@@ -314,10 +317,37 @@ program
   });
 
 program
+  .command('team-backfill')
+  .description('project team run distributions over a date range and evaluate them vs actual outcomes')
+  .requiredOption('--from <YYYY-MM-DD>', 'start date')
+  .requiredOption('--to <YYYY-MM-DD>', 'end date')
+  .action(async (o: { from: string; to: string }) => {
+    const r = await backfillTeams(o.from, o.to);
+    console.log(`team-backfilled ${r.dates} date(s): ${r.projected} projection(s), ${r.evals} eval(s)`);
+  });
+
+program
   .command('backtest')
   .description('report model calibration (reliability + ECE + Brier) from model_evals')
   .action(async () => {
     await backtestReport();
+  });
+
+program
+  .command('team-backtest')
+  .description('calibration report for the game-outcome model, by market')
+  .option('--version <v>', 'model_version to report (default: latest)')
+  .option('--from <date>', 'only games on or after this date (YYYY-MM-DD)')
+  .option('--to <date>', 'only games on or before this date (YYYY-MM-DD)')
+  .action(async (opts: { version?: string; from?: string; to?: string }) => {
+    await teamBacktestReport({ version: opts.version, from: opts.from, to: opts.to });
+  });
+
+program
+  .command('verify-resolution')
+  .description('run the resolution-statistics checks (pure invariants + DB oracles)')
+  .action(async () => {
+    await verifyResolution();
   });
 
 program
