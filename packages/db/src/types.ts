@@ -31,6 +31,7 @@ export interface SlateGame {
   date: string;
   home: string;
   away: string;
+  startTime: Date | null;
   homeId: number | null;
   awayId: number | null;
 }

@@ -13,20 +13,25 @@ export async function latestSlateDate(): Promise<string | null> {
 }
 
 export async function getSlateGames(date: string): Promise<SlateGame[]> {
-  const res = await query<{ id: number; home: string; away: string; home_id: number | null; away_id: number | null }>(
+  const res = await query<{
+    id: number; home: string; away: string; start_time: Date | null;
+    home_id: number | null; away_id: number | null;
+  }>(
     `SELECT g.id,
             th.name AS home, ta.name AS away,
+            g.start_time,
             g.home_team_id AS home_id, g.away_team_id AS away_id
      FROM games g
      LEFT JOIN teams th ON th.id = g.home_team_id
      LEFT JOIN teams ta ON ta.id = g.away_team_id
      WHERE g.game_date = $1
        AND EXISTS (SELECT 1 FROM projections p WHERE p.game_id = g.id)
-     ORDER BY g.id`,
+     ORDER BY g.start_time NULLS LAST, g.id`,
     [date],
   );
   return res.rows.map((r) => ({
-    gameId: r.id, date, home: r.home, away: r.away, homeId: r.home_id, awayId: r.away_id,
+    gameId: r.id, date, home: r.home, away: r.away, startTime: r.start_time,
+    homeId: r.home_id, awayId: r.away_id,
   }));
 }
 
