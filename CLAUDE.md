@@ -40,8 +40,17 @@ Verify before assuming a change took effect:
 `db:migrate` · `seed:demo` · `ingest -- schedule|games|game …` ·
 `project -- --date <d>` · `backfill -- --from <d> --to <d>` · `backtest` ·
 `lines -- pull|capture --date <d> …` · `settle -- --date <d>` · `clv` ·
-`calibrate` · `web:dev`/`web:build` · `typecheck`.
+`calibrate` · `web:dev`/`web:build` · `typecheck` ·
+`parity` (needs `PARITY_BASE=<a next start server>`) · `contrast`.
 Fallback: `npm run -w @mlb-edge/pipeline cli -- <args>`.
+
+`parity` (`apps/web/scripts/figure-parity.mjs`) and `contrast`
+(`apps/web/scripts/contrast.mjs`) are the **only** automated checks the web app
+has. `parity` diffs every rendered figure so a presentation change can prove it
+moved no data; `contrast` reads the palette out of `globals.css` and gates it on
+WCAG AA. `parity` refuses to run without `PARITY_BASE` and refuses a server
+whose build doesn't match `.next/BUILD_ID` — `next dev` serves a stale compile
+after any `next build`, and a stale read looks like a pass.
 
 ## Pipeline order (stages read the previous stage's output; dates must match)
 `ingest schedule` → `ingest games` (box scores = the model's history) →
@@ -128,6 +137,9 @@ vs reality; `backtest` = calibration report (reliability, ECE, Brier).
   any calibration change by re-backfilling and re-backtesting on a **different**
   date range.
 - Don't dress up prop numbers as team/game predictions.
+- **Colour never encodes data.** `--navy`/`--red` are chrome. `--good`/`--bad`
+  are calibration-only — there the backtest earned the claim. Edge and CLV
+  figures get none: green on an untested hypothesis reads as an endorsement.
 - Keep the responsible-gambling framing in code and UI. This is a measurement
   tool; the most likely honest finding is that the market is efficient — and
   reaching that conclusion correctly is a success, not a failure.

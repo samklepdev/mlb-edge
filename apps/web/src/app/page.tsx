@@ -7,6 +7,8 @@ import {
 } from '@mlb-edge/db';
 import { ReliabilityPlot } from './_components/ReliabilityPlot';
 import { RosterSearch } from './_components/RosterSearch';
+import { GameCard } from './_components/GameCard';
+import { Headshot } from './_components/Headshot';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +40,9 @@ async function load() {
 export default async function Page() {
   const d = await load();
 
+  const listedByGame = new Map<number, number>();
+  if (d.ok) for (const e of d.edges) listedByGame.set(e.gameId, (listedByGame.get(e.gameId) ?? 0) + 1);
+
   return (
     <main className="wrap">
       <header className="masthead">
@@ -66,21 +71,23 @@ export default async function Page() {
               </div>
             ) : (
               <>
-                <table>
-                  <thead>
-                    <tr><th>Prop</th><th>Evaluations</th><th>ECE</th><th>Brier</th></tr>
-                  </thead>
-                  <tbody>
-                    {d.btByProp.map((b) => (
-                      <tr key={b.prop}>
-                        <td>{b.prop}</td>
-                        <td className="num">{b.n.toLocaleString()}</td>
-                        <td className="num">{b.ece == null ? '—' : pct(b.ece)}</td>
-                        <td className="num">{b.brier == null ? '—' : b.brier.toFixed(3)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="tscroll" tabIndex={0} role="region" aria-label="Model calibration by prop, scrollable">
+                  <table>
+                    <thead>
+                      <tr><th>Prop</th><th>Evaluations</th><th>ECE</th><th>Brier</th></tr>
+                    </thead>
+                    <tbody>
+                      {d.btByProp.map((b) => (
+                        <tr key={b.prop}>
+                          <td>{b.prop}</td>
+                          <td className="num">{b.n.toLocaleString()}</td>
+                          <td className="num">{b.ece == null ? '—' : pct(b.ece)}</td>
+                          <td className="num">{b.brier == null ? '—' : b.brier.toFixed(3)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 <p className="cap" style={{ marginTop: '1rem' }}>
                   Read each prop against itself over time — never against another prop. A low
                   ECE on a rare event (home runs) mostly reflects the base rate, not skill; and
@@ -105,26 +112,45 @@ export default async function Page() {
               {d.games.length === 0 ? (
                 <p className="cap">No projected games. Run <code style={{ display: 'inline' }}>project --date {d.slateDate}</code>.</p>
               ) : (
-                <p className="cap">{d.games.length} game(s): {d.games.map((g) => `${g.away} @ ${g.home}`).join(' · ')}</p>
+                <>
+                  <div className="slate-strip" tabIndex={0} role="region" aria-label="Slate scoreboard, scrollable">
+                    {d.games.map((g) => (
+                      <GameCard key={g.gameId} game={g} listedEdges={listedByGame.get(g.gameId) ?? 0} />
+                    ))}
+                  </div>
+                  <p className="cap">
+                    {d.games.length} game(s). &ldquo;Listed&rdquo; counts this
+                    game&apos;s picks in the table below, which shows only the
+                    highest-edge {d.edges.length} of the slate — not every edge
+                    on the game.
+                  </p>
+                </>
               )}
               {d.edges.length > 0 && (
-                <table>
-                  <thead>
-                    <tr><th>Player</th><th>Prop</th><th>Side</th><th>Line</th><th>Model</th><th>Edge</th></tr>
-                  </thead>
-                  <tbody>
-                    {d.edges.map((e) => (
-                      <tr key={`${e.playerId}-${e.propType}`}>
-                        <td><Link href={`/player?id=${e.playerId}&date=${d.slateDate}`}>{e.playerName}</Link></td>
-                        <td>{e.propType}</td>
-                        <td>{e.side}</td>
-                        <td className="num">{e.line}</td>
-                        <td className="num">{pct(e.modelProb)}</td>
-                        <td className="num good">{signed(e.edgePct)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="tscroll" tabIndex={0} role="region" aria-label="Top edges, scrollable">
+                  <table>
+                    <thead>
+                      <tr><th>Player</th><th>Prop</th><th>Side</th><th>Line</th><th>Model</th><th>Edge</th></tr>
+                    </thead>
+                    <tbody>
+                      {d.edges.map((e) => (
+                        <tr key={`${e.playerId}-${e.propType}`}>
+                          <td>
+                            <Link className="prow" href={`/player?id=${e.playerId}&date=${d.slateDate}`}>
+                              <Headshot playerId={e.playerId} size={28} />
+                              <span>{e.playerName}</span>
+                            </Link>
+                          </td>
+                          <td>{e.propType}</td>
+                          <td>{e.side}</td>
+                          <td className="num">{e.line}</td>
+                          <td className="num">{pct(e.modelProb)}</td>
+                          <td className="num">{signed(e.edgePct)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </section>
           )}
@@ -183,19 +209,21 @@ export default async function Page() {
                 Not colored — n is too low per row to call a direction. Read the count
                 alongside the number, not the number alone.
               </p>
-              <table>
-                <thead><tr><th>Prop</th><th>n</th><th>Avg CLV</th><th>Hit rate</th></tr></thead>
-                <tbody>
-                  {d.clv.map((r: ClvRow) => (
-                    <tr key={r.propType}>
-                      <td>{r.propType}</td>
-                      <td className="num">{r.n}</td>
-                      <td className="num">{r.avgClv == null ? '—' : signed(r.avgClv)}</td>
-                      <td className="num">{r.hitRate == null ? '—' : pct(r.hitRate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="tscroll" tabIndex={0} role="region" aria-label="Closing line value by prop, scrollable">
+                <table>
+                  <thead><tr><th>Prop</th><th>n</th><th>Avg CLV</th><th>Hit rate</th></tr></thead>
+                  <tbody>
+                    {d.clv.map((r: ClvRow) => (
+                      <tr key={r.propType}>
+                        <td>{r.propType}</td>
+                        <td className="num">{r.n}</td>
+                        <td className="num">{r.avgClv == null ? '—' : signed(r.avgClv)}</td>
+                        <td className="num">{r.hitRate == null ? '—' : pct(r.hitRate)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </section>
           )}
         </>

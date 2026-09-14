@@ -46,35 +46,37 @@ export default async function PlayerPage({
       ) : (
         <section className="clv">
           <div className="player-id">
-            <Headshot playerId={card.playerId} />
+            <Headshot playerId={card.playerId} size={72} />
             <h2>{card.playerName} · {card.date}</h2>
           </div>
           {card.rows.length === 0 ? (
             <p className="cap">No projections for this player on {card.date}.</p>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Prop</th><th>Matchup</th><th>Projection</th><th>Line</th>
-                  <th>Model</th><th>Fair</th><th>Edge</th><th>Side</th><th>Pick</th>
-                </tr>
-              </thead>
-              <tbody>
-                {card.rows.map((r: PlayerCardRow) => (
-                  <tr key={r.propType}>
-                    <td>{r.propType}</td>
-                    <td>{r.matchup ?? '—'}</td>
-                    <td className="num">{r.projMean.toFixed(2)}{r.projStdev != null ? ` ± ${r.projStdev.toFixed(2)}` : ''}</td>
-                    <td className="num">{r.line ?? '—'}</td>
-                    <td className="num">{r.modelProb == null ? '—' : pct(r.modelProb)}</td>
-                    <td className="num">{r.fairProb == null ? '—' : pct(r.fairProb)}</td>
-                    <td className={`num ${r.edgePct != null && r.edgePct > 0 ? 'good' : ''}`}>{r.edgePct == null ? '—' : signed(r.edgePct)}</td>
-                    <td>{r.side ?? '—'}</td>
-                    <td>{r.hasPick ? '✓' : ''}</td>
+            <div className="tscroll" tabIndex={0} role="region" aria-label="Projection versus market by prop, scrollable">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Prop</th><th>Matchup</th><th>Projection</th><th>Line</th>
+                    <th>Model</th><th>Fair</th><th>Edge</th><th>Side</th><th>Pick</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {card.rows.map((r: PlayerCardRow) => (
+                    <tr key={r.propType}>
+                      <td>{r.propType}</td>
+                      <td>{r.matchup ?? '—'}</td>
+                      <td className="num">{r.projMean.toFixed(2)}{r.projStdev != null ? ` ± ${r.projStdev.toFixed(2)}` : ''}</td>
+                      <td className="num">{r.line ?? '—'}</td>
+                      <td className="num">{r.modelProb == null ? '—' : pct(r.modelProb)}</td>
+                      <td className="num">{r.fairProb == null ? '—' : pct(r.fairProb)}</td>
+                      <td className="num">{r.edgePct == null ? '—' : signed(r.edgePct)}</td>
+                      <td>{r.side ?? '—'}</td>
+                      <td>{r.hasPick ? '✓' : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           <p className="cap" style={{ marginTop: '1rem' }}>
             &quot;Model&quot; is the model&apos;s probability for the side it favors; &quot;Fair&quot; is the

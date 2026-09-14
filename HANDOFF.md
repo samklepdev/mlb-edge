@@ -56,6 +56,8 @@ Verified: `npm run typecheck` and `npm run web:build` are green.
 | `npm run clv` / `npm run calibrate` | CLI reports on settled picks |
 | `npm run web:dev` / `web:build` | dashboard at :3000 / prod build |
 | `npm run typecheck` | build db + typecheck all packages |
+| `PARITY_BASE=<url> npm run parity` | every figure both dashboard pages render, one per line — diff it across a presentation change to prove no data moved. The web app's only regression test. Requires `PARITY_BASE` (no default) and refuses a server whose build ≠ `.next/BUILD_ID`: `next dev` serves a stale compile after any `next build`, and a stale read looks like a pass. Point it at `next start`. |
+| `npm run contrast` | WCAG AA gate on the palette, read out of `globals.css` (never restated). Exits non-zero on failure. |
 
 Fallback for any command: `npm run -w @mlb-edge/pipeline cli -- <args>`.
 

@@ -1,14 +1,49 @@
 :root {
-  --paper: #f3f5f7;
+  /* --- chrome. Never used to encode a data value. --- */
+  --navy: #041E42;
+  --navy-ink: #0a2d5e;
+  --red: #BF0D3E;
+
+  /* --- surfaces --- */
+  --paper: #f4f6f8;
   --panel: #ffffff;
-  --ink: #171d24;
+  --stripe: #f7f9fa;
+
+  /* --- text ramp ---
+         Every step carries essential text somewhere, so every step clears
+         WCAG AA 4.5:1 on all three surfaces below -- including --paper,
+         which .rmeta sits on when a roster row is hovered. --faint was
+         #8a95a1 (3.05:1 on --panel) and failed: its four uses are the
+         scorecard verdict, roster metadata, the game-card edge count, and
+         the reliability plot's axis labels, all 11-13.6px and none of them
+         decoration. Darkening it narrows the gap to --muted, which is the
+         price of the ramp being readable rather than merely ordered.
+                    panel   stripe  paper
+         --ink      18.19   17.22   16.79
+         --muted     5.76    5.46    5.32
+         --faint     5.10    4.83    4.71   --- */
+  --ink: #10161d;
   --muted: #5c6773;
-  --faint: #8a95a1;
+  --faint: #666f7a;
+
+  /* --- rules --- */
   --hair: #dce2e8;
   --grid: #e8edf1;
-  --good: #0f766e;   /* on-target / positive */
-  --bad:  #b23a48;   /* miscalibrated / negative */
-  --ref:  #aab4bf;   /* perfect-calibration reference */
+
+  /* --- semantic. Calibration only: these make a claim the backtest earned.
+         Deliberately NOT unified with --red, which is decoration. --- */
+  --good: #0f766e;
+  --bad:  #b23a48;
+  --ref:  #aab4bf;
+}
+
+/* Applied with text-transform, never by uppercasing source strings, so
+   assistive tech still reads the original casing. */
+.cnd {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
 }
 
 * { box-sizing: border-box; }
@@ -23,6 +58,13 @@ body {
     Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-feature-settings: "cv05";
+  /* The masthead breaks out of .wrap using calc(50% - 50vw), which is exact
+     against the viewport's layout width — but in Chromium `vw` includes the
+     vertical scrollbar's width while the visible viewport doesn't, so a page
+     tall enough to scroll can overflow horizontally by the scrollbar's width.
+     This guards against that without affecting intentional horizontal
+     scrollers, which scope their own overflow-x (see .slate-strip). */
+  overflow-x: hidden;
 }
 
 .num { font-variant-numeric: tabular-nums; }
@@ -31,22 +73,6 @@ body {
   max-width: 60rem;
   margin: 0 auto;
   padding: 3.5rem 1.5rem 5rem;
-}
-
-/* ---- masthead ---- */
-.masthead { border-bottom: 1px solid var(--hair); padding-bottom: 1.5rem; }
-.wordmark {
-  font-size: 1.05rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 0;
-}
-.wordmark span { color: var(--faint); font-weight: 400; }
-.purpose {
-  margin: 0.35rem 0 0;
-  color: var(--muted);
-  font-size: 0.95rem;
-  max-width: 46ch;
 }
 
 /* ---- scorecard ---- */
@@ -59,7 +85,6 @@ body {
   margin: 2rem 0 0;
 }
 .readout { background: var(--panel); padding: 1.25rem 1.35rem; }
-.readout .label { color: var(--muted); font-size: 0.8rem; margin: 0; }
 .readout .value {
   font-size: 2rem;
   font-weight: 600;
@@ -72,7 +97,6 @@ body {
 
 /* ---- plot ---- */
 .plot { margin: 2.75rem 0 0; }
-.plot h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.25rem; }
 .plot p.cap { color: var(--muted); font-size: 0.9rem; margin: 0 0 1.25rem; max-width: 58ch; }
 .plot-frame {
   background: var(--panel);
@@ -85,11 +109,13 @@ body {
 
 /* ---- table ---- */
 .clv { margin: 2.75rem 0 0; }
-.clv h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 1rem; }
 table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-th, td { text-align: right; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--grid); }
+/* vertical-align: middle because the Player cell is an inline-flex .prow
+   containing a 28px headshot, and a table cell's default baseline alignment
+   takes the row's baseline from that image -- which left the name sitting
+   about 3px above the numbers in its own row. */
+th, td { text-align: right; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--grid); vertical-align: middle; }
 th:first-child, td:first-child { text-align: left; }
-thead th { color: var(--muted); font-weight: 500; border-bottom-color: var(--hair); }
 td.good { color: var(--good); }
 td.bad { color: var(--bad); }
 
@@ -100,7 +126,6 @@ td.bad { color: var(--bad); }
   padding: 1.75rem;
   margin: 2rem 0 0;
 }
-.notice h2 { font-size: 1.05rem; margin: 0 0 0.5rem; }
 .notice p { color: var(--muted); margin: 0 0 1rem; max-width: 60ch; }
 .notice code {
   display: block;
@@ -119,24 +144,223 @@ td.bad { color: var(--bad); }
 
 a { color: var(--good); text-decoration: none; }
 a:hover { text-decoration: underline; }
-.wordmark a { color: inherit; }
 
 .search { width: 100%; padding: 0.6rem 0.8rem; border: 1px solid var(--hair); background: var(--panel); color: var(--ink); font-size: 0.95rem; margin: 0 0 1rem; }
 .search:focus { outline: 2px solid var(--good); outline-offset: 1px; }
 .roster { display: flex; flex-direction: column; border: 1px solid var(--hair); max-height: 30rem; overflow-y: auto; }
-.roster-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--grid); color: var(--ink); }
+.roster-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--grid); color: var(--ink); }
 .roster-row:last-child { border-bottom: none; }
 .roster-row:hover { background: var(--paper); text-decoration: none; }
-.rname { font-weight: 500; white-space: nowrap; }
+.rname { display: flex; align-items: center; gap: 0.55rem; font-weight: 500; white-space: nowrap; }
 .rmeta { color: var(--faint); font-size: 0.85rem; text-align: right; }
 
-/* ---- player identity ---- */
-.player-id { display: flex; align-items: center; gap: 0.85rem; margin: 0 0 1rem; }
-.player-id h2 { margin: 0; }
 .headshot {
   flex: none;
   border-radius: 50%;
   object-fit: cover;
   background: var(--paper);
   box-shadow: 0 0 0 1px var(--hair);
+}
+
+/* ---- scoreboard strip ---- */
+.slate-strip {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding: 0.25rem 0 1rem;
+  /* The strip scrolls in its own container; the page body must never scroll
+     sideways. */
+  scrollbar-width: thin;
+}
+.gamecard {
+  flex: 0 0 auto;
+  min-width: 8.5rem;
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  border-top: 3px solid var(--navy);
+  border-radius: 3px;
+  padding: 0.7rem 0.85rem;
+}
+.gc-team { display: flex; align-items: center; gap: 0.5rem; padding: 0.15rem 0; }
+.gc-logo {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+.gc-abbr { font-size: 1.05rem; font-weight: 700; color: var(--ink); letter-spacing: 0.04em; }
+.gc-meta {
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--grid);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.gc-edges { color: var(--faint); font-size: 0.78rem; }
+
+/* ---- masthead: full-bleed navy bar ---- */
+.masthead {
+  background: var(--navy);
+  border-bottom: 3px solid var(--red);
+  padding: 1.5rem 1.5rem 1.35rem;
+  /* The inline margin cancels .wrap's side offset and padding so the bar reaches
+     both viewport edges; -3.5rem cancels .wrap's top padding. */
+  margin: -3.5rem calc(50% - 50vw) 2rem;
+  /* The bar is full-bleed, but its CONTENTS must line up with .wrap's content
+     column. That column is 57rem, not 60rem: .wrap is max-width: 60rem with
+     box-sizing: border-box and 1.5rem of side padding.
+     One centred 57rem track does it without any child participating, so no
+     child `margin` shorthand can reset it. The previous
+     `.masthead > * { max-width: 60rem; margin-inline: auto }` was defeated
+     exactly that way -- `.wordmark { margin: 0 }` and
+     `.purpose { margin: 0.4rem 0 0 }` are later rules at equal specificity and
+     `margin` is a shorthand, so it reset margin-inline to 0 and left the text
+     276px left of every section heading at 1512px.
+     No double padding: the 1.5rem above is the narrow-viewport gutter, and
+     justify-content only distributes what is left over after it.
+     Not padding-inline: a percentage padding resolves against the CONTAINING
+     block -- .wrap's content box, which is capped at 57rem and so carries no
+     information about the viewport once the cap binds; the 50vw form would be
+     off by half a scrollbar width in Chromium (see body's overflow-x note).
+     Not auto child margins: .purpose declares its own max-width: 46ch, which
+     wins at equal specificity, so auto margins would centre a 46ch paragraph
+     instead of aligning it to the column. */
+  display: grid;
+  grid-template-columns: minmax(0, 57rem);
+  justify-content: center;
+}
+.wordmark {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  font-size: 1.6rem;
+  color: #fff;
+  margin: 0;
+}
+.wordmark span { color: #8fa6c4; font-weight: 500; }
+.wordmark a { color: inherit; }
+.purpose { margin: 0.4rem 0 0; color: #c3d0e0; font-size: 0.95rem; max-width: 46ch; }
+
+/* ---- section eyebrows ---- */
+.plot h2, .clv h2 {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+  font-size: 1.15rem;
+  color: var(--navy);
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--red);
+}
+
+/* ---- tables ---- */
+/* Tables are the one thing on these pages that cannot be made narrow enough:
+   six columns of numbers do not fit 320px at any padding worth having. Before
+   this, `body { overflow-x: hidden }` (added for the masthead's scrollbar
+   overflow, see body above) silently CLIPPED the rightmost columns on a phone
+   -- the Edge column was unreachable rather than merely off-screen. So each
+   table gets its own scroller, the same idiom .slate-strip uses: the body
+   still never scrolls sideways, and no column is unreachable.
+
+   Note what this wrapper costs: with overflow-x set and overflow-y unset,
+   overflow-y computes to `auto` (CSS Overflow 3 -- neither axis may stay
+   `visible` when the other is not), so .tscroll became the nearest
+   scrollport for anything inside it. `thead th` used to carry
+   `position: sticky; top: 0`, and from that point it could never offset,
+   because .tscroll has auto height and so has no vertical scrolling to
+   stick against. The declaration is gone rather than rescued: giving
+   .tscroll a max-height would turn every table into a fixed-height
+   vertically-scrolling box, which is a design change, and the tables are
+   4-25 rows anyway. Do not re-add sticky here without a scrollport. */
+.tscroll { overflow-x: auto; }
+
+table { background: var(--panel); border: 1px solid var(--hair); }
+thead th {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: var(--stripe);
+  /* Carried forward from the earlier `thead th` rule this block absorbed: the
+     header's own bottom rule is --hair, a shade stronger than the --grid
+     hairline `th, td` gives every other row. Nothing else declares it. */
+  border-bottom-color: var(--hair);
+}
+tbody tr:nth-child(even) { background: var(--stripe); }
+
+/* ---- cards ---- */
+.plot-frame, .notice { border-radius: 3px; box-shadow: 0 1px 2px rgb(4 30 66 / 0.06); }
+.scorecard { border-radius: 3px; overflow: hidden; box-shadow: 0 1px 2px rgb(4 30 66 / 0.06); }
+.readout .label {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  font-size: 0.82rem;
+  /* Carried forward from the earlier `.readout .label` rule this block
+     absorbed. Its font-size: 0.8rem was already dead against the 0.82rem
+     above; color and margin were declared nowhere else. */
+  color: var(--muted);
+  margin: 0;
+}
+.notice h2 {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--navy);
+  /* Carried forward from the earlier `.notice h2` rule this block absorbed;
+     neither property is declared anywhere else for this selector. */
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+
+/* ---- player rows ---- */
+.prow { display: inline-flex; align-items: center; gap: 0.55rem; color: var(--ink); }
+.prow:hover { text-decoration: none; color: var(--navy-ink); }
+/* .prow beats the global `a` rules on specificity -- `.prow { color: var(--ink) }`
+   over `a { color: var(--good) }` (0,1,0 > 0,0,1), and `.prow:hover
+   { text-decoration: none }` over `a:hover { text-decoration: underline }`
+   (0,2,0 > 0,1,1). That left hover feedback as --ink -> --navy-ink, a shift
+   between two near-blacks. Underline the name span rather than the link, so
+   the rule does not run under the 28px headshot beside it, which is why the
+   `text-decoration: none` above is there in the first place. */
+.prow:hover span { text-decoration: underline; }
+.pickdot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--navy);
+  flex: none;
+}
+
+/* ---- player identity ---- */
+.player-id { display: flex; align-items: center; gap: 1rem; margin: 0 0 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--hair); }
+.player-id .headshot { box-shadow: 0 0 0 2px var(--navy); }
+.player-id h2 {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  font-size: 1.5rem;
+  color: var(--navy);
+  /* .clv h2 (section eyebrows, above) matches this heading too — same
+     specificity, so source order alone would decide. Without these
+     explicit overrides, its border-bottom/padding-bottom/margin would still
+     win because this rule wouldn't otherwise set them, leaving the identity
+     heading with both the red eyebrow rule's hairline below it and its
+     asymmetric margin: 0 0 0.75rem. .player-id is display: flex; align-items:
+     center, and a flex item is centered by its margin box, so that leftover
+     bottom margin would pull the name visibly off-centre against the 72px
+     headshot. */
+  border-bottom: none;
+  padding-bottom: 0;
+  margin: 0;
 }
