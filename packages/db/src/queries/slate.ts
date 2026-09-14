@@ -1,13 +1,7 @@
 import { query } from '../pool.js';
 import type { SlateGame, TopEdge } from '../types.js';
 
-/**
- * Retrieves the latest slate date in the format 'YYYY-MM-DD' from the database.
- *
- * This is determined based on the maximum game date found in the projections and games tables.
- *
- * @return {Promise<string | null>} A promise that resolves to the latest slate date as a string, or null if no date is found.
- */
+// The most recent date we have projections for — the "active slate".
 export async function latestSlateDate(): Promise<string | null> {
   const r = (
     await query<{ d: string | null }>(
@@ -18,12 +12,6 @@ export async function latestSlateDate(): Promise<string | null> {
   return r?.d ?? null;
 }
 
-/**
- * Retrieves a list of slate games for a given date.
- *
- * @param {string} date - The date for which to retrieve the slate games in the format 'YYYY-MM-DD'.
- * @return {Promise<SlateGame[]>} A promise that resolves to an array of SlateGame objects containing game details.
- */
 export async function getSlateGames(date: string): Promise<SlateGame[]> {
   const res = await query<{
     id: number; home: string; away: string; start_time: Date | null;
@@ -47,13 +35,7 @@ export async function getSlateGames(date: string): Promise<SlateGame[]> {
   }));
 }
 
-/**
- * Fetches the top edges for player picks based on the provided date, sorted by edge percentage in descending order.
- *
- * @param {string} date - The game date for which to retrieve the top edges, formatted as a string.
- * @param {number} [limit=25] - The maximum number of top edges to retrieve. Defaults to 25.
- * @return {Promise<TopEdge[]>} A promise that resolves to an array of TopEdge objects, each representing a player's pick with related metadata.
- */
+// Highest-edge open picks on a date (the model's strongest disagreements).
 export async function getTopEdges(date: string, limit = 25): Promise<TopEdge[]> {
   const res = await query<{
     player_id: number; player_name: string; game_id: number; prop_type: string;

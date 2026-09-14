@@ -1,13 +1,10 @@
 import { query } from '../pool.js';
 import type { ReliabilityBucket, BacktestSummary } from '../types.js';
 
-/**
- * Computes reliability metrics by dividing the predictions into buckets and calculates the gap between actual and predicted probabilities.
- *
- * @param {number} [buckets=10] - The number of buckets to divide the predictions into.
- * @param {string} [prop] - An optional parameter to filter the data based on a specific property type.
- * @return {Promise<ReliabilityBucket[]>} - A promise that resolves to an array of reliability buckets, each containing statistical data for that bucket.
- */
+// Reliability of the model's own probabilities vs realized outcomes (model_evals).
+// `prop` optionally restricts to a single prop_type; omitted, it pools every prop
+// evaluated at the latest model_version (see backtestReport for why pooling
+// across a mixed prop population is misleading).
 export async function projectionReliability(buckets = 10, prop?: string): Promise<ReliabilityBucket[]> {
   const params: string[] = [];
   let where = 'me.model_version = (SELECT max(model_version) FROM model_evals) AND NOT g.is_synthetic';
@@ -40,16 +37,6 @@ export async function projectionReliability(buckets = 10, prop?: string): Promis
   return out;
 }
 
-/**
- * Generates a backtesting summary which includes key metrics for evaluating model performance, such as sample count,
- * Brier score, expected calibration error (ECE), and reliability projection.
- *
- * @param {string} [prop] - An optional property type filter for model evaluations. If provided, results will
- *                          be filtered by the specified property type.
- * @return {Promise<BacktestSummary>} A promise that resolves to an object containing the backtest results,
- *                                    including the sample count (`n`), Brier score, expected calibration error (ECE),
- *                                    and detailed reliability information in buckets.
- */
 export async function backtestSummary(prop?: string): Promise<BacktestSummary> {
   const params: string[] = [];
   let where = 'me.model_version = (SELECT max(model_version) FROM model_evals) AND NOT g.is_synthetic';
@@ -77,14 +64,9 @@ export async function backtestSummary(prop?: string): Promise<BacktestSummary> {
   };
 }
 
-/**
- * Evaluates and retrieves a list of property types from the model evaluations dataset.
- *
- * The method queries the database to fetch property types associated with the most recent
- * model version, excluding synthetic games, and orders the results by descending frequency.
- *
- * @return {Promise<string[]>} A promise that resolves to an array of property type strings.
- */
+// Distinct prop types present at the current (latest) model_version, ordered by
+// row count descending -- lets the report enumerate what exists instead of
+// hardcoding prop names that drift out of sync with props.ts.
 export async function evalPropTypes(): Promise<string[]> {
   const res = await query<{ prop_type: string }>(
     `SELECT me.prop_type
