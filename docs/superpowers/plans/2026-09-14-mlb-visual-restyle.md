@@ -18,6 +18,12 @@
 - **Figure parity is the acceptance test.** Every number rendered before the change must render identically after. This is checked mechanically (Task 1), not by eye.
 - **Consult `node_modules/next/dist/docs/` before writing Next-specific APIs.** `apps/web/AGENTS.md` warns this Next version differs from training data. `next/font` is the only such API here; its docs are at `node_modules/next/dist/docs/01-app/03-api-reference/02-components/font.md`.
 - **Environment:** Postgres must be running (`docker compose up -d`). Latest slate with projections is **2026-09-13** (15 games).
+- **Correction (found during execution):** an earlier draft of this plan claimed
+  one game on the current slate has a null `start_time`. That was wrong — the
+  table's single null is on `2099-01-01`, the demo-seed date, which has no
+  projections and therefore never reaches `getSlateGames`. All 15 games on the
+  live slate have a start time, so the `—` fallback is correct code that the
+  live render does not exercise. Do not treat a missing `—` as a defect.
 
 ## Testing approach — read this before Task 1
 
