@@ -24,8 +24,10 @@ const strip = (html) =>
 
 const figures = (text) => text.match(/-?\d[\d,]*\.?\d*%?/g) ?? [];
 
-// SVG elements encode chart data purely as geometry attributes. We must
-// extract these before the tag stripper removes all attributes.
+// Circles in SVG charts encode all bucket data as geometry: cx = predicted
+// probability, cy = actual rate, r = sample size. Lines (grid, diagonal, and
+// per-bucket connectors) are pure layout derived from hardcoded constants and
+// duplicates of values circles already carry. Extract circles only.
 const svgFigures = (html) => {
   const results = [];
 
@@ -35,7 +37,7 @@ const svgFigures = (html) => {
     return match ? match[1] : null;
   };
 
-  // Circles: cx, cy, r
+  // Circles: cx (predicted), cy (actual), r (sample size)
   for (const circle of html.matchAll(/<circle[^>]*>/gi)) {
     const cx = getAttr(circle[0], 'cx');
     const cy = getAttr(circle[0], 'cy');
@@ -43,18 +45,6 @@ const svgFigures = (html) => {
     if (cx) results.push(`svg:circle:cx:${cx}`);
     if (cy) results.push(`svg:circle:cy:${cy}`);
     if (r) results.push(`svg:circle:r:${r}`);
-  }
-
-  // Lines: x1, y1, x2, y2
-  for (const line of html.matchAll(/<line[^>]*>/gi)) {
-    const x1 = getAttr(line[0], 'x1');
-    const y1 = getAttr(line[0], 'y1');
-    const x2 = getAttr(line[0], 'x2');
-    const y2 = getAttr(line[0], 'y2');
-    if (x1) results.push(`svg:line:x1:${x1}`);
-    if (y1) results.push(`svg:line:y1:${y1}`);
-    if (x2) results.push(`svg:line:x2:${x2}`);
-    if (y2) results.push(`svg:line:y2:${y2}`);
   }
 
   return results;
