@@ -9,6 +9,8 @@ import { ReliabilityPlot } from './_components/ReliabilityPlot';
 import { RosterSearch } from './_components/RosterSearch';
 import { GameCard } from './_components/GameCard';
 import { Headshot } from './_components/Headshot';
+import { Side } from './_components/Side';
+import { PropLabel } from './_components/PropLabel';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,7 +81,7 @@ export default async function Page() {
                     <tbody>
                       {d.btByProp.map((b) => (
                         <tr key={b.prop}>
-                          <td>{b.prop}</td>
+                          <td><PropLabel prop={b.prop} /></td>
                           <td className="num">{b.n.toLocaleString()}</td>
                           <td className="num">{b.ece == null ? '—' : pct(b.ece)}</td>
                           <td className="num">{b.brier == null ? '—' : b.brier.toFixed(3)}</td>
@@ -141,8 +143,8 @@ export default async function Page() {
                               <span>{e.playerName}</span>
                             </Link>
                           </td>
-                          <td>{e.propType}</td>
-                          <td>{e.side}</td>
+                          <td><PropLabel prop={e.propType} /></td>
+                          <td><Side side={e.side} /></td>
                           <td className="num">{e.line}</td>
                           <td className="num">{pct(e.modelProb)}</td>
                           <td className="num">{signed(e.edgePct)}</td>
@@ -215,7 +217,7 @@ export default async function Page() {
                   <tbody>
                     {d.clv.map((r: ClvRow) => (
                       <tr key={r.propType}>
-                        <td>{r.propType}</td>
+                        <td><PropLabel prop={r.propType} /></td>
                         <td className="num">{r.n}</td>
                         <td className="num">{r.avgClv == null ? '—' : signed(r.avgClv)}</td>
                         <td className="num">{r.hitRate == null ? '—' : pct(r.hitRate)}</td>
