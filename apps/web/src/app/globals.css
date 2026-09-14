@@ -1,14 +1,37 @@
 :root {
-  --paper: #f3f5f7;
+  /* --- chrome. Never used to encode a data value. --- */
+  --navy: #041E42;
+  --navy-ink: #0a2d5e;
+  --red: #BF0D3E;
+
+  /* --- surfaces --- */
+  --paper: #f4f6f8;
   --panel: #ffffff;
-  --ink: #171d24;
+  --stripe: #f7f9fa;
+
+  /* --- text ramp --- */
+  --ink: #10161d;
   --muted: #5c6773;
   --faint: #8a95a1;
+
+  /* --- rules --- */
   --hair: #dce2e8;
   --grid: #e8edf1;
-  --good: #0f766e;   /* on-target / positive */
-  --bad:  #b23a48;   /* miscalibrated / negative */
-  --ref:  #aab4bf;   /* perfect-calibration reference */
+
+  /* --- semantic. Calibration only: these make a claim the backtest earned.
+         Deliberately NOT unified with --red, which is decoration. --- */
+  --good: #0f766e;
+  --bad:  #b23a48;
+  --ref:  #aab4bf;
+}
+
+/* Applied with text-transform, never by uppercasing source strings, so
+   assistive tech still reads the original casing. */
+.cnd {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
 }
 
 * { box-sizing: border-box; }
