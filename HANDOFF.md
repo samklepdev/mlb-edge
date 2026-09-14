@@ -186,9 +186,74 @@ after 8.5 innings does not bat again), and the league constants in
 `game/model.ts` were fitted on essentially the same team-games the backtest
 evaluates, so the calibration figures are optimistic by an unmeasured amount.
 
-Next steps on the game side, in order: (1) an innings-aware / correlated
-convolution, with a `TEAM_MODEL_VERSION` bump and a re-`team-backfill`, judged
-on *resolution*, not ECE; (2) out-of-sample constants; (3) only then a market
+### The March–April concentration (a lead, not a finding)
+
+Measured 2026-09-14 with `team-backtest --from/--to`, by month, `total`:
+
+| window | games | advantage | 95% CI | verdict |
+|---|---|---|---|---|
+| Mar (from 15th) | 202 | −0.01504 | [−0.0291, −0.0010] | WORSE |
+| Apr | 391 | −0.02027 | [−0.0319, −0.0087] | WORSE |
+| May | 421 | +0.00015 | [−0.0084, +0.0087] | indistinguishable |
+| Jun | 398 | −0.00155 | [−0.0109, +0.0078] | indistinguishable |
+| Jul | 369 | −0.00655 | [−0.0165, +0.0034] | indistinguishable |
+| Aug | 413 | +0.00041 | [−0.0086, +0.0094] | indistinguishable |
+| Sep (to 12th) | 161 | −0.01127 | [−0.0274, +0.0048] | indistinguishable |
+| **ALL** | **2355** | **−0.00581** | **[−0.0098, −0.0019]** | **WORSE** |
+
+Cut at 2026-05-01, all three markets:
+
+| market | Mar 15–Apr 30 (593g) | May 1–Sep 12 (1762g) |
+|---|---|---|
+| `total` | **−0.0181** [−0.0271, −0.0091] WORSE | −0.0018 [−0.0061, +0.0025] |
+| `moneyline` | **−0.0163** [−0.0268, −0.0058] WORSE | +0.0023 [−0.0023, +0.0070] |
+| `run_line` | −0.0061 [−0.0140, +0.0017] | +0.0022 [−0.0015, +0.0059] |
+
+~77% of the full-sample deficit comes from 25% of the games, and `moneyline` —
+INDISTINGUISHABLE over the full range — is independently WORSE over the same
+window. Two markets failing together in adjacent months is harder to write off
+than one marginal slice.
+
+**Why this is not yet a finding.** It is post-hoc: 21+ window×market tests were
+run and March–April was not pre-registered. It is one season. And the league
+constants were fitted in-sample across the whole season, which mechanically
+guarantees *some* sub-period scores worse than the average. Do not restate the
+headline as "the model is fine after April" — the honest full-range result is
+unchanged.
+
+**Two mechanisms were tested and both FAILED to explain it:**
+
+1. *Scoring bias against the fitted constant.* Backwards: March averages 4.767
+   runs/team-game against `LEAGUE_RUNS = 4.523` — early scoring is **higher**,
+   not lower. And the magnitudes do not line up: April is +0.032 off the
+   constant (essentially zero) while being the worst month, and September is
+   +0.300 off with no significant damage.
+2. *Starter blindness.* `starterAdj` falls back to league-average when a pitcher
+   lacks `MIN_BF_TEAM = 30` prior batters-faced in starts. That is 86.5% of
+   March lookups — but April is already at 13.3%, the season norm, while being
+   the worst month. (This does quantify deferred finding I3: the 16.6% overall
+   fallback rate is almost entirely March.)
+
+**The surviving hypothesis, untested:** small-sample team rates. `shrink()` uses
+`K_G = 50` pseudo-games, so a team with ~20 games by late April carries ~29%
+weight on an own-rate that is still mostly noise. Noise added to a forecast
+strictly increases Brier against a constant baseline, which is exactly the shape
+of this result — worse early, converging to ~0 as samples grow. It also explains
+why March is *less* bad than April despite its other two problems: with ≤12
+games, less noise gets through the shrinkage.
+
+Testing it is cheap relative to the convolution rewrite: a `K_G` sweep, or a
+minimum-team-games gate on projections, re-measured Mar–Apr vs May-onward.
+Reproduce any of the above with `npm run team-backtest -- --from <d> --to <d>`
+or the `/team` A/B form.
+
+Next steps on the game side, in order: (1) test the cold-start hypothesis above
+(`K_G` sweep or a minimum-team-games gate) — cheapest, and currently the
+better-supported lead; (2) an innings-aware / correlated convolution, with a
+`TEAM_MODEL_VERSION` bump and a re-`team-backfill`, judged on *resolution*, not
+ECE, and reported on **both** the full range and `--from 2026-05-01` so two
+months of cold start do not mask what the change did; (3) out-of-sample
+constants; (4) only then a market
 path — game lines (`h2h`, `spreads`, `totals`) into a `game_lines` table and a
 pricing view separate from the existing `/team` measurement page. Pulling market
 prices first would just show the market's consensus next to a model that has not

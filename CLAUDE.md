@@ -186,6 +186,22 @@ has no market/CLV stage at all.
   −0.00213 → indistinguishable. A decent ECE here measures calibration, not
   information. This is the honest finding and the starting point for any further
   work on the model.
+- **Game model — the `total` WORSE verdict is concentrated in March–April.**
+  Split at 2026-05-01 (`team-backtest --from/--to`): Mar 15–Apr 30 (593 games)
+  gives `total` −0.0181 [−0.0271, −0.0091] **and** `moneyline` −0.0163
+  [−0.0268, −0.0058], both WORSE; May 1 onward (1762 games) gives `total`
+  −0.0018 [−0.0061, +0.0025], `moneyline` +0.0023, `run_line` +0.0022 — all
+  indistinguishable. ~77% of the full-sample deficit comes from 25% of the
+  games. **This is a lead, not a finding** — it is post-hoc slicing (21+
+  window×market tests, the window was not pre-registered), one season, and the
+  in-sample constants mechanically guarantee some sub-period looks worse. Do not
+  restate the headline as "the model is fine after April". Two mechanisms were
+  tested and **both fail**: scoring bias (March is *above* `LEAGUE_RUNS`, not
+  below, and April is +0.032 off it while being the worst month) and starter
+  fallback (86.5% in March but already 13.3% in April). The surviving untested
+  hypothesis is small-sample team rates: `K_G = 50` lets ~29% weight onto a
+  ~20-game own-rate by late April, and noise added to a forecast strictly
+  increases Brier against a constant baseline. See HANDOFF.md for the month table.
 
 ## Open work, prioritized
 1. Run the forward CLV loop — the actual unanswered question.
@@ -195,10 +211,17 @@ has no market/CLV stage at all.
 3. Add props (hits → HRs), reusing the existing machinery.
 4. Game model: replace the independent convolution with an innings-aware /
    correlated one, and re-measure resolution. It is the largest known
-   approximation and the leading *hypothesis* for the `total` result — not a
-   demonstrated cause — and it is the one change worth trying before anything
-   else on the game side. Needs a `TEAM_MODEL_VERSION` bump and a
-   re-`team-backfill`; judge it on resolution, not ECE.
+   approximation and *a* hypothesis for the `total` result — not a demonstrated
+   cause, and no longer the only live one (see the March–April seam). Needs a
+   `TEAM_MODEL_VERSION` bump and a re-`team-backfill`; judge it on resolution,
+   not ECE. **Judge it on `--from 2026-05-01` as well as the full range**: two
+   months of cold start dominate the full-range number and will mask what the
+   change actually did. Report both; do not quietly switch to whichever looks
+   better.
+4b. Game model: test the cold-start hypothesis directly before assuming the
+   convolution is at fault — a `K_G` sweep, or gating projections on a minimum
+   team game count, re-measured on Mar–Apr vs May-onward. Cheaper than the
+   convolution rewrite and it is currently the better-supported lead.
 5. Game model: re-fit the `game/model.ts` league constants out-of-sample, or at
    minimum re-measure calibration on a range they were not fitted on.
 6. Game model: no market/CLV path exists (no `game_lines` table, no pricing or
