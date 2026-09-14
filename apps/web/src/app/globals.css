@@ -9,10 +9,22 @@
   --panel: #ffffff;
   --stripe: #f7f9fa;
 
-  /* --- text ramp --- */
+  /* --- text ramp ---
+         Every step carries essential text somewhere, so every step clears
+         WCAG AA 4.5:1 on all three surfaces below -- including --paper,
+         which .rmeta sits on when a roster row is hovered. --faint was
+         #8a95a1 (3.05:1 on --panel) and failed: its four uses are the
+         scorecard verdict, roster metadata, the game-card edge count, and
+         the reliability plot's axis labels, all 11-13.6px and none of them
+         decoration. Darkening it narrows the gap to --muted, which is the
+         price of the ramp being readable rather than merely ordered.
+                    panel   stripe  paper
+         --ink      18.19   17.22   16.79
+         --muted     5.76    5.46    5.32
+         --faint     5.10    4.83    4.71   --- */
   --ink: #10161d;
   --muted: #5c6773;
-  --faint: #8a95a1;
+  --faint: #666f7a;
 
   /* --- rules --- */
   --hair: #dce2e8;
