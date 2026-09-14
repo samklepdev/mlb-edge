@@ -1225,8 +1225,13 @@ Confirm the notice copy and its `docker compose up -d / npm run db:migrate` bloc
 
 - [ ] **Step 7: Final commit**
 
+Never `git add -A` here. The working tree may hold unrelated uncommitted edits
+that belong to the user, not to this branch — one such edit (an IDE-generated
+JSDoc rewrite of `packages/pipeline/src/cli.ts`) was present during this plan's
+execution. Stage only files this plan touched, by explicit path.
+
 ```bash
-git add -A
+git status --porcelain   # confirm nothing unrelated is about to be staged
 git commit -m "Verify the restyle changed no figures
 
 Full typecheck, web build, figure parity, contrast, and responsive passes.
