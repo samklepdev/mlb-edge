@@ -7,6 +7,7 @@ import {
 } from '@mlb-edge/db';
 import { ReliabilityPlot } from './_components/ReliabilityPlot';
 import { RosterSearch } from './_components/RosterSearch';
+import { GameCard } from './_components/GameCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,9 @@ async function load() {
 
 export default async function Page() {
   const d = await load();
+
+  const listedByGame = new Map<number, number>();
+  if (d.ok) for (const e of d.edges) listedByGame.set(e.gameId, (listedByGame.get(e.gameId) ?? 0) + 1);
 
   return (
     <main className="wrap">
@@ -105,7 +109,19 @@ export default async function Page() {
               {d.games.length === 0 ? (
                 <p className="cap">No projected games. Run <code style={{ display: 'inline' }}>project --date {d.slateDate}</code>.</p>
               ) : (
-                <p className="cap">{d.games.length} game(s): {d.games.map((g) => `${g.away} @ ${g.home}`).join(' · ')}</p>
+                <>
+                  <div className="slate-strip">
+                    {d.games.map((g) => (
+                      <GameCard key={g.gameId} game={g} listedEdges={listedByGame.get(g.gameId) ?? 0} />
+                    ))}
+                  </div>
+                  <p className="cap">
+                    {d.games.length} game(s). &ldquo;Listed&rdquo; counts this
+                    game&apos;s picks in the table below, which shows only the
+                    highest-edge {d.edges.length} of the slate — not every edge
+                    on the game.
+                  </p>
+                </>
               )}
               {d.edges.length > 0 && (
                 <table>

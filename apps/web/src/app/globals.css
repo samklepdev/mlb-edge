@@ -163,3 +163,41 @@ a:hover { text-decoration: underline; }
   background: var(--paper);
   box-shadow: 0 0 0 1px var(--hair);
 }
+
+/* ---- scoreboard strip ---- */
+.slate-strip {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding: 0.25rem 0 1rem;
+  /* The strip scrolls in its own container; the page body must never scroll
+     sideways. */
+  scrollbar-width: thin;
+}
+.gamecard {
+  flex: 0 0 auto;
+  min-width: 8.5rem;
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  border-top: 3px solid var(--navy);
+  border-radius: 3px;
+  padding: 0.7rem 0.85rem;
+}
+.gc-team { display: flex; align-items: center; gap: 0.5rem; padding: 0.15rem 0; }
+.gc-logo {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+.gc-abbr { font-size: 1.05rem; font-weight: 700; color: var(--ink); letter-spacing: 0.04em; }
+.gc-meta {
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--grid);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.gc-edges { color: var(--faint); font-size: 0.78rem; }
