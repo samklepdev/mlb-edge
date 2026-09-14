@@ -71,6 +71,7 @@ export default async function Page() {
               </div>
             ) : (
               <>
+                <div className="tscroll">
                 <table>
                   <thead>
                     <tr><th>Prop</th><th>Evaluations</th><th>ECE</th><th>Brier</th></tr>
@@ -86,6 +87,7 @@ export default async function Page() {
                     ))}
                   </tbody>
                 </table>
+                </div>
                 <p className="cap" style={{ marginTop: '1rem' }}>
                   Read each prop against itself over time — never against another prop. A low
                   ECE on a rare event (home runs) mostly reflects the base rate, not skill; and
@@ -125,6 +127,7 @@ export default async function Page() {
                 </>
               )}
               {d.edges.length > 0 && (
+                <div className="tscroll">
                 <table>
                   <thead>
                     <tr><th>Player</th><th>Prop</th><th>Side</th><th>Line</th><th>Model</th><th>Edge</th></tr>
@@ -147,6 +150,7 @@ export default async function Page() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </section>
           )}
@@ -205,6 +209,7 @@ export default async function Page() {
                 Not colored — n is too low per row to call a direction. Read the count
                 alongside the number, not the number alone.
               </p>
+              <div className="tscroll">
               <table>
                 <thead><tr><th>Prop</th><th>n</th><th>Avg CLV</th><th>Hit rate</th></tr></thead>
                 <tbody>
@@ -218,6 +223,7 @@ export default async function Page() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </section>
           )}
         </>

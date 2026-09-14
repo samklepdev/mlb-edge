@@ -52,6 +52,7 @@ export default async function PlayerPage({
           {card.rows.length === 0 ? (
             <p className="cap">No projections for this player on {card.date}.</p>
           ) : (
+            <div className="tscroll">
             <table>
               <thead>
                 <tr>
@@ -75,6 +76,7 @@ export default async function PlayerPage({
                 ))}
               </tbody>
             </table>
+            </div>
           )}
           <p className="cap" style={{ marginTop: '1rem' }}>
             &quot;Model&quot; is the model&apos;s probability for the side it favors; &quot;Fair&quot; is the

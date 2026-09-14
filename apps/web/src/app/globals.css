@@ -257,6 +257,15 @@ a:hover { text-decoration: underline; }
 }
 
 /* ---- tables ---- */
+/* Tables are the one thing on these pages that cannot be made narrow enough:
+   six columns of numbers do not fit 320px at any padding worth having. Before
+   this, `body { overflow-x: hidden }` (added for the masthead's scrollbar
+   overflow, see body above) silently CLIPPED the rightmost columns on a phone
+   -- the Edge column was unreachable rather than merely off-screen. So each
+   table gets its own scroller, the same idiom .slate-strip uses: the body
+   still never scrolls sideways, and no column is unreachable. */
+.tscroll { overflow-x: auto; }
+
 table { background: var(--panel); border: 1px solid var(--hair); }
 thead th {
   font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
