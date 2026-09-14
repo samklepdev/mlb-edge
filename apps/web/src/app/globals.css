@@ -75,22 +75,6 @@ body {
   padding: 3.5rem 1.5rem 5rem;
 }
 
-/* ---- masthead ---- */
-.masthead { border-bottom: 1px solid var(--hair); padding-bottom: 1.5rem; }
-.wordmark {
-  font-size: 1.05rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 0;
-}
-.wordmark span { color: var(--faint); font-weight: 400; }
-.purpose {
-  margin: 0.35rem 0 0;
-  color: var(--muted);
-  font-size: 0.95rem;
-  max-width: 46ch;
-}
-
 /* ---- scorecard ---- */
 .scorecard {
   display: grid;
@@ -101,7 +85,6 @@ body {
   margin: 2rem 0 0;
 }
 .readout { background: var(--panel); padding: 1.25rem 1.35rem; }
-.readout .label { color: var(--muted); font-size: 0.8rem; margin: 0; }
 .readout .value {
   font-size: 2rem;
   font-weight: 600;
@@ -114,7 +97,6 @@ body {
 
 /* ---- plot ---- */
 .plot { margin: 2.75rem 0 0; }
-.plot h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.25rem; }
 .plot p.cap { color: var(--muted); font-size: 0.9rem; margin: 0 0 1.25rem; max-width: 58ch; }
 .plot-frame {
   background: var(--panel);
@@ -127,11 +109,9 @@ body {
 
 /* ---- table ---- */
 .clv { margin: 2.75rem 0 0; }
-.clv h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 1rem; }
 table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 th, td { text-align: right; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--grid); }
 th:first-child, td:first-child { text-align: left; }
-thead th { color: var(--muted); font-weight: 500; border-bottom-color: var(--hair); }
 td.good { color: var(--good); }
 td.bad { color: var(--bad); }
 
@@ -142,7 +122,6 @@ td.bad { color: var(--bad); }
   padding: 1.75rem;
   margin: 2rem 0 0;
 }
-.notice h2 { font-size: 1.05rem; margin: 0 0 0.5rem; }
 .notice p { color: var(--muted); margin: 0 0 1rem; max-width: 60ch; }
 .notice code {
   display: block;
@@ -161,15 +140,14 @@ td.bad { color: var(--bad); }
 
 a { color: var(--good); text-decoration: none; }
 a:hover { text-decoration: underline; }
-.wordmark a { color: inherit; }
 
 .search { width: 100%; padding: 0.6rem 0.8rem; border: 1px solid var(--hair); background: var(--panel); color: var(--ink); font-size: 0.95rem; margin: 0 0 1rem; }
 .search:focus { outline: 2px solid var(--good); outline-offset: 1px; }
 .roster { display: flex; flex-direction: column; border: 1px solid var(--hair); max-height: 30rem; overflow-y: auto; }
-.roster-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--grid); color: var(--ink); }
+.roster-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--grid); color: var(--ink); }
 .roster-row:last-child { border-bottom: none; }
 .roster-row:hover { background: var(--paper); text-decoration: none; }
-.rname { font-weight: 500; white-space: nowrap; }
+.rname { display: flex; align-items: center; gap: 0.55rem; font-weight: 500; white-space: nowrap; }
 .rmeta { color: var(--faint); font-size: 0.85rem; text-align: right; }
 
 .headshot {
@@ -222,12 +200,10 @@ a:hover { text-decoration: underline; }
 .masthead {
   background: var(--navy);
   border-bottom: 3px solid var(--red);
-  padding: 1.5rem 0 1.35rem;
-  margin: -3.5rem 0 2rem;   /* cancels .wrap's top padding to reach the edges */
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
+  padding: 1.5rem 1.5rem 1.35rem;
+  /* The inline margin cancels .wrap's side offset and padding so the bar reaches
+     both viewport edges; -3.5rem cancels .wrap's top padding. */
+  margin: -3.5rem calc(50% - 50vw) 2rem;
 }
 .masthead > * { max-width: 60rem; margin-inline: auto; }
 .wordmark {
@@ -275,6 +251,10 @@ thead th {
   font-size: 0.85rem;
   color: var(--muted);
   background: var(--stripe);
+  /* Carried forward from the earlier `thead th` rule this block absorbed: the
+     header's own bottom rule is --hair, a shade stronger than the --grid
+     hairline `th, td` gives every other row. Nothing else declares it. */
+  border-bottom-color: var(--hair);
   position: sticky;
   top: 0;
 }
@@ -289,6 +269,11 @@ tbody tr:nth-child(even) { background: var(--stripe); }
   letter-spacing: 0.06em;
   font-weight: 600;
   font-size: 0.82rem;
+  /* Carried forward from the earlier `.readout .label` rule this block
+     absorbed. Its font-size: 0.8rem was already dead against the 0.82rem
+     above; color and margin were declared nowhere else. */
+  color: var(--muted);
+  margin: 0;
 }
 .notice h2 {
   font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
@@ -296,13 +281,15 @@ tbody tr:nth-child(even) { background: var(--stripe); }
   letter-spacing: 0.06em;
   font-weight: 600;
   color: var(--navy);
+  /* Carried forward from the earlier `.notice h2` rule this block absorbed;
+     neither property is declared anywhere else for this selector. */
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
 }
 
 /* ---- player rows ---- */
 .prow { display: inline-flex; align-items: center; gap: 0.55rem; color: var(--ink); }
 .prow:hover { text-decoration: none; color: var(--navy-ink); }
-.prow .headshot { flex: none; }
-.rname { display: flex; align-items: center; gap: 0.55rem; }
 .pickdot {
   display: inline-block;
   width: 7px;
@@ -311,7 +298,6 @@ tbody tr:nth-child(even) { background: var(--stripe); }
   background: var(--navy);
   flex: none;
 }
-.roster-row { align-items: center; }
 
 /* ---- player identity ---- */
 .player-id { display: flex; align-items: center; gap: 1rem; margin: 0 0 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--hair); }
