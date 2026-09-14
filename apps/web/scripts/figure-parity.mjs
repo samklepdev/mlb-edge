@@ -24,6 +24,42 @@ const strip = (html) =>
 
 const figures = (text) => text.match(/-?\d[\d,]*\.?\d*%?/g) ?? [];
 
+// SVG elements encode chart data purely as geometry attributes. We must
+// extract these before the tag stripper removes all attributes.
+const svgFigures = (html) => {
+  const results = [];
+
+  // Extract numeric attribute values from SVG elements
+  const getAttr = (element, attrName) => {
+    const match = element.match(new RegExp(`${attrName}\\s*=\\s*["\']?(-?[\\d.]+)`));
+    return match ? match[1] : null;
+  };
+
+  // Circles: cx, cy, r
+  for (const circle of html.matchAll(/<circle[^>]*>/gi)) {
+    const cx = getAttr(circle[0], 'cx');
+    const cy = getAttr(circle[0], 'cy');
+    const r = getAttr(circle[0], 'r');
+    if (cx) results.push(`svg:circle:cx:${cx}`);
+    if (cy) results.push(`svg:circle:cy:${cy}`);
+    if (r) results.push(`svg:circle:r:${r}`);
+  }
+
+  // Lines: x1, y1, x2, y2
+  for (const line of html.matchAll(/<line[^>]*>/gi)) {
+    const x1 = getAttr(line[0], 'x1');
+    const y1 = getAttr(line[0], 'y1');
+    const x2 = getAttr(line[0], 'x2');
+    const y2 = getAttr(line[0], 'y2');
+    if (x1) results.push(`svg:line:x1:${x1}`);
+    if (y1) results.push(`svg:line:y1:${y1}`);
+    if (x2) results.push(`svg:line:x2:${x2}`);
+    if (y2) results.push(`svg:line:y2:${y2}`);
+  }
+
+  return results;
+};
+
 async function fetchPage(path) {
   const res = await fetch(BASE + path);
   if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
@@ -41,4 +77,5 @@ const player = await fetchPage(playerPath);
 
 for (const [label, html] of [['/', home], [playerPath, player]]) {
   for (const f of figures(strip(html))) console.log(`${label}\t${f}`);
+  for (const f of svgFigures(html)) console.log(`${label}\t${f}`);
 }
