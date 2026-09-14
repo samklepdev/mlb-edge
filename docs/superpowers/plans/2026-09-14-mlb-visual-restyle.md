@@ -1127,17 +1127,27 @@ Append to `apps/web/src/app/globals.css`:
   color: var(--navy);
   /* .clv h2 (section eyebrows) matches this heading too, at equal
      specificity. Source order is not enough: the cascade resolves
-     per-property, so the eyebrow's border-bottom/padding-bottom would still
-     apply to a rule that simply omits them, leaving the identity heading
-     with both a red eyebrow rule AND .player-id's own hairline. */
+     per-property, so the eyebrow's border-bottom/padding-bottom/margin
+     would still apply to a rule that simply omits them, leaving the
+     identity heading with both a red eyebrow rule's hairline AND
+     .player-id's own hairline below it, plus the eyebrow's asymmetric
+     margin: 0 0 0.75rem. */
   border-bottom: none;
   padding-bottom: 0;
+  margin: 0;
 }
 ```
 
-The two explicit overrides above are load-bearing — dropping them reintroduces
-the double rule. Source order decides only which value wins for a property
-*both* rules set; it does nothing for a property only the earlier rule sets.
+The three explicit overrides above are load-bearing — dropping any of them
+reintroduces the double rule. Source order decides only which value wins for
+a property *both* rules set; it does nothing for a property only the earlier
+rule sets. `border-bottom: none` and `padding-bottom: 0` block the eyebrow
+rule's red underline and its spacing from leaking onto this heading.
+`margin: 0` is different: `.player-id` is `display: flex; align-items:
+center`, and a flex item is centered by its **margin box**, so the eyebrow's
+asymmetric `margin: 0 0 0.75rem` would push the name visibly off-centre
+against the 72px headshot even though the underline and padding are already
+suppressed.
 
 - [ ] **Step 4: Verify visually**
 

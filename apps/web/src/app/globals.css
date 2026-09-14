@@ -172,9 +172,6 @@ a:hover { text-decoration: underline; }
 .rname { font-weight: 500; white-space: nowrap; }
 .rmeta { color: var(--faint); font-size: 0.85rem; text-align: right; }
 
-/* ---- player identity ---- */
-.player-id { display: flex; align-items: center; gap: 0.85rem; margin: 0 0 1rem; }
-.player-id h2 { margin: 0; }
 .headshot {
   flex: none;
   border-radius: 50%;
@@ -308,7 +305,7 @@ tbody tr:nth-child(even) { background: var(--stripe); }
 .roster-row { align-items: center; }
 
 /* ---- player identity ---- */
-.player-id { gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--hair); }
+.player-id { display: flex; align-items: center; gap: 1rem; margin: 0 0 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--hair); }
 .player-id .headshot { box-shadow: 0 0 0 2px var(--navy); }
 .player-id h2 {
   font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
@@ -319,13 +316,13 @@ tbody tr:nth-child(even) { background: var(--stripe); }
   color: var(--navy);
   /* .clv h2 (section eyebrows, above) matches this heading too — same
      specificity, so source order alone would decide. Without these
-     explicit overrides, its border-bottom/padding-bottom would still win
-     because this rule doesn't set them, leaving the identity heading with
-     both the red eyebrow rule and .player-id's own hairline below it.
-     margin is the same trap: the earlier .player-id h2 { margin: 0 } loses
-     to .clv h2's margin, and an asymmetric margin on a flex item is
-     centered by its margin box — pulling the name off-centre against the
-     72px headshot. */
+     explicit overrides, its border-bottom/padding-bottom/margin would still
+     win because this rule wouldn't otherwise set them, leaving the identity
+     heading with both the red eyebrow rule's hairline below it and its
+     asymmetric margin: 0 0 0.75rem. .player-id is display: flex; align-items:
+     center, and a flex item is centered by its margin box, so that leftover
+     bottom margin would pull the name visibly off-centre against the 72px
+     headshot. */
   border-bottom: none;
   padding-bottom: 0;
   margin: 0;
