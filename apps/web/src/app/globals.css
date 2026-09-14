@@ -110,7 +110,11 @@ body {
 /* ---- table ---- */
 .clv { margin: 2.75rem 0 0; }
 table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-th, td { text-align: right; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--grid); }
+/* vertical-align: middle because the Player cell is an inline-flex .prow
+   containing a 28px headshot, and a table cell's default baseline alignment
+   takes the row's baseline from that image -- which left the name sitting
+   about 3px above the numbers in its own row. */
+th, td { text-align: right; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--grid); vertical-align: middle; }
 th:first-child, td:first-child { text-align: left; }
 td.good { color: var(--good); }
 td.bad { color: var(--bad); }
@@ -260,7 +264,18 @@ a:hover { text-decoration: underline; }
    overflow, see body above) silently CLIPPED the rightmost columns on a phone
    -- the Edge column was unreachable rather than merely off-screen. So each
    table gets its own scroller, the same idiom .slate-strip uses: the body
-   still never scrolls sideways, and no column is unreachable. */
+   still never scrolls sideways, and no column is unreachable.
+
+   Note what this wrapper costs: with overflow-x set and overflow-y unset,
+   overflow-y computes to `auto` (CSS Overflow 3 -- neither axis may stay
+   `visible` when the other is not), so .tscroll became the nearest
+   scrollport for anything inside it. `thead th` used to carry
+   `position: sticky; top: 0`, and from that point it could never offset,
+   because .tscroll has auto height and so has no vertical scrolling to
+   stick against. The declaration is gone rather than rescued: giving
+   .tscroll a max-height would turn every table into a fixed-height
+   vertically-scrolling box, which is a design change, and the tables are
+   4-25 rows anyway. Do not re-add sticky here without a scrollport. */
 .tscroll { overflow-x: auto; }
 
 table { background: var(--panel); border: 1px solid var(--hair); }
@@ -276,8 +291,6 @@ thead th {
      header's own bottom rule is --hair, a shade stronger than the --grid
      hairline `th, td` gives every other row. Nothing else declares it. */
   border-bottom-color: var(--hair);
-  position: sticky;
-  top: 0;
 }
 tbody tr:nth-child(even) { background: var(--stripe); }
 
@@ -311,6 +324,14 @@ tbody tr:nth-child(even) { background: var(--stripe); }
 /* ---- player rows ---- */
 .prow { display: inline-flex; align-items: center; gap: 0.55rem; color: var(--ink); }
 .prow:hover { text-decoration: none; color: var(--navy-ink); }
+/* .prow beats the global `a` rules on specificity -- `.prow { color: var(--ink) }`
+   over `a { color: var(--good) }` (0,1,0 > 0,0,1), and `.prow:hover
+   { text-decoration: none }` over `a:hover { text-decoration: underline }`
+   (0,2,0 > 0,1,1). That left hover feedback as --ink -> --navy-ink, a shift
+   between two near-blacks. Underline the name span rather than the link, so
+   the rule does not run under the 28px headshot beside it, which is why the
+   `text-decoration: none` above is there in the first place. */
+.prow:hover span { text-decoration: underline; }
 .pickdot {
   display: inline-block;
   width: 7px;
