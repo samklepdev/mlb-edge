@@ -3,6 +3,7 @@ import { pool } from '@mlb-edge/db';
 import { migrate } from './db/migrate.js';
 import { ingestSchedule } from './ingest/schedule.js';
 import { ingestFinalGames, ingestBoxscore } from './ingest/games.js';
+import { ingestPeople } from './ingest/people.js';
 import { seedDemo } from './seed/demo.js';
 import { runProjections, ALL_PROPS, type PropKind } from './project/index.js';
 import { backfill } from './project/backfill.js';
@@ -130,6 +131,17 @@ ingest
     const r = await forEachDate(dates, ingestFinalGames);
     console.log(`ingested boxscores across ${r.ok} date(s) (${r.total} final game(s)); ${r.failed} failed`);
     if (r.failed > 0) process.exitCode = 1;
+  });
+ingest
+  .command('people')
+  .description('fill players.bats / players.throws from the MLB people endpoint')
+  .option('--all', 'refresh every player, not just those missing handedness')
+  .action(async (o: { all?: boolean }) => {
+    const r = await ingestPeople({ all: o.all });
+    console.log(
+      `handedness: ${r.updated} updated of ${r.requested} requested` +
+        ` (${r.missing} not found, ${r.unparsed} without usable hand codes)`,
+    );
   });
 ingest
   .command('game')

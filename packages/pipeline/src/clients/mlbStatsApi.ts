@@ -53,4 +53,22 @@ export function getLiveFeed(gamePk: number): Promise<LiveFeedResponse> {
   return getJson(`/api/v1.1/game/${gamePk}/feed/live`);
 }
 
+// Handedness lives on /people, not on the boxscore: the boxscore's `person`
+// object carries only id/link/fullName/boxscoreName, so bats/throws cannot be
+// recovered from the payloads already in raw_api_responses.
+//
+// `personIds` is a comma-separated batch, which is what makes backfilling the
+// whole players table cheap -- see PEOPLE_BATCH in ingest/people.ts.
+export interface PeopleResponse {
+  people?: Array<{
+    id: number;
+    fullName?: string;
+    batSide?: { code?: string };
+    pitchHand?: { code?: string };
+  }>;
+}
+export function getPeople(personIds: readonly number[]): Promise<PeopleResponse> {
+  return getJson(`/api/v1/people?personIds=${personIds.join(',')}`);
+}
+
 export type { StatMap, BoxscorePlayer };
