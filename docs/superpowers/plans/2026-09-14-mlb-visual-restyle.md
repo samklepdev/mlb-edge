@@ -822,7 +822,7 @@ thead th {
   font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-weight: 600;
+  font-weight: 500;   /* 500 is the table-header weight layout.tsx documents */
   font-size: 0.85rem;
   color: var(--muted);
   background: var(--stripe);
@@ -845,6 +845,8 @@ tbody tr:nth-child(even) { background: var(--stripe); }
   font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  font-weight: 600;   /* without this it falls back to browser bold, heavier
+                         than the sibling .plot/.clv eyebrows it matches */
   color: var(--navy);
 }
 ```
