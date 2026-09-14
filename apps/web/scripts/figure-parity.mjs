@@ -5,13 +5,46 @@
 // matters here is a figure silently shifting during a CSS/markup change, and
 // that is exactly what a diff of this output catches.
 //
-// Usage: start `npm run web:dev`, then
-//   node apps/web/scripts/figure-parity.mjs > baseline.txt
+// Usage: build, start a PRODUCTION server, then point this at it:
+//   npm run web:build
+//   (cd apps/web && npx next start -p 3100)
+//   PARITY_BASE=http://localhost:3100 npm run parity > baseline.txt
 //
-// Caveat: this reads a live render. Do NOT run any pipeline command between a
-// baseline and its comparison -- new data reads as a spurious diff.
+// PARITY_BASE has no default, and the build the server is serving is checked
+// against .next/BUILD_ID before anything is read. Both guards exist because
+// this harness used to default to http://localhost:3000 -- the `next dev`
+// server -- and running `next build` while `next dev` is up leaves dev serving
+// a STALE compile. This branch hit exactly that: /player came back without the
+// .tscroll wrappers the source plainly had. A stale read produces a clean diff,
+// and a clean diff reads as "PARITY OK". A gate that reports success when it is
+// reading the wrong thing is worse than no gate.
+//
+// Three caveats on what a green run does and does not prove:
+//
+// 1. It reads a live render, so do NOT run any pipeline command (ingest,
+//    project, lines, settle) between a baseline and its comparison -- new data
+//    reads as a spurious diff.
+// 2. It reads HTML TEXT. A figure that is present in the markup but visually
+//    unreachable -- clipped, hidden, zero-size, behind an overflow -- passes.
+//    That is not hypothetical: `body { overflow-x: hidden }` clipped the Edge
+//    column off the right of every table for four consecutive tasks, all of
+//    them green here. Position, spacing and colour need a browser.
+// 3. It is colour-blind by construction, which is the point for figure parity
+//    but means a change like "the plot's axis labels got darker" is invisible
+//    to it. Contrast is the other script in this directory.
 
-const BASE = process.env.PARITY_BASE ?? 'http://localhost:3000';
+import { readFileSync } from 'node:fs';
+
+const BASE = process.env.PARITY_BASE;
+if (!BASE) {
+  console.error(
+    'figure-parity: set PARITY_BASE to a production server, e.g.\n' +
+      '  PARITY_BASE=http://localhost:3100 node apps/web/scripts/figure-parity.mjs\n' +
+      'There is deliberately no default: the old default was the next dev\n' +
+      'server, which serves a stale compile after any next build.'
+  );
+  process.exit(2);
+}
 
 // Next inlines the RSC flight payload into <script> tags; dropping script and
 // style wholesale is what keeps this to *visible* text.
@@ -33,7 +66,10 @@ const svgFigures = (html) => {
 
   // Extract numeric attribute values from SVG elements
   const getAttr = (element, attrName) => {
-    const match = element.match(new RegExp(`${attrName}\\s*=\\s*["\']?(-?[\\d.]+)`));
+    // \b anchors the attribute name. Without it, `r` would also match the tail
+    // of any attribute ending in r -- safe today only because React emits none
+    // such on <circle>, which is not a property worth depending on.
+    const match = element.match(new RegExp(`\\b${attrName}\\s*=\\s*["\']?(-?[\\d.]+)`));
     return match ? match[1] : null;
   };
 
@@ -57,6 +93,31 @@ async function fetchPage(path) {
 }
 
 const home = await fetchPage('/');
+
+// Freshness gate. `next build` writes .next/BUILD_ID, and an App Router
+// production render inlines that id into its flight payload. A `next dev`
+// server emits no build id at all, so this catches both "you pointed at dev"
+// and "you rebuilt but never restarted the server you are reading".
+const buildIdPath = new URL('../.next/BUILD_ID', import.meta.url);
+let buildId;
+try {
+  buildId = readFileSync(buildIdPath, 'utf8').trim();
+} catch {
+  console.error(
+    'figure-parity: no apps/web/.next/BUILD_ID -- run `npm run web:build` first.'
+  );
+  process.exit(2);
+}
+if (!home.includes(buildId)) {
+  console.error(
+    `figure-parity: ${BASE} is not serving the current build.\n` +
+      `  .next/BUILD_ID on disk: ${buildId}\n` +
+      '  That id does not appear in the HTML it returned. Either this is a\n' +
+      '  `next dev` server (dev emits no build id) or it is a production\n' +
+      '  server started before the last build -- restart it, then re-run.'
+  );
+  process.exit(3);
+}
 
 // Follow the first player link rather than hardcoding an id, so the harness
 // keeps working across slates.

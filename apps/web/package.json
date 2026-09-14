@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "parity": "node scripts/figure-parity.mjs"
+    "parity": "node scripts/figure-parity.mjs",
+    "contrast": "node scripts/contrast.mjs"
   },
   "dependencies": {
     "@mlb-edge/db": "*",

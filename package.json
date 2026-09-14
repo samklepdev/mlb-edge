@@ -20,6 +20,8 @@
     "web:dev": "npm run build:db && npm run -w @mlb-edge/web dev",
     "web:build": "npm run build:db && npm run -w @mlb-edge/web build",
     "typecheck": "npm run build:db && npm run -w @mlb-edge/pipeline typecheck && npm run -w @mlb-edge/web typecheck",
+    "parity": "npm run -w @mlb-edge/web parity",
+    "contrast": "npm run -w @mlb-edge/web contrast",
     "backfill": "npm run -w @mlb-edge/pipeline backfill --",
     "backtest": "npm run -w @mlb-edge/pipeline backtest",
     "health": "npm run -w @mlb-edge/pipeline health"
