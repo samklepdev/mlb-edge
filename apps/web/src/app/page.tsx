@@ -8,6 +8,7 @@ import {
 import { ReliabilityPlot } from './_components/ReliabilityPlot';
 import { RosterSearch } from './_components/RosterSearch';
 import { GameCard } from './_components/GameCard';
+import { Headshot } from './_components/Headshot';
 
 export const dynamic = 'force-dynamic';
 
@@ -131,12 +132,17 @@ export default async function Page() {
                   <tbody>
                     {d.edges.map((e) => (
                       <tr key={`${e.playerId}-${e.propType}`}>
-                        <td><Link href={`/player?id=${e.playerId}&date=${d.slateDate}`}>{e.playerName}</Link></td>
+                        <td>
+                          <Link className="prow" href={`/player?id=${e.playerId}&date=${d.slateDate}`}>
+                            <Headshot playerId={e.playerId} size={28} />
+                            <span>{e.playerName}</span>
+                          </Link>
+                        </td>
                         <td>{e.propType}</td>
                         <td>{e.side}</td>
                         <td className="num">{e.line}</td>
                         <td className="num">{pct(e.modelProb)}</td>
-                        <td className="num good">{signed(e.edgePct)}</td>
+                        <td className="num">{signed(e.edgePct)}</td>
                       </tr>
                     ))}
                   </tbody>

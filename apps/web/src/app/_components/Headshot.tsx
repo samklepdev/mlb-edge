@@ -20,6 +20,7 @@ export function Headshot({ playerId, size = 56 }: { playerId: number; size?: num
       src={headshotUrl(playerId, size * 2)} // 2x source for the displayed box
       width={size}
       height={size}
+      loading="lazy"
       // Decorative: the player's name sits beside this as real text, so alt
       // text here would make a screen reader announce the name twice.
       alt=""

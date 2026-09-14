@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { Headshot } from './Headshot';
 
 interface RosterPlayer {
   playerId: number;
@@ -31,7 +32,11 @@ export function RosterSearch({ roster, date }: { roster: RosterPlayer[]; date: s
         <div className="roster">
           {filtered.map((r) => (
             <Link key={r.playerId} href={`/player?id=${r.playerId}&date=${date}`} className="roster-row">
-              <span className="rname">{r.playerName}{r.hasPick ? ' \u25CF' : ''}</span>
+              <span className="rname">
+                <Headshot playerId={r.playerId} size={28} />
+                {r.playerName}
+                {r.hasPick ? <span className="pickdot" aria-label="flagged edge" /> : null}
+              </span>
               <span className="rmeta">{[r.matchup, r.props].filter(Boolean).join(' · ')}</span>
             </Link>
           ))}

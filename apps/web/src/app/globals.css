@@ -279,3 +279,18 @@ tbody tr:nth-child(even) { background: var(--stripe); }
   font-weight: 600;
   color: var(--navy);
 }
+
+/* ---- player rows ---- */
+.prow { display: inline-flex; align-items: center; gap: 0.55rem; color: var(--ink); }
+.prow:hover { text-decoration: none; color: var(--navy-ink); }
+.prow .headshot { flex: none; }
+.rname { display: flex; align-items: center; gap: 0.55rem; }
+.pickdot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--navy);
+  flex: none;
+}
+.roster-row { align-items: center; }
