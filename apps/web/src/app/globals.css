@@ -119,6 +119,28 @@ th:first-child, td:first-child { text-align: left; }
 td.good { color: var(--good); }
 td.bad { color: var(--bad); }
 
+/* Over/under direction. The arrow is --muted, not --good/--bad: it marks which
+   way a pick points, and a pick is a hypothesis, so it gets no colour that
+   reads as a verdict. Sized up because it is now the whole cell -- at 0.95rem
+   body size a bare arrowhead is a smudge. See _components/Side.tsx. */
+.side { color: var(--muted); font-size: 1.15rem; line-height: 1; cursor: help; }
+
+/* Residual rows. No --good/--bad anywhere here: a residual is not a verdict,
+   and beating a projection is not a win. --muted marks a row as inactive
+   (DNP), which is a data-availability fact, not a judgement of the figure. */
+.dnp { color: var(--muted); }
+.dnp-note { color: var(--faint); font-size: 0.85em; font-variant-numeric: normal; }
+
+/* Prop abbreviations. The dotted rule is the browser's own abbr[title] hint,
+   restated so it survives a reset and so the offset clears the descender. */
+.prop {
+  text-decoration: underline dotted var(--hair);
+  text-underline-offset: 0.25em;
+  cursor: help;
+  letter-spacing: 0.02em;
+  font-weight: 500;
+}
+
 /* ---- empty / error state ---- */
 .notice {
   background: var(--panel);

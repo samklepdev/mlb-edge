@@ -66,6 +66,27 @@ export interface PlayerCard {
   rows: PlayerCardRow[];
 }
 
+export interface ResidualRow {
+  gameDate: string;
+  matchup: string | null;
+  propType: string;
+  projMean: number;
+  actual: number;
+  residual: number;          // actual - projMean
+  /** false = the player appeared in the box score but never batted (pa = 0) or
+   *  never faced a hitter (bf = 0). The projection was real, the opportunity
+   *  was not, so the row is shown as DNP and excluded from every summary. */
+  played: boolean;
+}
+
+export interface ResidualSummary {
+  propType: string;
+  n: number;                 // games counted (played only)
+  dnp: number;               // games excluded from the mean
+  meanResidual: number | null;
+  se: number | null;         // sd/sqrt(n); null below n = 2
+}
+
 export interface ReliabilityBucket {
   lo: number;
   hi: number;
