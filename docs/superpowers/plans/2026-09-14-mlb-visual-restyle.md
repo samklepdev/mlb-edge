@@ -1125,10 +1125,19 @@ Append to `apps/web/src/app/globals.css`:
   font-weight: 700;
   font-size: 1.5rem;
   color: var(--navy);
+  /* .clv h2 (section eyebrows) matches this heading too, at equal
+     specificity. Source order is not enough: the cascade resolves
+     per-property, so the eyebrow's border-bottom/padding-bottom would still
+     apply to a rule that simply omits them, leaving the identity heading
+     with both a red eyebrow rule AND .player-id's own hairline. */
+  border-bottom: none;
+  padding-bottom: 0;
 }
 ```
 
-Note `.player-id h2` overrides the `.clv h2` eyebrow rule from Task 6 (no red underline here, since the identity block has its own hairline). Confirm in the browser that it wins — both are two-selector rules, so source order decides, and this block is appended later.
+The two explicit overrides above are load-bearing — dropping them reintroduces
+the double rule. Source order decides only which value wins for a property
+*both* rules set; it does nothing for a property only the earlier rule sets.
 
 - [ ] **Step 4: Verify visually**
 
