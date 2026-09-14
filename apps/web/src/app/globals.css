@@ -46,6 +46,13 @@ body {
     Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-feature-settings: "cv05";
+  /* The masthead breaks out of .wrap using calc(50% - 50vw), which is exact
+     against the viewport's layout width — but in Chromium `vw` includes the
+     vertical scrollbar's width while the visible viewport doesn't, so a page
+     tall enough to scroll can overflow horizontally by the scrollbar's width.
+     This guards against that without affecting intentional horizontal
+     scrollers, which scope their own overflow-x (see .slate-strip). */
+  overflow-x: hidden;
 }
 
 .num { font-variant-numeric: tabular-nums; }
@@ -201,3 +208,73 @@ a:hover { text-decoration: underline; }
   font-size: 0.8rem;
 }
 .gc-edges { color: var(--faint); font-size: 0.78rem; }
+
+/* ---- masthead: full-bleed navy bar ---- */
+.masthead {
+  background: var(--navy);
+  border-bottom: 3px solid var(--red);
+  padding: 1.5rem 0 1.35rem;
+  margin: -3.5rem 0 2rem;   /* cancels .wrap's top padding to reach the edges */
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+.masthead > * { max-width: 60rem; margin-inline: auto; }
+.wordmark {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  font-size: 1.6rem;
+  color: #fff;
+  margin: 0;
+}
+.wordmark span { color: #8fa6c4; font-weight: 500; }
+.wordmark a { color: inherit; }
+.purpose { margin: 0.4rem 0 0; color: #c3d0e0; font-size: 0.95rem; max-width: 46ch; }
+
+/* ---- section eyebrows ---- */
+.plot h2, .clv h2 {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+  font-size: 1.15rem;
+  color: var(--navy);
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--red);
+}
+
+/* ---- tables ---- */
+table { background: var(--panel); border: 1px solid var(--hair); }
+thead th {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: var(--stripe);
+  position: sticky;
+  top: 0;
+}
+tbody tr:nth-child(even) { background: var(--stripe); }
+
+/* ---- cards ---- */
+.plot-frame, .notice { border-radius: 3px; box-shadow: 0 1px 2px rgb(4 30 66 / 0.06); }
+.scorecard { border-radius: 3px; overflow: hidden; box-shadow: 0 1px 2px rgb(4 30 66 / 0.06); }
+.readout .label {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+.notice h2 {
+  font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--navy);
+}
