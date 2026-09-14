@@ -306,10 +306,15 @@ tbody tr:nth-child(even) { background: var(--stripe); }
   font-size: 1.5rem;
   color: var(--navy);
   /* .clv h2 (section eyebrows, above) matches this heading too — same
-     specificity, so source order alone would decide. Without these two
+     specificity, so source order alone would decide. Without these
      explicit overrides, its border-bottom/padding-bottom would still win
      because this rule doesn't set them, leaving the identity heading with
-     both the red eyebrow rule and .player-id's own hairline below it. */
+     both the red eyebrow rule and .player-id's own hairline below it.
+     margin is the same trap: the earlier .player-id h2 { margin: 0 } loses
+     to .clv h2's margin, and an asymmetric margin on a flex item is
+     centered by its margin box — pulling the name off-centre against the
+     72px headshot. */
   border-bottom: none;
   padding-bottom: 0;
+  margin: 0;
 }
