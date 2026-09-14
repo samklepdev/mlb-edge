@@ -1,5 +1,10 @@
-import { teamReliability, teamBacktestSummary, teamEvalMarkets, teamResolution, MIN_GAMES } from '@mlb-edge/db';
-import type { ReliabilityBucket, BacktestSummary, ResolutionCheck, ResolutionVerdict } from '@mlb-edge/db';
+import {
+  teamReliability, teamBacktestSummary, teamEvalMarkets, teamResolution,
+  teamEvalVersions, teamEvalDateRange, MIN_GAMES,
+} from '@mlb-edge/db';
+import type {
+  ReliabilityBucket, BacktestSummary, ResolutionCheck, ResolutionVerdict, TeamEvalFilter,
+} from '@mlb-edge/db';
 
 function printBuckets(buckets: ReliabilityBucket[]): void {
   console.log('  bucket       n    predicted  actual   gap');
@@ -74,15 +79,35 @@ function printResolution(r: ResolutionCheck): void {
   }
 }
 
-export async function teamBacktestReport(): Promise<void> {
-  const markets = await teamEvalMarkets();
+export async function teamBacktestReport(filter: TeamEvalFilter = {}): Promise<void> {
+  const markets = await teamEvalMarkets(filter);
   if (markets.length === 0) {
-    console.log('No team evaluations yet. Run: npm run team-backfill -- --from <d> --to <d>');
+    // Checks VALUES, not keys: callers routinely pass { version: undefined }
+    // straight from parsed CLI options, which has keys but no scope.
+    const scoped = Object.values(filter).some((v) => v !== undefined);
+    console.log(
+      scoped
+        ? 'No team evaluations match that scope. Check --version against `npm run team-backtest` with no flags.'
+        : 'No team evaluations yet. Run: npm run team-backfill -- --from <d> --to <d>',
+    );
     return;
   }
 
   console.log('GAME-OUTCOME model calibration, BY MARKET');
   console.log('=========================================');
+  // State the scope before any number. A filtered figure read as an unfiltered
+  // one is exactly the misreading this whole report exists to prevent.
+  const [versions, span] = await Promise.all([teamEvalVersions(), teamEvalDateRange(filter)]);
+  const version = filter.version ?? versions[versions.length - 1];
+  console.log(`version = ${version}${filter.version ? '' : '  (latest; no --version given)'}`);
+  console.log(
+    `dates   = ${span ? `${span.from} to ${span.to}` : 'n/a'}` +
+      (filter.from || filter.to ? '  (filtered)' : '  (all evaluated dates)'),
+  );
+  if (versions.length > 1) {
+    console.log(`other versions present: ${versions.filter((v) => v !== version).join(', ')}`);
+  }
+  console.log('');
   console.log(
     'Each market has its own base rate and difficulty. Compare a market only against\n' +
       'itself over time -- never against another market, and never against the prop\n' +
@@ -90,10 +115,11 @@ export async function teamBacktestReport(): Promise<void> {
   );
 
   for (const market of markets) {
+    const scope = { ...filter, market };
     const [summary, buckets, resolution] = await Promise.all([
-      teamBacktestSummary(market),
-      teamReliability(10, market),
-      teamResolution(market),
+      teamBacktestSummary(scope),
+      teamReliability(10, scope),
+      teamResolution(scope),
     ]);
     console.log(`-- ${market} (${summary.n} evaluations, ${resolution.games} games) --`);
     printSummaryLine(summary);

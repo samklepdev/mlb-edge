@@ -32,8 +32,12 @@ Never mix their numbers:
   Modules: `ingest/ project/ game/ market/ backtest/ clients/`.
 - `apps/web` (`@mlb-edge/web`) — Next.js 16 App Router dashboard. `/` and
   `/player` are **prop model only**. `/team` is the game model's **measurement**
-  page — per-market calibration and the resolution verdict, nothing priced. The
-  two models' figures are never shown together; don't merge the routes.
+  page — per-market calibration and the resolution verdict, nothing priced, with
+  an A/B scope form (version × date range) over the same queries the CLI uses.
+  The two models' figures are never shown together; don't merge the routes.
+  The A/B Δ is shown **without** an interval on purpose: two advantage estimates
+  on the same games are paired, and this repo has no paired test. Don't add a CI
+  to that column by differencing the two scopes' SEs.
 
 ## Two build rules that cause every stumble here
 1. **`@mlb-edge/db` runs from compiled `dist/`, not source.** After ANY edit to
@@ -60,7 +64,9 @@ Verify before assuming a change took effect:
 `calibrate` · `web:dev`/`web:build` · `typecheck`.
 Game-outcome model: `team-backfill -- --from <d> --to <d>` (project team run
 distributions over a range + evaluate vs actual outcomes) · `team-backtest`
-(per-market calibration + resolution report) · `verify:resolution` (executable
+(per-market calibration + resolution report; `--version <v> --from <d> --to <d>`
+scope it — an unflagged run is latest version / all dates, and its numbers are
+the ones `verify:resolution` pins) · `verify:resolution` (executable
 checks for the resolution statistics: pure invariants plus pinned SQL oracles —
 run it after any change to `resolution.ts` or `teamBacktest.ts`).
 Fallback: `npm run -w @mlb-edge/pipeline cli -- <args>`.

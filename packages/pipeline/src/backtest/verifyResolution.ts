@@ -245,7 +245,7 @@ const r4 = (x: number) => Number(x.toFixed(4));
 
 async function verifyQuery(): Promise<void> {
   for (const e of EXPECTED) {
-    const got = await teamResolution(e.market);
+    const got = await teamResolution({ market: e.market });
     assert.equal(got.n, e.n, `${e.market} n`);
     assert.equal(got.games, e.games, `${e.market} games`);
     assert.equal(got.lines, e.lines, `${e.market} distinct lines: got ${got.lines}`);
@@ -279,7 +279,7 @@ async function verifyQuery(): Promise<void> {
   // happens to have a single line, so this also pins that the one-line case does
   // not accidentally differ from the pooled rate.
   {
-    const ml = await teamResolution('moneyline');
+    const ml = await teamResolution({ market: 'moneyline' });
     assert.equal(ml.n, ml.games, 'moneyline must be one eval per game for this check to mean anything');
     assert.equal(ml.lines, 1, 'moneyline must have exactly one candidate line');
     const rows = (

@@ -160,6 +160,58 @@ a:hover { text-decoration: underline; }
 .banner-body { margin: 0; color: var(--muted); font-size: 0.95rem; max-width: 62ch; }
 .banner-body strong { color: var(--ink); font-weight: 600; }
 
+/* ---- scope form ---- */
+.scope-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  padding: 1.1rem 1.25rem;
+  margin: 2rem 0 0;
+}
+.scope-field { border: 1px solid var(--grid); padding: 0.6rem 0.9rem 0.8rem; margin: 0; display: flex; gap: 0.9rem; flex-wrap: wrap; }
+.scope-field legend { color: var(--muted); font-size: 0.78rem; padding: 0 0.35rem; }
+.scope-field label { display: flex; flex-direction: column; gap: 0.2rem; }
+.scope-field label span { color: var(--faint); font-size: 0.72rem; letter-spacing: 0.03em; }
+.scope-field select, .scope-field input {
+  border: 1px solid var(--hair);
+  background: var(--paper);
+  color: var(--ink);
+  padding: 0.35rem 0.45rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+}
+.scope-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.88rem; }
+.scope-actions button {
+  border: 1px solid var(--good);
+  background: var(--good);
+  color: #fff;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.scope-actions button:hover { filter: brightness(1.1); }
+
+/* ---- A/B comparison ---- */
+.compare { margin: 2.5rem 0 0; }
+.compare h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.25rem; }
+.compare p.cap { color: var(--muted); font-size: 0.9rem; margin: 0 0 1rem; }
+.compare td, .compare th { padding: 0.55rem 0.6rem; }
+.warn {
+  margin: 1.25rem 0 0;
+  padding: 0.9rem 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  border-left: 4px solid var(--bad);
+  color: var(--muted);
+  font-size: 0.9rem;
+  max-width: 68ch;
+}
+.warn strong { color: var(--ink); }
+
 /* ---- verdict pill ---- */
 .pill {
   display: inline-block;

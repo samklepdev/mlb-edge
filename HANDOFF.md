@@ -70,7 +70,7 @@ ask yet:
 | `npm run settle -- --date <d>` | grade picks vs actual box-score outcomes |
 | `npm run clv` / `npm run calibrate` | CLI reports on settled picks |
 | `npm run team-backfill -- --from <d> --to <d>` | **game model:** project team run distributions over a range (`team_projections`) + evaluate `moneyline`/`run_line`/`total` vs actual outcomes (`team_model_evals`) |
-| `npm run team-backtest` | **game model:** per-market reliability, ECE, Brier, and the resolution verdict vs the per-line base rate |
+| `npm run team-backtest` | **game model:** per-market reliability, ECE, Brier, and the resolution verdict vs the per-line base rate. `--version/--from/--to` scope it; unflagged = latest version, all dates |
 | `npm run verify:resolution` | executable checks for the resolution statistics — pure invariants plus SQL oracles pinned to the current eval population; run after any change to `resolution.ts` / `teamBacktest.ts` |
 | `npm run web:dev` / `web:build` | dashboard at :3000 / prod build |
 | `npm run typecheck` | build db + typecheck all packages |

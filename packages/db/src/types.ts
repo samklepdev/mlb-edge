@@ -132,3 +132,21 @@ export interface RosterPlayer {
   props: string;      // comma-joined prop types projected
   hasPick: boolean;   // model flagged an edge for this player
 }
+
+// Scope for a game-outcome model read. Every field is optional and an empty
+// filter reproduces the original behaviour exactly: latest model_version, all
+// markets, all dates. That default is load-bearing -- verify:resolution pins
+// oracle numbers computed with it, so widening the filter must never change
+// what an unfiltered call returns.
+//
+// `from`/`to` are inclusive game dates (YYYY-MM-DD) and filter on
+// games.game_date; team_model_evals carries no date of its own. They exist so a
+// version can be re-measured on a range its league constants were NOT fitted
+// on -- the in-sample circularity is the standing caveat on every calibration
+// figure this model reports.
+export interface TeamEvalFilter {
+  market?: string;
+  version?: string;  // default: max(model_version), a LEXICOGRAPHIC max
+  from?: string;     // inclusive
+  to?: string;       // inclusive
+}

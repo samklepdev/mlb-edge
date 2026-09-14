@@ -1,19 +1,55 @@
 import { query } from '../pool.js';
-import type { ReliabilityBucket, BacktestSummary, ResolutionCheck } from '../types.js';
+import type { ReliabilityBucket, BacktestSummary, ResolutionCheck, TeamEvalFilter } from '../types.js';
 import { resolutionFromStats } from '../resolution.js';
+
+// One place that turns a TeamEvalFilter into SQL, so the four readers cannot
+// drift apart on what a filter means.
+//
+// The games join appears ONLY when a date bound is supplied. That is not an
+// optimisation: an unfiltered call must produce the identical row set it did
+// before this filter existed, because verify:resolution pins oracle numbers
+// against it. No join, no chance of a row being dropped by one.
+//
+// Version defaults to max(model_version) rather than a literal, preserving the
+// previous behaviour. Note that max() here is a LEXICOGRAPHIC comparison on
+// text, so `game-v0.10` would sort BELOW `game-v0.9`; pass an explicit version
+// once more than one exists rather than trusting the default to mean "newest".
+function evalScope(f: TeamEvalFilter): { from: string; where: string; params: string[] } {
+  const params: string[] = [];
+  let where: string;
+  if (f.version) {
+    params.push(f.version);
+    where = `me.model_version = $${params.length}`;
+  } else {
+    where = 'me.model_version = (SELECT max(model_version) FROM team_model_evals)';
+  }
+  if (f.market) {
+    params.push(f.market);
+    where += ` AND me.market = $${params.length}`;
+  }
+  const dated = Boolean(f.from || f.to);
+  if (f.from) {
+    params.push(f.from);
+    where += ` AND g.game_date >= $${params.length}::date`;
+  }
+  if (f.to) {
+    params.push(f.to);
+    where += ` AND g.game_date <= $${params.length}::date`;
+  }
+  return {
+    from: dated ? 'team_model_evals me JOIN games g ON g.id = me.game_id' : 'team_model_evals me',
+    where,
+    params,
+  };
+}
 
 // Reliability of the game-outcome model's probabilities vs realized outcomes.
 // Scoped to team_model_evals and TEAM_MODEL_VERSION -- deliberately separate
 // from the prop model's backtest, which reads model_evals.
-export async function teamReliability(buckets = 10, market?: string): Promise<ReliabilityBucket[]> {
-  const params: string[] = [];
-  let where = "me.model_version = (SELECT max(model_version) FROM team_model_evals)";
-  if (market) {
-    params.push(market);
-    where += ` AND me.market = $${params.length}`;
-  }
+export async function teamReliability(buckets = 10, f: TeamEvalFilter = {}): Promise<ReliabilityBucket[]> {
+  const { from, where, params } = evalScope(f);
   const res = await query<{ model_prob: string; hit: boolean }>(
-    `SELECT me.model_prob, me.hit FROM team_model_evals me WHERE ${where}`,
+    `SELECT me.model_prob, me.hit FROM ${from} WHERE ${where}`,
     params,
   );
   const bins = Array.from({ length: buckets }, () => ({ n: 0, predSum: 0, hits: 0 }));
@@ -34,33 +70,58 @@ export async function teamReliability(buckets = 10, market?: string): Promise<Re
   return out;
 }
 
-export async function teamBacktestSummary(market?: string): Promise<BacktestSummary> {
-  const params: string[] = [];
-  let where = "me.model_version = (SELECT max(model_version) FROM team_model_evals)";
-  if (market) {
-    params.push(market);
-    where += ` AND me.market = $${params.length}`;
-  }
+export async function teamBacktestSummary(f: TeamEvalFilter = {}): Promise<BacktestSummary> {
+  const { from, where, params } = evalScope(f);
   const r = (
     await query<{ n: string; brier: string | null }>(
       `SELECT count(*) AS n, avg(power(me.model_prob - (me.hit)::int, 2))::float8 AS brier
-       FROM team_model_evals me WHERE ${where}`,
+       FROM ${from} WHERE ${where}`,
       params,
     )
   ).rows[0];
-  const buckets = await teamReliability(10, market);
+  const buckets = await teamReliability(10, f);
   const totalN = buckets.reduce((s, b) => s + b.n, 0);
   const ece = totalN === 0 ? null : buckets.reduce((s, b) => s + b.n * Math.abs(b.gap), 0) / totalN;
   return { n: Number(r?.n ?? 0), ece, brier: r?.brier == null ? null : Number(r.brier) };
 }
 
-export async function teamEvalMarkets(): Promise<string[]> {
+export async function teamEvalMarkets(f: TeamEvalFilter = {}): Promise<string[]> {
+  const { from, where, params } = evalScope(f);
   const res = await query<{ market: string }>(
-    `SELECT me.market FROM team_model_evals me
-     WHERE me.model_version = (SELECT max(model_version) FROM team_model_evals)
+    `SELECT me.market FROM ${from} WHERE ${where}
      GROUP BY me.market ORDER BY count(*) DESC`,
+    params,
   );
   return res.rows.map((r) => r.market);
+}
+
+// Every model_version present in team_model_evals, oldest-sorting first. Sorted
+// lexicographically, the same comparison the default version selection uses --
+// so what this returns last is what an unfiltered read will have used.
+export async function teamEvalVersions(): Promise<string[]> {
+  const res = await query<{ model_version: string }>(
+    `SELECT model_version FROM team_model_evals
+     GROUP BY model_version ORDER BY model_version`,
+  );
+  return res.rows.map((r) => r.model_version);
+}
+
+// The span of game dates a version actually covers. Used to bound the date
+// pickers and to state the evaluated range on the report, so a filtered figure
+// is never shown without saying what it was filtered to.
+export async function teamEvalDateRange(f: TeamEvalFilter = {}): Promise<{ from: string; to: string } | null> {
+  // Always joins games regardless of whether f carries a date bound, so the
+  // `where` evalScope built is valid either way.
+  const { where, params } = evalScope(f);
+  const res = await query<{ lo: string | null; hi: string | null }>(
+    `SELECT min(g.game_date)::text AS lo, max(g.game_date)::text AS hi
+     FROM team_model_evals me JOIN games g ON g.id = me.game_id
+     WHERE ${where}`,
+    params,
+  );
+  const row = res.rows[0];
+  if (!row?.lo || !row.hi) return null;
+  return { from: row.lo, to: row.hi };
 }
 
 // Does this market's model beat simply predicting, for each candidate line, that
@@ -87,13 +148,18 @@ export async function teamEvalMarkets(): Promise<string[]> {
 //
 // Returns sufficient statistics only; all arithmetic lives in resolution.ts so
 // it is exercisable without a database.
-export async function teamResolution(market?: string): Promise<ResolutionCheck> {
-  const params: string[] = [];
-  let where = "me.model_version = (SELECT max(model_version) FROM team_model_evals)";
-  if (market) {
-    params.push(market);
-    where += ` AND me.market = $${params.length}`;
-  }
+//
+// The baseline is re-estimated INSIDE whatever scope the filter selects: a
+// date-filtered call compares the model against that range's own per-line hit
+// rates, not the full sample's. That is the honest comparison -- a baseline
+// borrowing rates from outside the window would be scored on information the
+// model was not given -- but it does mean each r_k comes from fewer rows as the
+// window narrows, so the "r_k is fixed" approximation (spec: O(k/n), biasing
+// baseRateBrier low by ~r_k(1-r_k)/n_k per cell) loosens. MIN_GAMES floors it,
+// and the bias direction stays conservative: it sets the bar slightly too high
+// for the model, not too low.
+export async function teamResolution(f: TeamEvalFilter = {}): Promise<ResolutionCheck> {
+  const { from, where, params } = evalScope(f);
   const res = await query<{
     n: string;
     games: string;
@@ -111,7 +177,7 @@ export async function teamResolution(market?: string): Promise<ResolutionCheck> 
     `WITH e AS (
        SELECT me.game_id, me.market, me.line::float8 AS line,
               me.model_prob::float8 AS p, (me.hit)::int AS y
-       FROM team_model_evals me WHERE ${where}
+       FROM ${from} WHERE ${where}
      ),
      -- One baseline cell per (market, line). Grouping on market too keeps the
      -- unfiltered (all-markets) call honest: a line number means different

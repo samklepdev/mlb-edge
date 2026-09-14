@@ -336,8 +336,11 @@ program
 program
   .command('team-backtest')
   .description('calibration report for the game-outcome model, by market')
-  .action(async () => {
-    await teamBacktestReport();
+  .option('--version <v>', 'model_version to report (default: latest)')
+  .option('--from <date>', 'only games on or after this date (YYYY-MM-DD)')
+  .option('--to <date>', 'only games on or before this date (YYYY-MM-DD)')
+  .action(async (opts: { version?: string; from?: string; to?: string }) => {
+    await teamBacktestReport({ version: opts.version, from: opts.from, to: opts.to });
   });
 
 program
