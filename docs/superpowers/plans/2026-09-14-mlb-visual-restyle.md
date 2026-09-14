@@ -33,9 +33,29 @@ So the red/green cycle is inverted from normal TDD. Instead of writing a failing
 
 Per task, the cycle is:
 1. `npm run typecheck` — must pass
-2. `node apps/web/scripts/figure-parity.mjs > after.txt && diff baseline.txt after.txt` — must be empty
+2. `PARITY_BASE=<production server> node apps/web/scripts/figure-parity.mjs > after.txt && diff baseline.txt after.txt` — must be empty
 3. Visual confirmation in the browser
 4. Commit
+
+- **Correction (found during execution):** every parity command below is
+  written as a bare `node apps/web/scripts/figure-parity.mjs`, which used to
+  default to `http://localhost:3000` — the `next dev` server. That default was
+  dangerous and is gone. `PARITY_BASE` is now **required** (exit 2 if unset) and
+  the harness checks the served build against `.next/BUILD_ID` (exit 3 on
+  mismatch). Read every parity command in this document as
+  `PARITY_BASE=<production server> node apps/web/scripts/figure-parity.mjs`,
+  and point it at a `next start` server, not at `next dev`.
+
+  Why: this plan's own per-task cycle is typecheck → `web:build` → parity.
+  Running `next build` while `next dev` is up leaves dev serving a **stale
+  compile**, so the cycle made the dev server stale and then read it. A stale
+  read produces a clean diff, and a clean diff reads as "PARITY OK". That
+  happened for real on this branch — `/player` came back without the `.tscroll`
+  wrappers the source plainly had. Also note what a green run does not prove:
+  the harness reads HTML *text*, so a figure that is present but visually
+  unreachable (clipped, hidden, zero-size) passes. That is precisely how
+  `body { overflow-x: hidden }` clipped the Edge column through four
+  consecutive green parity runs.
 
 Two tasks legitimately change the baseline: **Task 2** (adds first-pitch times) and **Task 5** (adds the game strip). Each says so explicitly and re-baselines. No other task may.
 
@@ -79,6 +99,15 @@ Options were: a new per-game count query (violates the design's "no new query"),
 - Produces: `node apps/web/scripts/figure-parity.mjs` → prints `<path>\t<figure>` lines to stdout, one per number rendered. Exit 1 on fetch failure. Every later task depends on this command.
 
 - [ ] **Step 1: Write the harness**
+
+- **Correction (found during execution):** the listing below is no longer the
+  harness. `apps/web/scripts/figure-parity.mjs` is committed, and the committed
+  file is the source of truth — do not paste this listing over it. It has since
+  gained SVG circle extraction (the reliability plot encodes bucket data as
+  `cx`/`cy`/`r` geometry, which the text-only extractor missed entirely), a
+  word-boundary anchor on that attribute regex, a required `PARITY_BASE` with
+  no default, and a build-freshness check. See the Testing approach section
+  above for why the default had to go.
 
 Create `apps/web/scripts/figure-parity.mjs`:
 
@@ -254,7 +283,7 @@ export async function getSlateGames(date: string): Promise<SlateGame[]> {
 }
 ```
 
-Note the `ORDER BY` also changes, from `g.id` to first-pitch order. A scoreboard ordered by game id is arbitrary; ordered by start time it reads like a slate. `NULLS LAST` keeps the one real game with a null `start_time` from leading the strip.
+Note the `ORDER BY` also changes, from `g.id` to first-pitch order. A scoreboard ordered by game id is arbitrary; ordered by start time it reads like a slate. `NULLS LAST` is defensive only — see the Correction in Global Constraints: **no** game on the live slate has a null `start_time`, so nothing is being kept from leading the strip. It is there so that a future slate with a missing start time degrades to the end of the strip rather than the front.
 
 - [ ] **Step 3: Rebuild the db package**
 
@@ -288,7 +317,7 @@ const { getSlateGames, latestSlateDate } = require('./packages/db/dist/index.js'
 "
 ```
 
-Expected: `slate 2026-09-13 games 15`, three rows each with a real `Date`, and a null count of `0` or `1`. Team ids must be numbers, not null.
+Expected: `slate 2026-09-13 games 15`, three rows each with a real `Date`, and a null count of `0` — see the Correction in Global Constraints; the table's single null `start_time` is on the demo-seed date `2099-01-01`, which has no projections and so never reaches `getSlateGames`. Team ids must be numbers, not null.
 
 - [ ] **Step 6: Typecheck and confirm parity is untouched**
 
@@ -308,8 +337,9 @@ git commit -m "Carry first-pitch time on SlateGame
 
 The scoreboard strip needs a start time, and games.start_time already
 exists -- it was simply never selected. Also orders the slate by first
-pitch rather than game id, which is arbitrary, with NULLS LAST so the one
-game missing a start time does not lead the strip.
+pitch rather than game id, which is arbitrary, with NULLS LAST so that a
+game missing a start time would sort to the end of the strip rather than
+the front. No game on the live slate is missing one; this is defensive.
 
 Requires npm run build:db; without it startTime is undefined at runtime
 and every card renders a dash with no error.
@@ -509,7 +539,7 @@ In `apps/web/src/app/globals.css`, replace lines 1-12 (the whole `:root` block) 
   /* --- text ramp --- */
   --ink: #10161d;
   --muted: #5c6773;
-  --faint: #8a95a1;
+  --faint: #666f7a;   /* was #8a95a1 -- see the Correction below */
 
   /* --- rules --- */
   --hair: #dce2e8;
@@ -532,7 +562,23 @@ In `apps/web/src/app/globals.css`, replace lines 1-12 (the whole `:root` block) 
 }
 ```
 
-`--good`, `--bad`, `--ref`, `--grid`, `--faint`, `--muted` keep their exact previous values so `ReliabilityPlot.tsx` renders identically with no change to it.
+`--good`, `--bad`, `--ref`, `--grid`, `--muted` keep their exact previous values so `ReliabilityPlot.tsx` renders identically with no change to it.
+
+- **Correction (found during execution):** two claims in this step were wrong.
+
+  1. `--faint: #8a95a1` fails WCAG AA — 3.05:1 on `--panel`, against a 4.5
+     threshold. Task 9's contrast check caught it and HEAD carries `#666f7a`
+     (5.10 / 4.83 / 4.71 on panel / stripe / paper). All four of its uses are
+     11–13.6px essential text: the scorecard verdict, roster metadata, the
+     game-card edge count, and the reliability plot's axis tick labels. None is
+     decoration, so darkening was the only option; the cost is that `--faint`
+     now sits closer to `--muted`. **Do not paste `#8a95a1` back in.**
+  2. `--faint` is therefore *not* unchanged, and the plot does **not** render
+     identically: `ReliabilityPlot.tsx` sets its axis tick labels to
+     `fill="var(--faint)"`, so they render darker than before. The effect is
+     harmless — but the claim was load-bearing, and no gate would ever have
+     caught it, because figure parity is colour-blind by construction. That is
+     the whole reason the contrast script exists as a second gate.
 
 - [ ] **Step 4: Verify the font loads and the page still renders**
 
@@ -727,7 +773,7 @@ Append to `apps/web/src/app/globals.css`:
 Load `http://localhost:3000` and confirm:
 - 15 cards in a horizontal strip, **ordered by first pitch**, not game id.
 - Logos render for every card.
-- Times read like `7:05 PM ET`. The one game with a null `start_time` (confirmed to exist in Task 2, Step 5) shows `—`.
+- Times read like `7:05 PM ET`. **Correction (found during execution):** there is no game with a null `start_time` on the live slate — see the Correction in Global Constraints. All 15 cards show a real time, and the `—` fallback is correct code that the live render does not exercise. Do not treat a missing `—` as a defect.
 - The page body does not scroll horizontally at 375px width (DevTools device toolbar). The strip scrolls; the page does not.
 
 - [ ] **Step 5: Typecheck and review the parity diff**
@@ -788,8 +834,11 @@ Append to `apps/web/src/app/globals.css`:
   padding-right: 1.5rem;
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
+  /* Correction, see below: this replaces `.masthead > *`. */
+  display: grid;
+  grid-template-columns: minmax(0, 57rem);
+  justify-content: center;
 }
-.masthead > * { max-width: 60rem; margin-inline: auto; }
 .wordmark {
   font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
   text-transform: uppercase;
@@ -826,8 +875,7 @@ thead th {
   font-size: 0.85rem;
   color: var(--muted);
   background: var(--stripe);
-  position: sticky;
-  top: 0;
+  /* Correction, see below: no `position: sticky; top: 0` here. */
 }
 tbody tr:nth-child(even) { background: var(--stripe); }
 
@@ -851,6 +899,47 @@ tbody tr:nth-child(even) { background: var(--stripe); }
 }
 ```
 
+- **Correction (found during execution):** two of the rules above were wrong.
+
+  1. **`.masthead > * { max-width: 60rem; margin-inline: auto }` never
+     worked.** It was meant to re-centre the masthead's contents on `.wrap`'s
+     content column after the bar breaks out full-bleed. But `.wordmark
+     { margin: 0 }` and `.purpose { margin: 0.4rem 0 0 }` below are later rules
+     at equal specificity (0,1,0 each) and `margin` is a **shorthand**, so each
+     reset `margin-inline` to 0. Measured at 1512px: `.wordmark` and `.purpose`
+     at rect.left 24 while every section heading sat at 300 — 276px out. It
+     self-corrected at or below 960px, which is why Task 9's 320/375/768 sweep
+     missed it.
+
+     HEAD fixes it on `.masthead` itself, with one centred grid track:
+     `display: grid; grid-template-columns: minmax(0, 57rem); justify-content:
+     center`, and no `.masthead > *` rule at all. No child participates, so no
+     future child shorthand can reset it.
+
+     **57rem, not 60rem:** `.wrap` is `max-width: 60rem` with `box-sizing:
+     border-box` and 1.5rem side padding, so its *content box* is 57rem.
+     Aligning to 60rem leaves a 1.5rem error.
+
+     Two fixes that look right and are not: `padding-inline: max(1.5rem,
+     calc(50% - 28.5rem))` fails because a percentage padding resolves against
+     the *containing block* — `.wrap`'s content box, capped at 57rem — which
+     carries no viewport information once the cap binds (it measures 0, leaving
+     the contents at 24px); and `margin-inline: auto` on the children fails for
+     `.purpose`, which declares its own `max-width: 46ch` that beats
+     `.masthead > *`'s at equal specificity, so auto margins would *centre* a
+     440px paragraph rather than align it.
+
+  2. **`thead th { position: sticky; top: 0 }` is removed.** Commit `03e7c25`
+     later wrapped every table in `.tscroll { overflow-x: auto }`. With
+     `overflow-y` unset, `overflow-y` computes to `auto` (CSS Overflow 3 forbids
+     one axis staying `visible` when the other is not), so `.tscroll` became the
+     headers' nearest scrollport — and it has auto height, so there is no
+     vertical scrolling for a header to stick against. Measured: `thead th`
+     rect.top = −150 after scrolling 150px past the table. Do **not** rescue it
+     with a `max-height` on `.tscroll`; that turns every table into a
+     fixed-height vertically-scrolling box, which is a design change, and these
+     tables are 4–25 rows.
+
 - [ ] **Step 2: Confirm the masthead copy is untouched**
 
 Both mastheads keep their existing markup and text exactly. Verify no string changed:
@@ -866,9 +955,10 @@ If either masthead's `<p className="purpose">` text appears as a changed line, r
 
 Load both `/` and `/player?id=500743&date=2026-09-13` (a real player on the current slate):
 - Navy bar spans the full viewport width with no horizontal scrollbar at any width from 320px to 1600px.
+- **The bar's *contents* line up with the section headings below it.** Measure, do not eyeball: `document.querySelector('.wordmark').getBoundingClientRect().left` must equal the same for `.plot h2`, at 1512px **and** at a width below 960px. This is the check the original step was missing, and its absence is why the misalignment corrected above survived nine tasks.
 - Section headings are navy condensed caps over a red rule.
-- Table headers stick when a long table (the roster) scrolls.
-- The reliability plot looks exactly as it did — same colors, same layout.
+- ~~Table headers stick when a long table (the roster) scrolls.~~ **Struck (found during execution):** confused twice over. There is no sticky header — see the Correction above — and the roster was never the table in question: it is a `div` list with no `<thead>` at all. Nothing to verify here.
+- The reliability plot looks the same in layout, but its axis tick labels are **darker** than before the restyle, because they are `fill="var(--faint)"` and `--faint` was darkened to clear WCAG AA (Task 4's Correction). Same colors everywhere else.
 
 - [ ] **Step 4: Typecheck, build, parity**
 
@@ -887,10 +977,9 @@ Expected: `PARITY OK`. This task is pure CSS plus the full-bleed markup wrapper;
 git add apps/web/src/app/globals.css apps/web/src/app/page.tsx apps/web/src/app/player/page.tsx
 git commit -m "Style the masthead and section chrome
 
-Navy full-bleed bar, condensed caps headings over a red rule, zebra tables
-with sticky headers. Every explanatory string is unchanged: the copy
-carries the project's epistemic position, and restyling it is in scope
-while rewording it is not.
+Navy full-bleed bar, condensed caps headings over a red rule, zebra tables.
+Every explanatory string is unchanged: the copy carries the project's
+epistemic position, and restyling it is in scope while rewording it is not.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -1010,7 +1099,7 @@ Append to `apps/web/src/app/globals.css`:
 /* ---- player rows ---- */
 .prow { display: inline-flex; align-items: center; gap: 0.55rem; color: var(--ink); }
 .prow:hover { text-decoration: none; color: var(--navy-ink); }
-.prow .headshot { flex: none; }
+.prow:hover span { text-decoration: underline; }   /* Correction, see below */
 .rname { display: flex; align-items: center; gap: 0.55rem; }
 .pickdot {
   display: inline-block;
@@ -1022,6 +1111,28 @@ Append to `apps/web/src/app/globals.css`:
 }
 .roster-row { align-items: center; }
 ```
+
+- **Correction (found during execution):** the rules above, as written, killed
+  the link affordance on the Top Edges player names. This is a plan defect, not
+  an implementer deviation.
+
+  `.prow { color: var(--ink) }` beats `a { color: var(--good) }` (0,1,0 >
+  0,0,1), and `.prow:hover { text-decoration: none }` beats `a:hover
+  { text-decoration: underline }` (0,2,0 > 0,1,1). Net: at rest the link is
+  indistinguishable from the plain text in the four cells beside it, and on
+  hover the only feedback is `--ink #10161d` → `--navy-ink #0a2d5e`, a shift
+  between two near-blacks. `.roster-row` gets away with the same ink colour
+  because the whole row is the link and it has a hover background; the edges
+  table has neither.
+
+  Fixed by adding `.prow:hover span { text-decoration: underline }` — the
+  markup is `<Link className="prow"><Headshot/><span>{name}</span></Link>`, so
+  underlining the span rather than the link keeps the rule from running under
+  the 28px headshot, which is why `text-decoration: none` is there at all.
+
+  Also: `.prow .headshot { flex: none }` was deleted. It restated the
+  pre-existing `.headshot { flex: none }` at higher specificity with the same
+  value.
 
 - [ ] **Step 6: Verify visually**
 
@@ -1216,16 +1327,51 @@ Expected: **no hits on any `edgePct` cell.** Hits on the scorecard's `ece` tone 
 
 - [ ] **Step 4: Contrast check**
 
+- **Correction (found during execution):** this step used to inline a `node -e`
+  script with the hex values pasted in by hand, including
+  `['#8a95a1','#ffffff','faint on panel']`. That drifted within the same plan
+  run: the step's own output is what forced `--faint` from `#8a95a1` to
+  `#666f7a`, after which the pasted list went on testing a colour the codebase
+  no longer contained. A gate that restates the values it is checking is not a
+  gate. It is now a committed script that **reads the tokens out of
+  `globals.css`**.
+
 ```bash
-node -e "
-const lum = (h) => { const c = [1,3,5].map(i => parseInt(h.slice(i,i+2),16)/255).map(v => v<=0.03928 ? v/12.92 : ((v+0.055)/1.055)**2.4); return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2]; };
-const ratio = (a,b) => { const [x,y] = [lum(a),lum(b)].sort((m,n)=>n-m); return ((x+0.05)/(y+0.05)).toFixed(2); };
-const pairs = [['#ffffff','#041E42','wordmark on navy'],['#c3d0e0','#041E42','purpose on navy'],['#8fa6c4','#041E42','wordmark span on navy'],['#10161d','#ffffff','ink on panel'],['#5c6773','#f7f9fa','muted on stripe'],['#041E42','#f4f6f8','navy heading on paper'],['#8a95a1','#ffffff','faint on panel']];
-for (const [fg,bg,label] of pairs) console.log(ratio(fg,bg).padStart(6), label);
-"
+npm run contrast          # or: node apps/web/scripts/contrast.mjs
 ```
 
-Expected: every pair at or above **4.5** for body text, **3.0** for large text (the wordmark at 1.6rem/700 and headings at 1.15rem/600 qualify as large). `--faint` on panel is used only for 11-12px axis labels and metadata — if it lands below 4.5, either darken `--faint` or confirm every use is non-essential decoration. Fix anything that fails before proceeding; do not wave it through.
+Expected: exit 0, and every pair at or above **4.5** for normal text, **3.0**
+for large text (the wordmark at 1.6rem/700 and the headings at 1.15rem/600 and
+1.5rem/700 qualify as large). The script exits 1 on any failure, so it works
+unattended. Do not wave a failure through: every `--faint` use is 11–13.6px
+essential text — the scorecard verdict, roster metadata, the game-card edge
+count, and the reliability plot's axis labels — so "it's only decoration" is
+not available as an out.
+
+The 16 pairs it checks, and the values that pass at HEAD:
+
+```
+ 16.54  min 3.0   wordmark on navy              (#ffffff on --navy)
+ 10.57  min 4.5   purpose on navy               (#c3d0e0 on --navy)
+  6.63  min 3.0   wordmark span on navy         (#8fa6c4 on --navy)
+ 18.19  min 4.5   ink on panel
+  5.46  min 4.5   muted on stripe
+ 15.27  min 3.0   navy heading on paper
+  5.10  min 4.5   faint on panel
+  4.83  min 4.5   faint on stripe
+  4.71  min 4.5   faint on paper (roster hover)
+  5.76  min 4.5   muted on panel
+  5.47  min 4.5   good on panel
+  5.85  min 4.5   bad on panel
+ 17.22  min 4.5   ink on stripe
+ 16.79  min 4.5   ink on paper
+  5.32  min 4.5   muted on paper
+ 16.54  min 3.0   navy heading on panel
+```
+
+`--paper` is in the list because `.rmeta` sits on it when a roster row is
+hovered. If a future rule puts a ramp colour on a surface not listed, the
+script will not notice — extend the pair list by hand.
 
 - [ ] **Step 5: Responsive check**
 
