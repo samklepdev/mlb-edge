@@ -204,8 +204,29 @@ a:hover { text-decoration: underline; }
   /* The inline margin cancels .wrap's side offset and padding so the bar reaches
      both viewport edges; -3.5rem cancels .wrap's top padding. */
   margin: -3.5rem calc(50% - 50vw) 2rem;
+  /* The bar is full-bleed, but its CONTENTS must line up with .wrap's content
+     column. That column is 57rem, not 60rem: .wrap is max-width: 60rem with
+     box-sizing: border-box and 1.5rem of side padding.
+     One centred 57rem track does it without any child participating, so no
+     child `margin` shorthand can reset it. The previous
+     `.masthead > * { max-width: 60rem; margin-inline: auto }` was defeated
+     exactly that way -- `.wordmark { margin: 0 }` and
+     `.purpose { margin: 0.4rem 0 0 }` are later rules at equal specificity and
+     `margin` is a shorthand, so it reset margin-inline to 0 and left the text
+     276px left of every section heading at 1512px.
+     No double padding: the 1.5rem above is the narrow-viewport gutter, and
+     justify-content only distributes what is left over after it.
+     Not padding-inline: a percentage padding resolves against the CONTAINING
+     block -- .wrap's content box, which is capped at 57rem and so carries no
+     information about the viewport once the cap binds; the 50vw form would be
+     off by half a scrollbar width in Chromium (see body's overflow-x note).
+     Not auto child margins: .purpose declares its own max-width: 46ch, which
+     wins at equal specificity, so auto margins would centre a 46ch paragraph
+     instead of aligning it to the column. */
+  display: grid;
+  grid-template-columns: minmax(0, 57rem);
+  justify-content: center;
 }
-.masthead > * { max-width: 60rem; margin-inline: auto; }
 .wordmark {
   font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
   text-transform: uppercase;
