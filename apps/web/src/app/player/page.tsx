@@ -46,7 +46,7 @@ export default async function PlayerPage({
       ) : (
         <section className="clv">
           <div className="player-id">
-            <Headshot playerId={card.playerId} />
+            <Headshot playerId={card.playerId} size={72} />
             <h2>{card.playerName} · {card.date}</h2>
           </div>
           {card.rows.length === 0 ? (
@@ -68,7 +68,7 @@ export default async function PlayerPage({
                     <td className="num">{r.line ?? '—'}</td>
                     <td className="num">{r.modelProb == null ? '—' : pct(r.modelProb)}</td>
                     <td className="num">{r.fairProb == null ? '—' : pct(r.fairProb)}</td>
-                    <td className={`num ${r.edgePct != null && r.edgePct > 0 ? 'good' : ''}`}>{r.edgePct == null ? '—' : signed(r.edgePct)}</td>
+                    <td className="num">{r.edgePct == null ? '—' : signed(r.edgePct)}</td>
                     <td>{r.side ?? '—'}</td>
                     <td>{r.hasPick ? '✓' : ''}</td>
                   </tr>
