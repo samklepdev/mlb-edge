@@ -253,7 +253,7 @@ thead th {
   font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.85rem;
   color: var(--muted);
   background: var(--stripe);
@@ -276,5 +276,6 @@ tbody tr:nth-child(even) { background: var(--stripe); }
   font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  font-weight: 600;
   color: var(--navy);
 }
