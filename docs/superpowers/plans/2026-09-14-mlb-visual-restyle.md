@@ -1030,6 +1030,16 @@ Append to `apps/web/src/app/globals.css`:
 - Roster rows show headshots; flagged players show a small navy dot.
 - DevTools → Network: headshot requests fire progressively as the roster scrolls, not all at once on load.
 
+Count them from the server render with `grep -o … | wc -l`, never `grep -c`:
+the SSR HTML is a single line, so `grep -c` reports `1` no matter how many
+matches there are.
+
+```bash
+curl -s http://localhost:3000 | grep -o 'loading="lazy"' | wc -l
+```
+
+Expected: one per roster row plus one per edges row (532 on the 2026-09-13 slate).
+
 - [ ] **Step 7: Typecheck and parity**
 
 ```bash
