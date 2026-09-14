@@ -1,8 +1,13 @@
 import { query } from '../pool.js';
 import type { CalibrationBucket } from '../types.js';
 
-// Reliability buckets: across every pick tagged at ~p, did they win ~p of the
-// time? A straight curve (gap ~ 0 everywhere) is the "did I get there" test.
+/**
+ * Calculates calibration buckets based on prediction probabilities and their actual outcomes.
+ *
+ * @param {number} [buckets=10] - The number of buckets to divide the predictions into. Each bucket represents a range of prediction probabilities.
+ * @return {Promise<CalibrationBucket[]>} A promise that resolves to an array of calibration buckets, each containing the prediction range, the number of predictions,
+ * the average predicted probability, the actual outcome probability, and the gap between actual and predicted probabilities.
+ */
 export async function calibrationBuckets(buckets = 10): Promise<CalibrationBucket[]> {
   const res = await query<{ pick_prob: number | string; won: boolean }>(
     `SELECT pk.pick_prob, pk.won

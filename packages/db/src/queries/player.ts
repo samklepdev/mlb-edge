@@ -2,8 +2,13 @@ import { query } from '../pool.js';
 import { pOver, pOverFromPmf, deVig } from '../prob.js';
 import type { PlayerCard, PlayerCardRow } from '../types.js';
 
-// A player's read for a slate: projection, market line, model probability, the
-// de-vigged fair probability for the SAME side, and the edge between them.
+/**
+ * Retrieves a player card, which includes the player's projections, market lines, and picks for a specific date.
+ *
+ * @param {number} playerId - The unique identifier of the player.
+ * @param {string} date - The date for which the player card data is to be retrieved (formatted as YYYY-MM-DD).
+ * @return {Promise<PlayerCard | null>} A promise that resolves to the player's card containing projections, lines, and picks, or null if the player does not exist.
+ */
 export async function getPlayerCard(playerId: number, date: string): Promise<PlayerCard | null> {
   const p = (await query<{ full_name: string }>('SELECT full_name FROM players WHERE id = $1', [playerId])).rows[0];
   if (!p) return null;

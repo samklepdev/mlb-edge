@@ -1,8 +1,19 @@
 import { query } from '../pool.js';
 import type { ClvRow } from '../types.js';
 
-// CLV grouped by prop type. Positive avg CLV = the market moved toward our
-// picks after we made them -- the leading indicator that an edge is real.
+/**
+ * Fetches and calculates aggregated metrics for different property types of picks from the database.
+ *
+ * The metrics include the number of records, the average closing line value (CLV),
+ * and the hit rate for each property type.
+ *
+ * The query excludes synthetic games, picks with null close line values, and picks
+ * with closing line data captured after the start of the game. This ensures the integrity
+ * of the data being analyzed.
+ *
+ * @return {Promise<ClvRow[]>} A promise that resolves to an array of `ClvRow` objects, each containing
+ *                             the property type, count, average CLV, and hit rate for the respective property type.
+ */
 export async function clvByProp(): Promise<ClvRow[]> {
   const res = await query<{
     prop_type: string;
@@ -33,11 +44,12 @@ export async function clvByProp(): Promise<ClvRow[]> {
   }));
 }
 
-// Rows that have a closing line but are excluded from clvByProp above -- either
-// captured at or after first pitch (a live in-game price, not a closing one) or
-// never stamped (not verifiable). Reported alongside the CLV table so a reader
-// comparing against a raw `close_line IS NOT NULL` count sees where the gap
-// went, instead of a smaller n with no explanation.
+/**
+ * Retrieves the count of excluded picks based on specific conditions involving closed lines,
+ * synthetic games, and capture times relative to game start times.
+ *
+ * @return {Promise<number>} A promise that resolves to the count of excluded picks.
+ */
 export async function clvExcludedCount(): Promise<number> {
   const res = await query<{ n: number | string }>(`
     SELECT count(*)::int AS n

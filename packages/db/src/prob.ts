@@ -1,6 +1,11 @@
-// Probability helpers shared across pricing, CLV, and the dashboard.
-
-// Abramowitz & Stegun 7.1.26 error-function approximation.
+/**
+ * Computes the error function (erf) of a given number.
+ *
+ * The error function is a mathematical function used in probability, statistics, and partial differential equations.
+ *
+ * @param {number} x - The input value for which the error function is to be computed.
+ * @return {number} The value of the error function for the given input.
+ */
 function erf(x: number): number {
   const t = 1 / (1 + 0.3275911 * Math.abs(x));
   const y =
@@ -11,35 +16,47 @@ function erf(x: number): number {
   return x >= 0 ? y : -y;
 }
 
+/**
+ * Computes the cumulative distribution function (CDF) of the standard normal distribution for a given z-value.
+ *
+ * @param z The z-value for which the CDF is to be calculated.
+ * @return The value of the CDF for the given z-value.
+ */
 export function normalCdf(z: number): number {
   return 0.5 * (1 + erf(z / Math.SQRT2));
 }
 
-// P(stat > line) under a normal approximation of the projection. Half-integer
-// lines, so no continuity correction. v0 shortcut; a compound distribution is
-// more correct for lumpy stats like total bases.
+/**
+ * Calculates the probability that a value is greater than a given threshold
+ * assuming a normal distribution defined by the provided mean and standard deviation.
+ *
+ * @param {number} mean - The mean of the normal distribution.
+ * @param {number} stdev - The standard deviation of the normal distribution.
+ * @param {number} line - The threshold line to compare against.
+ * @return {number} The probability that a value drawn from the distribution is greater than the threshold.
+ */
 export function pOver(mean: number, stdev: number, line: number): number {
   if (stdev <= 1e-9) return mean > line ? 1 : 0;
   return 1 - normalCdf((line - mean) / stdev);
 }
 
+/**
+ * Converts American odds to implied probability.
+ *
+ * @param {number} odds - The American odds to be converted.
+ * @return {number} The implied probability as a decimal.
+ */
 export function americanToImplied(odds: number): number {
   return odds < 0 ? -odds / (-odds + 100) : 100 / (odds + 100);
 }
 
-// Remove bookmaker vig from a two-way market.
-//
-// Proportional de-vig (io/s, iu/s) is the obvious approach and it is wrong for
-// longshots: a book shades a +450 home-run "over" far harder than the matching
-// "under", so scaling both by the same factor leaves the longshot's fair
-// probability too high. That inflated baseline made the model's roughly-correct
-// lower number look like a large "under" edge -- it produced 79 under picks
-// against 3 overs on home runs alone.
-//
-// The power method finds the exponent k where io^k + iu^k = 1. Raising a
-// probability below 1 to a higher power shrinks the smaller one proportionally
-// more, so it removes more vig from the longshot -- which is where the vig
-// actually sits.
+/**
+ * Removes the vig (overround) from a pair of American odds, returning the fair probabilities.
+ *
+ * @param {number} overOdds - The American odds for the "over" outcome.
+ * @param {number} underOdds - The American odds for the "under" outcome.
+ * @return {{ fairOver: number; fairUnder: number }} An object containing the fair probabilities for both outcomes.
+ */
 export function deVig(overOdds: number, underOdds: number): { fairOver: number; fairUnder: number } {
   const io = americanToImplied(overOdds);
   const iu = americanToImplied(underOdds);
@@ -68,8 +85,13 @@ export function deVig(overOdds: number, underOdds: number): { fairOver: number; 
   return { fairOver: fo / t, fairUnder: fu / t };
 }
 
-// P(stat > line) from an exact probability mass function pmf[k] = P(stat = k).
-// Lines are half-integers, so this sums k >= floor(line)+1.
+/**
+ * Calculates the probability of a value being over a given threshold based on a probability mass function (PMF).
+ *
+ * @param {number[]} pmf - An array representing the probability mass function, where each index corresponds to a discrete outcome and the value at that index is its probability.
+ * @param {number} line - The threshold value beyond which the probabilities are summed.
+ * @return {number} The sum of probabilities for all outcomes greater than the specified threshold, clamped between 0 and 1.
+ */
 export function pOverFromPmf(pmf: number[], line: number): number {
   const kMin = Math.floor(line) + 1;
   let s = 0;

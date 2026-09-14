@@ -2,6 +2,22 @@ import { query } from '../pool.js';
 import { calibrationBuckets } from './calibration.js';
 import type { Scorecard } from '../types.js';
 
+/**
+ * Retrieves a scorecard containing aggregated performance metrics and calibration data for picks and games.
+ *
+ * The method queries the database to calculate various metrics such as the number of settled picks,
+ * picks with a captured closing line, average closing line value (CLV), and related statistics.
+ * Calibration data is also computed for assessing prediction accuracy.
+ *
+ * @return {Promise<Scorecard>} A promise that resolves to a scorecard object containing:
+ *                              - `settledPicks`: Total count of settled picks.
+ *                              - `picksWithClose`: Count of picks that have a captured closing line before the game start.
+ *                              - `avgClv`: Average CLV percentage for valid picks.
+ *                              - `ece`: Expected calibration error (ECE) calculated from calibration buckets.
+ *                              - `syntheticSettled`: Count of settled synthetic picks.
+ *                              - `clvGames`: Count of unique games associated with valid CLV calculations.
+ *                              - `excludedClose`: Count of picks with a closing line excluded from valid CLV aggregation.
+ */
 export async function getScorecard(): Promise<Scorecard> {
   const row = (
     await query<{

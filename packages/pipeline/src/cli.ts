@@ -14,8 +14,11 @@ import { clvReport } from './clv/index.js';
 import { calibrationReport } from './calibration/index.js';
 import { dateRange } from './dates.js';
 
-// Shared by `project` and `backfill` so the two commands can never accept
-// different prop sets.
+/**
+ * A string representing the help text for the `--prop` option in the CLI.
+ *
+ * It lists all available property kinds and includes an option for "all".
+ */
 const PROP_HELP = `${ALL_PROPS.join(' | ')} | all`;
 
 function parseProps(arg: string): PropKind[] {
@@ -23,18 +26,18 @@ function parseProps(arg: string): PropKind[] {
   return (ALL_PROPS as readonly string[]).includes(arg) ? [arg as PropKind] : [];
 }
 
-// Ingest commands accept either a single --date or a --from/--to range, but
-// not a mix: --date plus either range flag is ambiguous (which did the user
-// mean?), and a lone --from or --to is a dangling/typo'd range.
-//
-// - A dangling range flag, or nothing at all, returns [] -- genuinely "you
-//   gave me nothing usable" -- so the caller can print the generic
-//   "give either --date, or both --from and --to" message.
-// - --date combined with any range flag, and an invalid complete range
-//   (reversed or unparseable, via dateRange), both THROW instead: the user
-//   supplied something, just something wrong, so a specific message is
-//   accurate where the generic one would misleadingly imply nothing was
-//   given. Callers must catch and print err.message.
+/**
+ * Parses provided date input and returns an array of dates based on the input format.
+ *
+ * @param o An object containing date-related properties.
+ * @param o.date A specific date as a string. Provide this when not specifying a range.
+ * @param o.from The start date of a range as a string.
+ * @param o.to The end date of a range as a string.
+ *
+ * @return A string array of dates. Returns a single date if `date` is provided,
+ * an array of dates for a range if `from` and `to` are provided, or an empty array
+ * if no valid inputs are given. Throws an error if both `date` and `from`/`to` are provided simultaneously.
+ */
 function parseDates(o: { date?: string; from?: string; to?: string }): string[] {
   const hasRange = Boolean(o.from || o.to);
   if (o.date && hasRange) {
@@ -44,10 +47,15 @@ function parseDates(o: { date?: string; from?: string; to?: string }): string[] 
   return o.date ? [o.date] : [];
 }
 
-// Shared by the ingest commands: resolve --date/--from/--to, printing the
-// right message (specific for a thrown parseDates error, generic for an
-// empty result) and setting a non-zero exit code either way. Returns null
-// when the caller should bail out.
+/**
+ * Resolves an array of dates based on the provided input object.
+ *
+ * @param {Object} o - The input object containing date-related parameters.
+ * @param {string} [o.date] - A specific date in string format.
+ * @param {string} [o.from] - The starting date in string format.
+ * @param {string} [o.to] - The ending date in string format.
+ * @return {string[] | null} An array of resolved dates if successful, or null if an error occurs.
+ */
 function resolveDates(o: { date?: string; from?: string; to?: string }): string[] | null {
   let dates: string[];
   try {
@@ -65,8 +73,13 @@ function resolveDates(o: { date?: string; from?: string; to?: string }): string[
   return dates;
 }
 
-// Run `fn` per date, continuing past failures: one bad date must not abort a
-// 120-day pull. Returns the totals so the caller can report honestly.
+/**
+ * Processes an array of date strings by applying a given asynchronous function to each date.
+ *
+ * @param {string[]} dates - An array of date strings to be processed.
+ * @param {(date: string) => Promise<number>} fn - An asynchronous callback function that takes a date string as input and returns a Promise resolving to a number.
+ * @return {Promise<{ ok: number; failed: number; total: number }>} A Promise that resolves to an object containing the counts of successfully processed dates (`ok`), failed dates (`failed`), and the total accumulated value (`total`) returned by the callback function.
+ */
 async function forEachDate(
   dates: string[],
   fn: (date: string) => Promise<number>,
@@ -86,11 +99,28 @@ async function forEachDate(
   return { ok, failed, total };
 }
 
+/**
+ * Represents a new instance of the Command class.
+ *
+ * This instance is typically used to define and manage
+ * command-line interface (CLI) commands along with their
+ * options, arguments, and associated actions.
+ */
 const program = new Command();
 program
   .name('mlb-edge')
   .description('MLB prop edge-finding pipeline (ingestion + CLV/calibration scaffold)');
 
+/**
+ * Represents a command-line subcommand to manage database operations.
+ *
+ * Configures and encapsulates functionality specific to database-related tasks,
+ * enabling interaction with a program's database system through CLI.
+ *
+ * The `db` variable is registered as a command within the main program,
+ * allowing various database operations to be performed through
+ * respective subcommands or arguments it supports.
+ */
 const db = program.command('db');
 db.command('migrate')
   .description('apply pending SQL migrations')
@@ -104,6 +134,15 @@ db.command('seed:demo')
     console.log(`seeded ${n} synthetic picks (demo game ${999999})`);
   });
 
+/**
+ * Represents the 'ingest' command in the program.
+ *
+ * This variable is used to define and configure the 'ingest' command,
+ * which is typically associated with processing or importing data.
+ *
+ * The specific behavior and options for this command are defined
+ * elsewhere in the program.
+ */
 const ingest = program.command('ingest');
 ingest
   .command('schedule')
@@ -140,6 +179,15 @@ ingest
     console.log(`ingested game ${o.pk}`);
   });
 
+/**
+ * Represents the 'project' command in the program.
+ *
+ * This variable is used to define and configure the 'project' command,
+ * which is typically associated with building projections or distributions.
+ *
+ * The specific behavior and options for this command are defined
+ * elsewhere in the program.
+ */
 program
   .command('project')
   .description('build projections (distributions) for a date and write them to `projections`')
@@ -156,12 +204,27 @@ program
     console.log(`wrote ${count} projection(s) for ${o.date} (model ${MODEL_VERSION})`);
   });
 
-// Game times are stored as timestamptz; report them in UTC so the output does
-// not silently change meaning with the operator's local timezone.
+/**
+ * Formats a given Date object into a string representing the time in UTC.
+ *
+ * @param {Date} d - The Date object to format.
+ * @return {string} A string in the format "HH:mm UTC" representing the time in UTC.
+ */
 function fmtUtc(d: Date): string {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`;
 }
 
+/**
+ * Processes and transforms input options into a structured PullOptions object.
+ *
+ * @param {Object} o - The input options object.
+ * @param {string} o.books - A comma-separated string of book names.
+ * @param {string} o.sharp - A string representing sharp details, trimmed of whitespace.
+ * @param {string} o.regions - A string representing region data, trimmed of whitespace.
+ * @param {string} o.edge - A string representing the edge threshold, which will be converted to a number.
+ * @return {PullOptions} A structured object containing processed options including an array of book names,
+ *                       trimmed sharp and region strings, and a numeric edge threshold.
+ */
 function pullOptions(o: { books: string; sharp: string; regions: string; edge: string }): PullOptions {
   return {
     books: o.books.split(',').map((s) => s.trim()).filter(Boolean),
@@ -171,6 +234,11 @@ function pullOptions(o: { books: string; sharp: string; regions: string; edge: s
   };
 }
 
+/**
+ * Defines a command named 'lines' within the program.
+ *
+ * This command can be used to execute functionality related to the concept or feature of "lines".
+ */
 const lines = program.command('lines');
 lines
   .command('pull')
@@ -280,6 +348,13 @@ lines
     }
   });
 
+/**
+ *  Defines a command named 'settle' within the program.
+ *
+ *  This command is used to grade settled picks against actual box-score outcomes.
+ *
+ *  It requires a date option to specify the slate date for which the grading should be performed.
+ */
 program
   .command('settle')
   .description('grade settled picks against actual box-score outcomes')
@@ -289,6 +364,11 @@ program
     console.log(`settled ${n} pick(s) for ${o.date}`);
   });
 
+/**
+ *  Defines a command named 'backfill' within the program.
+ *
+ *  This command is used to project a date range and evaluate finished games vs reality (model calibration).
+ */
 program
   .command('backfill')
   .description('project a date range and evaluate finished games vs reality (model calibration)')
@@ -313,6 +393,11 @@ program
     console.log(`backfilled ${r.dates} date(s): ${r.projected} projection(s), ${r.evals} model eval(s)`);
   });
 
+/**
+ *  Defines a command named 'backtest' within the program.
+ *
+ *  This command is used to report model calibration (reliability + ECE + Brier) from model_evals.
+ */
 program
   .command('backtest')
   .description('report model calibration (reliability + ECE + Brier) from model_evals')
@@ -320,6 +405,13 @@ program
     await backtestReport();
   });
 
+/**
+ * Defines a command named 'health' within the program.
+ *
+ * This command is used to report data sufficiency, including date coverage, sample vs shrinkage, and evaluation counts.
+ *
+ * The action associated with this command generates a health report when executed.
+ */
 program
   .command('health')
   .description('data sufficiency: date coverage, sample vs shrinkage, eval counts')
@@ -327,6 +419,13 @@ program
     await healthReport();
   });
 
+/**
+ * Defines a command named 'clv' within the program.
+ *
+ * This command is used to report the closing line value (CLV) on settled picks.
+ *
+ * The action associated with this command generates a CLV report when executed.
+ */
 program
   .command('clv')
   .description('report closing line value on settled picks')
@@ -340,10 +439,21 @@ program
     await calibrationReport();
   });
 
+/**
+ * Hooks into the program's lifecycle to perform cleanup actions after all commands have been executed.
+ *
+ * This hook ensures that the database connection pool is properly closed when the program finishes executing,
+ * preventing potential resource leaks and ensuring a clean shutdown of the application.
+ */
 program.hook('postAction', async () => {
   await pool.end();
 });
 
+/**
+ * Parses the command-line arguments and executes the corresponding actions defined in the program.
+ *
+ * If an error occurs during parsing or execution, it logs the error to the console and exits the process with a non-zero status code.
+ */
 program.parseAsync().catch((err) => {
   console.error(err);
   process.exit(1);
