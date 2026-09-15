@@ -66,6 +66,15 @@ npm run ingest -- games --from 2026-09-01 --to 2026-09-13
 It only touches games whose status already matches final/completed, so running
 it for today before the games end is a no-op — run it again after.
 
+> **Re-run `ingest schedule` for that date first.** `ingest games` reads the
+> status stored in the database, not the status at MLB
+> (`games.ts`: `/final|completed|game over/i.test(r.status)`). A date ingested
+> while its games were still `Scheduled` or `In Progress` keeps that stale
+> status forever, so `ingest games` finds nothing final and pulls zero box
+> scores — silently, reporting `0 final game(s)`. `ingest schedule` upserts
+> `status`, so running it again refreshes them to `Final` and unblocks the
+> box-score pull.
+
 Check it landed:
 
 ```sql
@@ -222,9 +231,10 @@ ingest schedule → ingest games → project → lines pull → lines capture �
 Common failure modes, all of which look like a broken command but are not:
 
 | Symptom | Cause |
-|---|---|
+| --- | --- |
 | Games show as "not projected" | `project` has not run for that date |
 | Slate shows nothing at all | `ingest schedule` has not run for that date |
+| `ingest games` reports `0 final game(s)` | stored status is stale — re-run `ingest schedule` for that date first |
 | `project` produces nothing | no box-score history yet — run `ingest games` for earlier dates |
 | No edges after `lines pull` | no `ODDS_API_KEY`, or every game has already started |
 | CLV empty | `lines capture` never ran before first pitch |
