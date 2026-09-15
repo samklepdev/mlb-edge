@@ -93,16 +93,31 @@ export async function getPropHistory(
   // references, which Postgres rejects outright.
   const res = await query<{
     game_id: number; game_date: string; value: number;
-    opponent: string | null; home: boolean;
+    opponent: string | null; opponent_id: number | null; home: boolean;
+    team_runs: string | null; opp_runs: string | null;
+    pa: number | null; ab: number | null; h: number | null;
+    doubles: number | null; triples: number | null; so: number | null; bb: number | null;
   }>(
     `SELECT DISTINCT ON (g.id) g.id AS game_id,
             to_char(g.game_date, 'YYYY-MM-DD') AS game_date,
             ${valueExpr} AS value,
             CASE WHEN b.team_id = g.home_team_id THEN ta.name ELSE th.name END AS opponent,
-            (b.team_id = g.home_team_id) AS home
+            CASE WHEN b.team_id = g.home_team_id THEN g.away_team_id ELSE g.home_team_id END AS opponent_id,
+            (b.team_id = g.home_team_id) AS home,
+            -- No score column exists, so both sides' runs are summed from the
+            -- box score, the same way the game page and slate cards do it.
+            (SELECT sum(x.r) FROM player_game_batting x
+              WHERE x.game_id = g.id AND x.team_id = b.team_id) AS team_runs,
+            (SELECT sum(x.r) FROM player_game_batting x
+              WHERE x.game_id = g.id AND x.team_id IS DISTINCT FROM b.team_id) AS opp_runs,
+            -- The player's batting line for the game, for the hover card.
+            -- LEFT JOIN because a pitcher prop selects from player_game_pitching
+            -- and the player may have no batting row at all.
+            bl.pa, bl.ab, bl.h, bl.doubles, bl.triples, bl.so, bl.bb
      FROM ${src}
      JOIN games g ON g.id = b.game_id
      ${handJoin}
+     LEFT JOIN player_game_batting bl ON bl.game_id = g.id AND bl.player_id = $1
      LEFT JOIN teams th ON th.id = g.home_team_id
      LEFT JOIN teams ta ON ta.id = g.away_team_id
      WHERE b.player_id = $1 AND ${where.join(' AND ')}
@@ -115,7 +130,11 @@ export async function getPropHistory(
   return res.rows
     .map((r) => ({
       gameId: r.game_id, date: r.game_date, value: Number(r.value),
-      opponent: r.opponent, home: r.home,
+      opponent: r.opponent, opponentId: r.opponent_id, home: r.home,
+      teamRuns: r.team_runs == null ? null : Number(r.team_runs),
+      oppRuns: r.opp_runs == null ? null : Number(r.opp_runs),
+      pa: r.pa, ab: r.ab, h: r.h,
+      doubles: r.doubles, triples: r.triples, so: r.so, bb: r.bb,
     }))
     .sort((a, b) => (a.date < b.date ? 1 : -1))
     .slice(0, limit);

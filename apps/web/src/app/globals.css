@@ -280,8 +280,87 @@ a:hover { text-decoration: underline; }
 
 .ex-main { min-width: 0; }
 .propbars { margin: 0; }
-.propbars svg { width: 100%; height: auto; background: var(--panel); border: 1px solid var(--hair); }
 .propbars figcaption { margin-top: 0.6rem; max-width: 62ch; }
+
+/* HTML bars, not SVG: the hover card carries nine fields, which an SVG <title>
+   cannot style and a <foreignObject> would have clipped. */
+.pb-chart {
+  display: flex; gap: 0.4rem;
+  background: var(--panel); border: 1px solid var(--hair);
+  padding: 0.9rem 0.9rem 0.6rem;
+}
+.pb-axis { position: relative; width: 1.6rem; flex: none; }
+.pb-tick {
+  position: absolute; right: 0; transform: translateY(50%);
+  font-size: 0.7rem; color: var(--faint);
+}
+.pb-plot { position: relative; flex: 1; min-width: 0; height: 15rem; }
+.pb-grid {
+  position: absolute; left: 0; right: 0; height: 1px;
+  background: var(--grid);
+}
+.pb-line, .pb-proj { position: absolute; left: 0; right: 0; height: 0; }
+.pb-line { border-top: 1.5px dashed var(--ink); }
+.pb-proj { border-top: 1px dashed var(--muted); }
+.pb-line-tag, .pb-proj-tag {
+  position: absolute; top: -1.15rem; font-size: 0.7rem; color: var(--muted);
+  background: var(--panel); padding: 0 0.25rem;
+}
+.pb-line-tag { right: 0; }
+.pb-proj-tag { left: 0; }
+
+.pb-bars {
+  position: absolute; inset: 0;
+  display: flex; align-items: flex-end; gap: 2px;
+  list-style: none; margin: 0; padding: 0;
+}
+/* Each column is the hover/focus target, full height so the card is easy to
+   reach even when the bar itself is short. */
+.pb-col { position: relative; flex: 1 1 0; min-width: 0; height: 100%;
+  display: flex; align-items: flex-end; }
+.pb-col:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+.pb-bar {
+  width: 100%; min-height: 2px;
+  background: var(--navy); border-radius: 4px 4px 0 0;
+}
+.pb-over { background: var(--good); }
+.pb-under { background: var(--bad); }
+.pb-col:hover .pb-bar, .pb-col:focus-visible .pb-bar { filter: brightness(1.12); }
+
+/* The card. Hidden by default; no transition on visibility so it cannot be
+   left half-shown mid-fade. */
+.pb-pop {
+  position: absolute; bottom: calc(100% + 0.4rem); left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  width: 12.5rem;
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  box-shadow: 0 2px 10px rgb(16 22 29 / 0.14);
+  padding: 0.55rem 0.65rem;
+  opacity: 0; visibility: hidden;
+  pointer-events: none;
+}
+/* body has overflow-x: hidden, so a card overhanging the viewport edge would
+   simply vanish -- the end columns anchor inward instead of centring. */
+.pb-pop-l { left: 0; transform: none; }
+.pb-pop-r { left: auto; right: 0; transform: none; }
+.pb-col:hover .pb-pop, .pb-col:focus-visible .pb-pop { opacity: 1; visibility: visible; }
+.pb-pop-h { margin: 0 0 0.4rem; font-size: 0.8rem; font-weight: 600; color: var(--ink); }
+.pb-pop-res { font-weight: 400; color: var(--muted); }
+.pb-pop-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.15rem 0.6rem; margin: 0;
+}
+.pb-pop-grid > div { display: flex; justify-content: space-between; gap: 0.4rem; }
+.pb-pop-grid dt { color: var(--muted); font-size: 0.75rem; }
+.pb-pop-grid dd { margin: 0; font-size: 0.75rem; color: var(--ink); }
+.pb-pop-na { color: var(--faint); font-size: 0.68rem; }
+
+.pb-dates {
+  display: flex; gap: 2px; list-style: none;
+  margin: 0.3rem 0 0; padding: 0 0.9rem 0 2.9rem;
+}
+.pb-dates li { flex: 1 1 0; min-width: 0; font-size: 0.65rem; color: var(--faint); text-align: center; }
 
 .ex-matchup { margin-top: 2rem; }
 .ex-cond {

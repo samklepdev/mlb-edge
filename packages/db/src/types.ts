@@ -140,7 +140,22 @@ export interface PropGame {
   date: string;
   value: number;
   opponent: string | null;
+  opponentId: number | null;
   home: boolean;
+  /** Both sides' runs, summed from the box score — there is no score column. */
+  teamRuns: number | null;
+  oppRuns: number | null;
+  /** The player's batting line for that game, for the hover card. Null when the
+   *  player has no batting row (e.g. a pitcher prop). Max exit velocity is
+   *  deliberately absent: it lives in the live feed's hitData.launchSpeed,
+   *  which nothing stores yet. */
+  pa: number | null;
+  ab: number | null;
+  h: number | null;
+  doubles: number | null;
+  triples: number | null;
+  so: number | null;
+  bb: number | null;
 }
 export interface MatchupContext {
   venue: string | null;
