@@ -125,6 +125,33 @@ td.bad { color: var(--bad); }
    body size a bare arrowhead is a smudge. See _components/Side.tsx. */
 .side { color: var(--muted); font-size: 1.15rem; line-height: 1; cursor: help; }
 
+/* ---- game scoreboard header ----
+   No colour encodes the result. The winner is marked with a glyph, because
+   this page sits directly above the model's picks for the same game and a
+   green winning team would read as the model having called it. */
+.gamescore {
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  border-top: 3px solid var(--navy);
+  padding: 1.25rem 1.35rem;
+  margin: 2rem 0 0;
+}
+.gs-team { display: flex; align-items: center; gap: 0.7rem; padding: 0.35rem 0; }
+.gs-logo {
+  flex: none; width: 34px; height: 34px;
+  background-repeat: no-repeat; background-position: center; background-size: contain;
+}
+.gs-name { font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; min-width: 3.4rem; }
+.gs-full { color: var(--muted); font-size: 0.9rem; }
+.gs-runs { margin-left: auto; font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; }
+.gs-win { color: var(--muted); font-size: 1rem; }
+.gs-meta {
+  display: flex; flex-wrap: wrap; gap: 0.35rem 1rem;
+  margin-top: 0.7rem; padding-top: 0.6rem;
+  border-top: 1px solid var(--grid);
+  color: var(--muted); font-size: 0.85rem;
+}
+
 /* Residual rows. No --good/--bad anywhere here: a residual is not a verdict,
    and beating a projection is not a win. --muted marks a row as inactive
    (DNP), which is a data-availability fact, not a judgement of the figure. */
@@ -203,6 +230,13 @@ a:hover { text-decoration: underline; }
   border-radius: 3px;
   padding: 0.7rem 0.85rem;
 }
+/* The card is an <a>. Reset the global link colour so the team abbreviations
+   stay --ink, and give it a visible hover/focus so it reads as clickable --
+   a card that navigates with no affordance is a trap. */
+a.gamecard { display: block; color: var(--ink); text-decoration: none; }
+a.gamecard:hover { border-color: var(--navy); text-decoration: none; }
+a.gamecard:hover .gc-abbr { color: var(--navy-ink); }
+a.gamecard:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 .gc-team { display: flex; align-items: center; gap: 0.5rem; padding: 0.15rem 0; }
 .gc-logo {
   flex: none;

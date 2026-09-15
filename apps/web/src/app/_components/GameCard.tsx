@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { SlateGame } from '@mlb-edge/db';
 import { abbrev, logoUrl } from './teams';
 
@@ -35,11 +36,19 @@ function TeamLine({ id, name }: { id: number | null; name: string }) {
 
 export function GameCard({ game, listedEdges }: { game: SlateGame; listedEdges: number }) {
   return (
-    <article className="gamecard">
+    // The whole card is the link, so the target matches what a user reads as
+    // one object. The accessible name has to be built explicitly: the card's
+    // own text is two abbreviations and a time, which announces as "LAA NYY
+    // 7:05 PM ET" and tells a screen-reader user nothing about where it goes.
+    <Link
+      className="gamecard"
+      href={`/game?id=${game.gameId}`}
+      aria-label={`${game.away} at ${game.home}, ${firstPitch(game.startTime)} — game detail`}
+    >
       <TeamLine id={game.awayId} name={game.away} />
       <TeamLine id={game.homeId} name={game.home} />
       <div className="gc-meta num">{firstPitch(game.startTime)}</div>
       <div className="gc-edges">{listedEdges > 0 ? `${listedEdges} listed` : '—'}</div>
-    </article>
+    </Link>
   );
 }

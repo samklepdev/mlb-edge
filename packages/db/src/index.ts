@@ -8,4 +8,5 @@ export { getScorecard } from './queries/scorecard.js';
 export { latestSlateDate, getSlateGames, getTopEdges, getSlateRoster } from './queries/slate.js';
 export { getPlayerCard } from './queries/player.js';
 export { getPlayerResiduals, summarizeResiduals } from './queries/residuals.js';
+export { getGameDetail } from './queries/game.js';
 export { projectionReliability, backtestSummary, evalPropTypes } from './queries/backtest.js';
