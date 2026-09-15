@@ -1,7 +1,10 @@
 export { config } from './config.js';
 export { pool, query, withTx } from './pool.js';
 export * from './types.js';
-export { normalCdf, pOver, pOverFromPmf, americanToImplied, deVig } from './prob.js';
+export {
+  normalCdf, pOver, pOverFromPmf, americanToImplied, deVig,
+  americanToProfit, evPerUnit,
+} from './prob.js';
 export { clvByProp, clvExcludedCount } from './queries/clv.js';
 export { calibrationBuckets } from './queries/calibration.js';
 export { getScorecard } from './queries/scorecard.js';

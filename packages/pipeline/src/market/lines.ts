@@ -1,7 +1,7 @@
 import { query, withTx } from '@mlb-edge/db';
 import { getEvents, getEventOdds } from '../clients/oddsApi.js';
 import { MODEL_VERSION } from '../project/model.js';
-import { pOver, pOverFromPmf, deVig } from '@mlb-edge/db';
+import { pOver, pOverFromPmf, deVig, evPerUnit } from '@mlb-edge/db';
 import { buildGameIndex, buildPlayerIndex, normalize } from './match.js';
 import type { PropKind } from '../project/index.js';
 import { actualFor } from '../props.js';
@@ -195,27 +195,67 @@ async function priceAndWritePicks(date: string, rows: LineRow[], edgeThreshold: 
   const ref = referenceLines(rows);
   const gameIds = [...new Set(rows.map((r) => r.gameId))];
 
+  // All books' quotes per prop, for line shopping. The reference book decides
+  // WHETHER to bet; these decide WHERE.
+  const byProp = new Map<string, LineRow[]>();
+  for (const r of rows) {
+    const k = key(r.playerId, r.gameId, r.prop);
+    const list = byProp.get(k);
+    if (list) list.push(r);
+    else byProp.set(k, [r]);
+  }
+
   interface PickRow {
     playerId: number; gameId: number; prop: PropKind; side: 'over' | 'under';
     prob: number; line: number; odds: number; fair: number; edge: number;
+    bestBook: string; bestOdds: number; bestLine: number; bestEv: number;
+    refEv: number; booksCompared: number;
   }
   const picks: PickRow[] = [];
 
   for (const [k, r] of ref) {
     const proj = projections.get(k);
     if (!proj) continue;
-    const modelOver = proj.pmf ? pOverFromPmf(proj.pmf, r.line) : pOver(proj.mean, proj.stdev, r.line);
+    const probAt = (line: number) =>
+      proj.pmf ? pOverFromPmf(proj.pmf, line) : pOver(proj.mean, proj.stdev, line);
+
+    const modelOver = probAt(r.line);
+    // Fair probability stays the SHARP book's de-vigged number. That is the
+    // best available estimate of the true probability, and it is what makes
+    // `edge_pct` mean the same thing it has always meant -- every historical
+    // pick stays comparable. Shopping changes where you bet, not what is true.
     const { fairOver } = deVig(r.overOdds, r.underOdds);
     const edgeOver = modelOver - fairOver;
     const side: 'over' | 'under' = edgeOver >= 0 ? 'over' : 'under';
     const edge = Math.abs(edgeOver);
     if (edge < edgeThreshold) continue;
+
+    // Best execution for the side already chosen. Each book is evaluated at ITS
+    // OWN line, because books quote different lines and not just different
+    // prices -- -120 at 1.5 and +100 at 2.5 are different bets. EV is what makes
+    // those comparable, so it is the ranking key rather than the raw odds.
+    const quotes = byProp.get(k) ?? [r];
+    let best: { book: string; odds: number; line: number; ev: number } | null = null;
+    for (const q of quotes) {
+      const odds = side === 'over' ? q.overOdds : q.underOdds;
+      const p = side === 'over' ? probAt(q.line) : 1 - probAt(q.line);
+      const ev = evPerUnit(p, odds);
+      if (!best || ev > best.ev) best = { book: q.source, odds, line: q.line, ev };
+    }
+    const refOdds = side === 'over' ? r.overOdds : r.underOdds;
+    const refEv = evPerUnit(side === 'over' ? modelOver : 1 - modelOver, refOdds);
+
     picks.push({
       playerId: r.playerId, gameId: r.gameId, prop: r.prop, side,
       prob: side === 'over' ? modelOver : 1 - modelOver,
-      line: r.line, odds: side === 'over' ? r.overOdds : r.underOdds,
+      // pick_line / pick_odds stay the REFERENCE book's, so settlement and CLV
+      // keep grading against the same line they always have. Moving them to the
+      // best book would silently re-baseline every CLV figure in the database.
+      line: r.line, odds: refOdds,
       fair: side === 'over' ? fairOver : 1 - fairOver,
       edge,
+      bestBook: best!.book, bestOdds: best!.odds, bestLine: best!.line, bestEv: best!.ev,
+      refEv, booksCompared: quotes.length,
     });
   }
 
@@ -227,9 +267,14 @@ async function priceAndWritePicks(date: string, rows: LineRow[], edgeThreshold: 
     for (const p of picks) {
       await c.query(
         `INSERT INTO picks
-           (player_id, game_id, prop_type, side, pick_prob, pick_line, pick_odds, edge_pct, pick_fair_prob)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [p.playerId, p.gameId, p.prop, p.side, p.prob.toFixed(4), p.line, p.odds, p.edge.toFixed(4), p.fair.toFixed(4)],
+           (player_id, game_id, prop_type, side, pick_prob, pick_line, pick_odds, edge_pct, pick_fair_prob,
+            best_book, best_odds, best_line, best_ev, ref_ev, books_compared)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+        [
+          p.playerId, p.gameId, p.prop, p.side, p.prob.toFixed(4), p.line, p.odds,
+          p.edge.toFixed(4), p.fair.toFixed(4),
+          p.bestBook, p.bestOdds, p.bestLine, p.bestEv.toFixed(4), p.refEv.toFixed(4), p.booksCompared,
+        ],
       );
     }
   });
@@ -265,7 +310,12 @@ async function loadStoredLines(date: string): Promise<LineRow[]> {
     player_id: number; game_id: number; prop_type: string; line: string;
     over_odds: number | null; under_odds: number | null; source: string; is_sharp: boolean;
   }>(
-    `SELECT DISTINCT ON (ml.player_id, ml.game_id, ml.prop_type)
+    // DISTINCT ON includes `source`, so this returns the latest pre-start quote
+    // from EVERY book rather than one row per prop. The reference book is still
+    // chosen downstream by referenceLines(); the extra rows are what make line
+    // shopping possible, and they make `reprice` price from the same multi-book
+    // input that `pull` already had.
+    `SELECT DISTINCT ON (ml.player_id, ml.game_id, ml.prop_type, ml.source)
             ml.player_id, ml.game_id, ml.prop_type, ml.line,
             ml.over_odds, ml.under_odds, ml.source, ml.is_sharp
      FROM market_lines ml JOIN games g ON g.id = ml.game_id
@@ -288,7 +338,7 @@ async function loadStoredLines(date: string): Promise<LineRow[]> {
        -- NULL start_time makes this NULL, i.e. excluded: an unverifiable
        -- timestamp is not trusted (matches how close_captured_at treats NULL).
        AND ml.fetched_at < g.start_time
-     ORDER BY ml.player_id, ml.game_id, ml.prop_type, ml.is_sharp DESC, ml.fetched_at DESC`,
+     ORDER BY ml.player_id, ml.game_id, ml.prop_type, ml.source, ml.fetched_at DESC`,
     [date],
   );
   const out: LineRow[] = [];

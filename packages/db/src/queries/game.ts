@@ -91,9 +91,12 @@ export async function getGameDetail(gameId: number): Promise<GameDetail | null> 
     await query<{
       player_id: number; full_name: string; prop_type: string; side: 'over' | 'under';
       pick_line: string; pick_prob: string; edge_pct: string | null; result: string | null;
+      best_book: string | null; best_odds: number | null; best_line: string | null;
+      books_compared: number | null;
     }>(
       `SELECT pk.player_id, pl.full_name, pk.prop_type, pk.side,
-              pk.pick_line, pk.pick_prob, pk.edge_pct, pk.result
+              pk.pick_line, pk.pick_prob, pk.edge_pct, pk.result,
+              pk.best_book, pk.best_odds, pk.best_line, pk.books_compared
        FROM picks pk
        JOIN players pl ON pl.id = pk.player_id
        WHERE pk.game_id = $1
@@ -136,6 +139,10 @@ export async function getGameDetail(gameId: number): Promise<GameDetail | null> 
       side: p.side, line: Number(p.pick_line), modelProb: Number(p.pick_prob),
       edgePct: p.edge_pct == null ? null : Number(p.edge_pct),
       result: p.result === 'win' || p.result === 'loss' ? p.result : null,
+      bestBook: p.best_book,
+      bestOdds: p.best_odds,
+      bestLine: p.best_line == null ? null : Number(p.best_line),
+      booksCompared: p.books_compared,
     })),
   };
 }

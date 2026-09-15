@@ -95,6 +95,14 @@ export interface GamePick {
   side: 'over' | 'under'; line: number; modelProb: number;
   edgePct: number | null;
   result: 'win' | 'loss' | null;
+  /** Best price across the books stored for this prop. `line` above stays the
+   *  reference book's, so settlement and CLV keep grading what they always did;
+   *  these say where the bet would actually have been placed. */
+  bestBook: string | null;
+  bestOdds: number | null;
+  bestLine: number | null;
+  /** 1 means only one book quoted it, so no shopping happened. */
+  booksCompared: number | null;
 }
 export interface GameProbable {
   playerId: number; playerName: string; throws: string | null;

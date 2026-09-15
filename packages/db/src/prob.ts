@@ -27,6 +27,25 @@ export function americanToImplied(odds: number): number {
   return odds < 0 ? -odds / (-odds + 100) : 100 / (odds + 100);
 }
 
+// Profit per 1 unit staked, if the bet wins. +150 -> 1.5, -200 -> 0.5.
+export function americanToProfit(odds: number): number {
+  return odds < 0 ? 100 / -odds : odds / 100;
+}
+
+// Expected value per 1 unit staked, at the model's probability.
+//
+// This is the only figure that makes two books comparable when they quote
+// DIFFERENT LINES as well as different prices. Comparing odds alone is wrong:
+// -120 on total bases 1.5 and +100 on 2.5 are not the same bet, and whichever
+// has the better number may still be the worse wager. EV folds the line in by
+// taking the model's probability AT THAT BOOK'S line.
+//
+// Positive EV here is a statement about the model, not about reality -- it is
+// only as good as the projection, which is exactly the thing still unproven.
+export function evPerUnit(modelProb: number, odds: number): number {
+  return modelProb * americanToProfit(odds) - (1 - modelProb);
+}
+
 // Remove bookmaker vig from a two-way market.
 //
 // Proportional de-vig (io/s, iu/s) is the obvious approach and it is wrong for

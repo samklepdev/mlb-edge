@@ -238,7 +238,7 @@ export default async function GamePage({
                   <thead>
                     <tr>
                       <th>Player</th><th>Prop</th><th>Side</th><th>Line</th>
-                      <th>Model</th><th>Edge</th><th>Result</th>
+                      <th>Model</th><th>Edge</th><th>Best price</th><th>Result</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -255,6 +255,21 @@ export default async function GamePage({
                         <td className="num">{p.line}</td>
                         <td className="num">{pct(p.modelProb)}</td>
                         <td className="num">{p.edgePct == null ? '—' : signed(p.edgePct)}</td>
+                        {/* Where the bet would actually go. The line is shown
+                            alongside the odds because books quote different
+                            lines, not just different prices — odds alone would
+                            be unreadable. One book means nothing was shopped. */}
+                        <td className="num">
+                          {p.bestBook == null || p.bestOdds == null ? '—' : (
+                            <>
+                              {p.bestOdds > 0 ? `+${p.bestOdds}` : p.bestOdds}
+                              {p.bestLine != null && p.bestLine !== p.line && ` @ ${p.bestLine}`}
+                              <span className="dnp-note"> {p.bestBook}
+                                {p.booksCompared === 1 ? ' (only book)' : ''}
+                              </span>
+                            </>
+                          )}
+                        </td>
                         {/* Result is a fact, but it still gets no colour: a
                             green "win" beside an untested model reads as a
                             track record. */}
