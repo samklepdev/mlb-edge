@@ -269,16 +269,39 @@ a:hover { text-decoration: underline; }
   padding: 0.9rem 1rem;
 }
 .ex-list { list-style: none; margin: 0; padding: 0; max-height: 34rem; overflow-y: auto; }
+/* (team) day/time (team). Grid rather than flex so the centre column is
+   genuinely centred in the row -- with flex the two side columns would have to
+   be exactly equal in width for that to hold, and abbreviations are not. */
 .ex-game {
-  display: flex; align-items: center; gap: 0.45rem;
-  padding: 0.45rem 0.2rem;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.15rem;
   color: var(--ink); text-decoration: none;
   border-bottom: 1px solid var(--grid);
-  font-size: 0.9rem;
 }
-.ex-game:hover { color: var(--navy-ink); text-decoration: none; }
-.ex-open { font-weight: 600; }
-.ex-note { margin-left: auto; color: var(--faint); font-size: 0.75rem; font-weight: 400; }
+.ex-game:hover { text-decoration: none; }
+.ex-game:hover .exg-abbr { color: var(--navy-ink); }
+.ex-game:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+/* Open rows get a navy edge as well as weight, so the state is not carried by
+   boldness alone. */
+.ex-open { font-weight: 600; box-shadow: inset 2px 0 0 var(--navy); }
+
+.exg-team { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; min-width: 0; }
+.exg-logo {
+  width: 26px; height: 26px; flex: none;
+  background-repeat: no-repeat; background-position: center; background-size: contain;
+}
+.exg-abbr { font-size: 0.85rem; color: var(--ink); }
+
+.exg-when {
+  display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+  font-variant-numeric: tabular-nums;
+}
+.exg-day { font-size: 0.72rem; color: var(--muted); white-space: nowrap; font-weight: 400; }
+.exg-caret { font-size: 0.6rem; color: var(--faint); line-height: 1; }
+.ex-note { color: var(--faint); font-size: 0.68rem; font-weight: 400; white-space: nowrap; }
 .ex-team { margin: 0 0 0.3rem; }
 .ex-team-h {
   display: flex; align-items: baseline; gap: 0.4rem;

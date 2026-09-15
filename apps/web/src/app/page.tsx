@@ -7,7 +7,7 @@ import {
 import { Headshot } from './_components/Headshot';
 import { PropLabel } from './_components/PropLabel';
 import { PlayerPanel } from './_components/PlayerPanel';
-import { abbrev } from './_components/teams';
+import { abbrev, logoUrl } from './_components/teams';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +16,34 @@ export const dynamic = 'force-dynamic';
 // drift away from the leftmost one.
 const PROPS = ['hits', 'home_runs', 'total_bases', 'strikeouts'] as const;
 const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Pinned to ET for the same reason GameCard is: these pages are force-dynamic
+// server renders, so an unpinned "local" would silently mean the server's zone,
+// and a client-side conversion would trade a cosmetic detail for a hydration
+// mismatch. ET is also how MLB.com labels start times.
+const DAY_TIME = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York',
+});
+const dayTime = (t: Date | null) => (t ? `${DAY_TIME.format(t)} ET` : 'TBD');
+
+// Logo over abbreviation, one per side of the row.
+function ExTeam({ id, name }: { id: number | null; name: string }) {
+  const logo = logoUrl(id);
+  return (
+    <span className="exg-team">
+      {/* A background-image, not an <img>: the logo CDN has no default-image
+          transform, so an unknown id 404s. This degrades to blank space rather
+          than a broken-image icon, and the abbreviation below carries the
+          identity regardless. Same reasoning as GameCard. */}
+      <span
+        className="exg-logo"
+        style={logo ? { backgroundImage: `url(${logo})` } : undefined}
+        aria-hidden="true"
+      />
+      <span className="exg-abbr cnd">{abbrev(id, name)}</span>
+    </span>
+  );
+}
 
 
 // Every control is a link that rewrites the query string, so the whole page is
@@ -102,10 +130,18 @@ export default async function PropsPage({
                         className={`ex-game${open ? ' ex-open' : ''}`}
                         href={href({ ...base, game: open ? undefined : String(g.gameId), player: undefined })}
                         aria-expanded={open}
+                        // The row is three columns of glyphs and abbreviations,
+                        // which announces as "LAA WSH Mon 1:35 PM" and says
+                        // nothing useful. The accessible name spells it out.
+                        aria-label={`${g.away} at ${g.home}, ${dayTime(g.startTime)}`}
                       >
-                        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
-                        <span className="cnd">{abbrev(g.awayId, g.away)} @ {abbrev(g.homeId, g.home)}</span>
-                        {!g.hasProjections && <span className="ex-note">not projected</span>}
+                        <ExTeam id={g.awayId} name={g.away} />
+                        <span className="exg-when">
+                          <span className="exg-day">{dayTime(g.startTime)}</span>
+                          {!g.hasProjections && <span className="ex-note">not projected</span>}
+                          <span className="exg-caret" aria-hidden="true">{open ? '▾' : '▸'}</span>
+                        </span>
+                        <ExTeam id={g.homeId} name={g.home} />
                       </Link>
                       {open && (
                         <>
