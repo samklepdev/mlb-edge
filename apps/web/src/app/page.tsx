@@ -11,7 +11,10 @@ import { abbrev } from './_components/teams';
 
 export const dynamic = 'force-dynamic';
 
-const PROPS = ['total_bases', 'hits', 'home_runs', 'strikeouts'] as const;
+// Tab order is deliberate, not alphabetical or schema order. The default below
+// is PROPS[0] rather than a separate constant, so the landing tab can never
+// drift away from the leftmost one.
+const PROPS = ['hits', 'home_runs', 'total_bases', 'strikeouts'] as const;
 const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Every control is a link that rewrites the query string, so the whole page is
@@ -34,7 +37,7 @@ export default async function PropsPage({
 }) {
   const sp = await searchParams;
   const date = sp.date && VALID_DATE.test(sp.date) ? sp.date : (await latestSlateDate()) ?? '';
-  const prop = PROPS.includes(sp.prop as (typeof PROPS)[number]) ? sp.prop! : 'total_bases';
+  const prop = PROPS.includes(sp.prop as (typeof PROPS)[number]) ? sp.prop! : PROPS[0];
   const last = ['5', '10', '15', '25'].includes(sp.last ?? '') ? sp.last! : '15';
   const venue = ['home', 'away'].includes(sp.venue ?? '') ? sp.venue! : 'all';
   const hand = ['L', 'R'].includes(sp.hand ?? '') ? sp.hand! : 'all';
