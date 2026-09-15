@@ -12,6 +12,11 @@ const ABBR: Record<string, string> = {
   hits: 'H',
   home_runs: 'HR',
   runs: 'R',
+  rbis: 'RBI',
+  // Not 'BB' bare: the box score already uses BB for a pitcher's walks issued,
+  // and these tabs sit beside a pitcher prop.
+  batter_walks: 'B-BB',
+  hits_runs_rbis: 'H+R+RBI',
 };
 
 export function PropLabel({ prop }: { prop: string }) {

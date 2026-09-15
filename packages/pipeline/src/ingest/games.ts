@@ -73,18 +73,19 @@ export async function ingestBoxscore(gamePk: number): Promise<void> {
             // this line every newly ingested game would silently reintroduce
             // the gap those formulas have to drop terms around.
             `INSERT INTO player_game_batting
-               (game_id, player_id, team_id, pa, ab, h, doubles, triples, hr, bb, so, tb, rbi, r, hbp, sf)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+               (game_id, player_id, team_id, pa, ab, h, doubles, triples, hr, bb, so, tb, rbi, r, hbp, sf, sb, cs)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
              ON CONFLICT (game_id, player_id) DO UPDATE SET
                pa=EXCLUDED.pa, ab=EXCLUDED.ab, h=EXCLUDED.h, doubles=EXCLUDED.doubles,
                triples=EXCLUDED.triples, hr=EXCLUDED.hr, bb=EXCLUDED.bb, so=EXCLUDED.so,
                tb=EXCLUDED.tb, rbi=EXCLUDED.rbi, r=EXCLUDED.r,
-               hbp=EXCLUDED.hbp, sf=EXCLUDED.sf`,
+               hbp=EXCLUDED.hbp, sf=EXCLUDED.sf, sb=EXCLUDED.sb, cs=EXCLUDED.cs`,
             [
               gamePk, p.person.id, side.team.id,
               num(b.plateAppearances), num(b.atBats), h, d2, t3, hr,
               num(b.baseOnBalls), num(b.strikeOuts), tb, num(b.rbi), num(b.runs),
               num(b.hitByPitch), num(b.sacFlies),
+              num(b.stolenBases), num(b.caughtStealing),
             ],
           );
         }

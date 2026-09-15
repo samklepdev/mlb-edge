@@ -14,7 +14,14 @@ export const dynamic = 'force-dynamic';
 // Tab order is deliberate, not alphabetical or schema order. The default below
 // is PROPS[0] rather than a separate constant, so the landing tab can never
 // drift away from the leftmost one.
-const PROPS = ['hits', 'home_runs', 'total_bases', 'strikeouts'] as const;
+const PROPS = [
+  'hits', 'home_runs', 'total_bases', 'strikeouts',
+  'hits_runs_rbis', 'runs', 'rbis', 'batter_walks',
+] as const;
+// Props with no per-hand split in player_game_platoon, which stores only
+// pa/singles/doubles/triples/hr/so. The filter is ignored for these and the
+// chart says so, rather than plotting a whole-game total under a "vs LHP" label.
+const NO_PLATOON: readonly string[] = ['strikeouts', 'runs', 'rbis', 'batter_walks', 'hits_runs_rbis'];
 const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Pinned to ET for the same reason GameCard is: these pages are force-dynamic
@@ -237,18 +244,19 @@ export default async function PropsPage({
                       line to compare against.
                     </p>
                   )}
-                  {hand !== 'all' && prop !== 'strikeouts' && (
+                  {hand !== 'all' && !NO_PLATOON.includes(prop) && (
                     <p className="cap">
                       Filtered to {hand}HP: each bar is that game&apos;s production
                       <em> against {hand}-handers only</em>, not the game total — so a
                       bar can be lower than the player&apos;s actual line that day.
                     </p>
                   )}
-                  {hand !== 'all' && prop === 'strikeouts' && (
+                  {hand !== 'all' && NO_PLATOON.includes(prop) && (
                     <p className="cap">
-                      The handedness filter is ignored here. It describes the hand a
-                      <em> batter</em> faced, which says nothing about a pitcher&apos;s own
-                      strikeout total.
+                      The handedness filter is ignored for this prop.{' '}
+                      {prop === 'strikeouts'
+                        ? 'It describes the hand a batter faced, which says nothing about a pitcher\u2019s own strikeout total.'
+                        : 'Runs, RBIs and walks are not broken out by pitcher hand \u2014 the plate-appearance table stores only hits, extra-base hits and strikeouts \u2014 so there is no split to show.'}
                     </p>
                   )}
                   <PlayerPanel

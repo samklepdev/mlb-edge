@@ -51,11 +51,30 @@ export async function getGamePlayers(gameId: number): Promise<ExplorerPlayer[]> 
 // into this package so both sides import one table. Until that happens the two
 // MUST agree; a disagreement here would plot a different number than the
 // backtest grades against.
-const PROP_COLUMN: Record<string, { table: 'bat' | 'pit'; col: string }> = {
-  total_bases: { table: 'bat', col: 'tb' },
-  hits: { table: 'bat', col: 'h' },
-  home_runs: { table: 'bat', col: 'hr' },
-  strikeouts: { table: 'pit', col: 'so' },
+// `platoon` is the equivalent expression over player_game_platoon, and its
+// ABSENCE is meaningful: that table stores only pa/singles/doubles/triples/hr/so
+// per pitcher hand, so runs, RBIs and walks have no per-hand split at all.
+// Props without it must ignore the handedness filter rather than silently
+// plotting a whole-game total under a "vs LHP" label.
+const PROP_COLUMN: Record<string, { table: 'bat' | 'pit'; expr: string; platoon?: string }> = {
+  total_bases: {
+    table: 'bat', expr: 'b.tb',
+    platoon: 'pp.singles + 2*pp.doubles + 3*pp.triples + 4*pp.hr',
+  },
+  hits: {
+    table: 'bat', expr: 'b.h',
+    platoon: 'pp.singles + pp.doubles + pp.triples + pp.hr',
+  },
+  home_runs: { table: 'bat', expr: 'b.hr', platoon: 'pp.hr' },
+  strikeouts: { table: 'pit', expr: 'b.so' },
+
+  // Straight box-score columns; exact, no modelling involved.
+  runs: { table: 'bat', expr: 'b.r' },
+  rbis: { table: 'bat', expr: 'b.rbi' },
+  batter_walks: { table: 'bat', expr: 'b.bb' },
+  // The composite books quote as H+R+RBI. A player who singles and scores on
+  // the next hit gets credit twice by design -- that is the prop, not an error.
+  hits_runs_rbis: { table: 'bat', expr: 'b.h + b.r + b.rbi' },
 };
 
 export interface PropHistoryFilters {
@@ -85,10 +104,14 @@ export async function getPropHistory(
   // keyed by the hand of the pitcher a BATTER faced, so it says nothing about a
   // pitcher's own strikeout total. Silently applying it there would filter
   // games by an unrelated fact.
-  const handed = (filters.hand === 'L' || filters.hand === 'R') && map.table === 'bat';
+  // Also requires a platoon expression: without one there is no per-hand value
+  // to plot, and filtering games while showing the whole-game total would
+  // attribute plate appearances against the other hand to this split.
+  const handed = (filters.hand === 'L' || filters.hand === 'R')
+    && map.table === 'bat' && map.platoon != null;
 
   let handJoin = '';
-  let valueExpr = `b.${map.col}`;
+  let valueExpr = map.expr;
   if (handed) {
     params.push(filters.hand);
     handJoin = `JOIN player_game_platoon pp
@@ -99,11 +122,7 @@ export async function getPropHistory(
     // total would attribute plate appearances against right-handers to the
     // left-handed split -- a silently wrong number, and most games contain
     // both (35 of this sample player's 96 games had PAs against each hand).
-    valueExpr = {
-      hits: 'pp.singles + pp.doubles + pp.triples + pp.hr',
-      total_bases: 'pp.singles + 2*pp.doubles + 3*pp.triples + 4*pp.hr',
-      home_runs: 'pp.hr',
-    }[prop] ?? `b.${map.col}`;
+    valueExpr = map.platoon!;
   }
 
   const src = map.table === 'bat'
