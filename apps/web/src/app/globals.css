@@ -327,25 +327,22 @@ a:hover { text-decoration: underline; }
 .pb-under { background: var(--bad); }
 .pb-col:hover .pb-bar, .pb-col:focus-visible .pb-bar { filter: brightness(1.12); }
 
-/* The card. Hidden by default; no transition on visibility so it cannot be
-   left half-shown mid-fade. */
+/* The card follows the pointer, so `left`/`top` are set inline from JS and
+   there is no CSS-driven show/hide -- the element only exists while a bar is
+   active. Width MUST stay in sync with CARD_W/CARD_H in PropBars.tsx, which is
+   what keeps it clamped inside the plot. */
 .pb-pop {
-  position: absolute; bottom: calc(100% + 0.4rem); left: 50%;
-  transform: translateX(-50%);
+  position: absolute;
   z-index: 5;
-  width: 12.5rem;
+  width: 200px;
   background: var(--panel);
   border: 1px solid var(--hair);
   box-shadow: 0 2px 10px rgb(16 22 29 / 0.14);
   padding: 0.55rem 0.65rem;
-  opacity: 0; visibility: hidden;
+  /* Never intercept the pointer: the card sits under the cursor by design, and
+     if it could take the mouse it would fight the mousemove that positions it. */
   pointer-events: none;
 }
-/* body has overflow-x: hidden, so a card overhanging the viewport edge would
-   simply vanish -- the end columns anchor inward instead of centring. */
-.pb-pop-l { left: 0; transform: none; }
-.pb-pop-r { left: auto; right: 0; transform: none; }
-.pb-col:hover .pb-pop, .pb-col:focus-visible .pb-pop { opacity: 1; visibility: visible; }
 .pb-pop-h { margin: 0 0 0.4rem; font-size: 0.8rem; font-weight: 600; color: var(--ink); }
 .pb-pop-res { font-weight: 400; color: var(--muted); }
 .pb-pop-grid {

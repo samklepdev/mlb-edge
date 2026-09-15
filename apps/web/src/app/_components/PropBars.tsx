@@ -1,5 +1,24 @@
+'use client';
+
+import { useRef, useState } from 'react';
 import type { PropGame } from '@mlb-edge/db';
 import { abbrev } from './teams';
+
+// A client component, which is allowed here only because nothing server-only
+// reaches it: the @mlb-edge/db import is `import type`, so it is erased at
+// compile and `pg` never enters the client bundle (CLAUDE.md forbids the
+// runtime import), and ./teams is a frozen map with no imports at all. Props
+// arrive from the server page as plain JSON -- PropGame holds only primitives,
+// no Date objects.
+//
+// The interactivity is the whole reason: a cursor-following card needs pointer
+// coordinates, which CSS cannot see.
+
+// Card box, used to keep it inside the plot. Fixed rather than measured: a
+// read of offsetHeight on every mousemove would force layout each frame.
+const CARD_W = 200;
+const CARD_H = 132;
+const GAP = 14;
 
 // Game-by-game outcomes for one prop, against the market line.
 //
@@ -30,6 +49,43 @@ export function PropBars({
   projMean: number | null;
   prop: string;
 }) {
+  const plotRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState<number | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  // Clamp the card inside the plot box rather than letting it overhang. That
+  // matters more than usual here: body sets overflow-x: hidden, so anything
+  // past the viewport edge is not merely ugly, it is invisible.
+  const place = (x: number, y: number) => {
+    const w = plotRef.current?.clientWidth ?? 0;
+    const h = plotRef.current?.clientHeight ?? 0;
+    let left = x + GAP;
+    if (left + CARD_W > w) left = x - GAP - CARD_W;
+    left = Math.max(0, Math.min(left, Math.max(0, w - CARD_W)));
+    let top = y - GAP - CARD_H;
+    if (top < 0) top = y + GAP;
+    top = Math.max(0, Math.min(top, Math.max(0, h - CARD_H)));
+    setPos({ left, top });
+  };
+
+  const onMove = (i: number) => (e: React.MouseEvent<HTMLLIElement>) => {
+    const r = plotRef.current?.getBoundingClientRect();
+    if (!r) return;
+    setActive(i);
+    place(e.clientX - r.left, e.clientY - r.top);
+  };
+
+  // Keyboard has no cursor, so focus anchors the card over the bar instead.
+  // Without this the card would be unreachable without a mouse, which is what
+  // the previous CSS-only version got right and a naive rewrite would lose.
+  const onFocusCol = (i: number) => (e: React.FocusEvent<HTMLLIElement>) => {
+    const el = e.currentTarget;
+    setActive(i);
+    place(el.offsetLeft + el.offsetWidth / 2, el.offsetTop + 8);
+  };
+
+  const clear = () => { setActive(null); setPos(null); };
+
   if (games.length === 0) {
     return <p className="cap">No games match these filters.</p>;
   }
@@ -58,7 +114,7 @@ export function PropBars({
           ))}
         </div>
 
-        <div className="pb-plot">
+        <div className="pb-plot" ref={plotRef}>
           {ticks.map((t) => (
             <span key={t} className="pb-grid" style={{ bottom: pctOf(t) }} aria-hidden="true" />
           ))}
@@ -78,47 +134,57 @@ export function PropBars({
             </span>
           )}
 
-          <ol className="pb-bars">
+          <ol className="pb-bars" onMouseLeave={clear}>
             {data.map((d, i) => {
               const cleared = line == null ? null : d.value > line;
               const opp = abbrev(d.opponentId, d.opponent ?? '');
               const res = outcome(d);
-              // Cards near an edge flip their alignment so they are not clipped
-              // -- body has overflow-x: hidden, so an overhanging card at the
-              // right edge would simply vanish.
-              const side = i < 2 ? ' pb-pop-l' : i > data.length - 3 ? ' pb-pop-r' : '';
               return (
                 <li key={d.gameId} className="pb-col" tabIndex={0}
+                  onMouseMove={onMove(i)}
+                  onFocus={onFocusCol(i)}
+                  onBlur={clear}
                   aria-label={`${d.date} ${d.home ? 'vs' : 'at'} ${opp}, ${prop.replace(/_/g, ' ')} ${d.value}${res ? `, ${res}` : ''}`}>
                   <span
                     className={`pb-bar${cleared == null ? '' : cleared ? ' pb-over' : ' pb-under'}`}
                     style={{ height: d.value === 0 ? '2px' : pctOf(d.value) }}
                   />
-                  <div className={`pb-pop${side}`} role="tooltip">
-                    <p className="pb-pop-h">
-                      {d.date} {d.home ? 'vs' : '@'} {opp}
-                      {res && <span className="pb-pop-res"> ({res})</span>}
-                    </p>
-                    <dl className="pb-pop-grid">
-                      <div><dt>PA</dt><dd className="num">{d.pa ?? '—'}</dd></div>
-                      <div><dt>H</dt><dd className="num">{d.h ?? '—'}</dd></div>
-                      <div><dt>2B</dt><dd className="num">{d.doubles ?? '—'}</dd></div>
-                      <div><dt>3B</dt><dd className="num">{d.triples ?? '—'}</dd></div>
-                      <div><dt>K</dt><dd className="num">{d.so ?? '—'}</dd></div>
-                      <div><dt>BB</dt><dd className="num">{d.bb ?? '—'}</dd></div>
-                      <div><dt>AVG</dt><dd className="num">{avg(d)}</dd></div>
-                      {/* Asked for, and honestly unavailable: exit velocity is
-                          hitData.launchSpeed in the live feed this project
-                          already downloads, but nothing stores it. Shown as a
-                          gap rather than dropped, so it is obvious it is
-                          missing rather than forgotten. */}
-                      <div><dt>Max EV</dt><dd className="pb-pop-na">not ingested</dd></div>
-                    </dl>
-                  </div>
                 </li>
               );
             })}
           </ol>
+
+          {/* One card, moved to the pointer, rather than fifteen hidden ones.
+              It sits outside the <ol> so it is never a child of the element
+              being hovered -- pointer-events: none plus that separation means
+              it cannot steal the mousemove and flicker. */}
+          {active != null && pos != null && (() => {
+            const d = data[active];
+            const opp = abbrev(d.opponentId, d.opponent ?? '');
+            const res = outcome(d);
+            return (
+              <div className="pb-pop" role="tooltip" style={{ left: pos.left, top: pos.top }}>
+                <p className="pb-pop-h">
+                  {d.date} {d.home ? 'vs' : '@'} {opp}
+                  {res && <span className="pb-pop-res"> ({res})</span>}
+                </p>
+                <dl className="pb-pop-grid">
+                  <div><dt>PA</dt><dd className="num">{d.pa ?? '—'}</dd></div>
+                  <div><dt>H</dt><dd className="num">{d.h ?? '—'}</dd></div>
+                  <div><dt>2B</dt><dd className="num">{d.doubles ?? '—'}</dd></div>
+                  <div><dt>3B</dt><dd className="num">{d.triples ?? '—'}</dd></div>
+                  <div><dt>K</dt><dd className="num">{d.so ?? '—'}</dd></div>
+                  <div><dt>BB</dt><dd className="num">{d.bb ?? '—'}</dd></div>
+                  <div><dt>AVG</dt><dd className="num">{avg(d)}</dd></div>
+                  {/* Asked for, and honestly unavailable: exit velocity is
+                      hitData.launchSpeed in the live feed this project already
+                      downloads, but nothing stores it. A visible gap beats a
+                      silently dropped field. */}
+                  <div><dt>Max EV</dt><dd className="pb-pop-na">not ingested</dd></div>
+                </dl>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -131,8 +197,8 @@ export function PropBars({
       </ol>
 
       <figcaption className="cap">
-        {prop.replace(/_/g, ' ')} per game, oldest to newest. Hover or focus a bar
-        for that game&apos;s line.{' '}
+        {prop.replace(/_/g, ' ')} per game, oldest to newest. The card follows the
+        pointer; tabbing to a bar anchors it over that bar instead.{' '}
         {line == null ? (
           <>No market line for this prop, so no bar is marked over or under.</>
         ) : (
