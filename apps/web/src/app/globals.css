@@ -125,6 +125,11 @@ td.bad { color: var(--bad); }
    body size a bare arrowhead is a smudge. See _components/Side.tsx. */
 .side { color: var(--muted); font-size: 1.15rem; line-height: 1; cursor: help; }
 
+/* Probable pitcher: headshot, name and hand share one flex line so all three
+   centre on each other rather than the hand falling to the text baseline.
+   `gap` supplies the space, so the markup carries no leading literal space. */
+.probable { display: inline-flex; align-items: center; gap: 0.45rem; }
+
 /* ---- game scoreboard header ----
    No colour encodes the result. The winner is marked with a glyph, because
    this page sits directly above the model's picks for the same game and a

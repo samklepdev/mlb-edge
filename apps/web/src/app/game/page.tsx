@@ -1,5 +1,8 @@
 import Link from 'next/link';
-import { getGameDetail, type GameBattingLine, type GamePitchingLine } from '@mlb-edge/db';
+import {
+  getGameDetail,
+  type GameBattingLine, type GamePitchingLine, type GameProbable,
+} from '@mlb-edge/db';
 import { Headshot } from '../_components/Headshot';
 import { Side } from '../_components/Side';
 import { PropLabel } from '../_components/PropLabel';
@@ -43,6 +46,26 @@ function TeamScore({
         {winner && <span className="gs-win" aria-label="winner"> ◂</span>}
       </span>
     </div>
+  );
+}
+
+// Headshot, name, and throwing hand on one baseline.
+//
+// The hand used to sit outside the <Link>, which is the `.prow` inline-flex.
+// That put it in the cell's normal text flow while the image and name were
+// centred inside the link's own flex context, so it rendered on the text
+// baseline and sat low against a 24px headshot. One flex container around all
+// three fixes it -- and the hand stays OUTSIDE the link, because it is not
+// part of what the link is about.
+function ProbableCell({ p }: { p: GameProbable }) {
+  return (
+    <span className="probable">
+      <Link className="prow" href={`/player?id=${p.playerId}`}>
+        <Headshot playerId={p.playerId} size={24} />
+        <span>{p.playerName}</span>
+      </Link>
+      {p.throws && <span>({p.throws}HP)</span>}
+    </span>
   );
 }
 
@@ -181,25 +204,13 @@ export default async function GamePage({
                     {game.probableAway && (
                       <tr>
                         <td>{abbrev(game.away.teamId, game.away.name)} probable</td>
-                        <td>
-                          <Link className="prow" href={`/player?id=${game.probableAway.playerId}`}>
-                            <Headshot playerId={game.probableAway.playerId} size={24} />
-                            <span>{game.probableAway.playerName}</span>
-                          </Link>
-                          {game.probableAway.throws && ` (${game.probableAway.throws}HP)`}
-                        </td>
+                        <td><ProbableCell p={game.probableAway} /></td>
                       </tr>
                     )}
                     {game.probableHome && (
                       <tr>
                         <td>{abbrev(game.home.teamId, game.home.name)} probable</td>
-                        <td>
-                          <Link className="prow" href={`/player?id=${game.probableHome.playerId}`}>
-                            <Headshot playerId={game.probableHome.playerId} size={24} />
-                            <span>{game.probableHome.playerName}</span>
-                          </Link>
-                          {game.probableHome.throws && ` (${game.probableHome.throws}HP)`}
-                        </td>
+                        <td><ProbableCell p={game.probableHome} /></td>
                       </tr>
                     )}
                     {game.weather && (
