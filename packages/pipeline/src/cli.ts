@@ -3,6 +3,8 @@ import { pool } from '@mlb-edge/db';
 import { migrate } from './db/migrate.js';
 import { ingestSchedule } from './ingest/schedule.js';
 import { ingestFinalGames, ingestBoxscore } from './ingest/games.js';
+import { ingestPeople } from './ingest/people.js';
+import { backfillPlatoon } from './ingest/platoon.js';
 import { seedDemo } from './seed/demo.js';
 import { runProjections, ALL_PROPS, type PropKind } from './project/index.js';
 import { backfill } from './project/backfill.js';
@@ -129,6 +131,43 @@ ingest
     if (dates === null) return;
     const r = await forEachDate(dates, ingestFinalGames);
     console.log(`ingested boxscores across ${r.ok} date(s) (${r.total} final game(s)); ${r.failed} failed`);
+    if (r.failed > 0) process.exitCode = 1;
+  });
+ingest
+  .command('people')
+  .description('fill players.bats / players.throws from the MLB people endpoint')
+  .option('--all', 'refresh every player, not just those missing handedness')
+  .action(async (o: { all?: boolean }) => {
+    const r = await ingestPeople({ all: o.all });
+    console.log(
+      `handedness: ${r.updated} updated of ${r.requested} requested` +
+        ` (${r.missing} not found, ${r.unparsed} without usable hand codes)`,
+    );
+  });
+ingest
+  .command('platoon')
+  .description("backfill PA-level platoon splits from each game's live feed")
+  .option('--from <YYYY-MM-DD>', 'start of a date range (inclusive)')
+  .option('--to <YYYY-MM-DD>', 'end of a date range (inclusive)')
+  .option('--limit <n>', 'stop after n games (for a trial run)')
+  .action(async (o: { from?: string; to?: string; limit?: string }) => {
+    const r = await backfillPlatoon({
+      from: o.from,
+      to: o.to,
+      limit: o.limit ? Number(o.limit) : undefined,
+      onProgress: (done, total) => {
+        // One feed is ~900KB, so a full history pass is long. Report often
+        // enough that a stalled run is visible.
+        if (done % 25 === 0 || done === total) console.log(`  ${done}/${total} games`);
+      },
+    });
+    console.log(
+      `platoon: ${r.ok} game(s) written (${r.rows} rows), ` +
+        `${r.skipped} with no plays, ${r.failed} failed`,
+    );
+    for (const m of r.mismatchedGames.slice(0, 10)) {
+      console.log(`  RECONCILIATION FAILED game ${m.gameId}: ${m.sample}`);
+    }
     if (r.failed > 0) process.exitCode = 1;
   });
 ingest

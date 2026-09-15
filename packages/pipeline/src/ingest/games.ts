@@ -1,5 +1,6 @@
 import { getBoxscore, getLiveFeed, type StatMap } from '../clients/mlbStatsApi.js';
 import { query, withTx } from '@mlb-edge/db';
+import { writeGamePlatoon } from './platoon.js';
 
 const num = (v: number | string | undefined, d = 0): number => {
   const n = typeof v === 'string' ? Number(v) : v;
@@ -101,4 +102,17 @@ export async function ingestBoxscore(gamePk: number): Promise<void> {
       }
     }
   });
+
+  // Platoon splits come out of the SAME feed payload already fetched above, so
+  // this costs no extra request. It runs after the transaction because its
+  // reconciliation gate compares the parsed counts against the
+  // player_game_batting rows just committed.
+  //
+  // A reconciliation failure is reported, not thrown: the gate means nothing
+  // was written, and a parse problem in a supplementary table must not fail
+  // the boxscore ingest that the rest of the pipeline depends on.
+  const platoon = await writeGamePlatoon(gamePk, feed);
+  for (const m of platoon.mismatches.slice(0, 3)) {
+    console.warn(`platoon reconciliation failed for game ${gamePk}: ${m}`);
+  }
 }
