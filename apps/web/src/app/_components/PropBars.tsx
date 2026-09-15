@@ -151,35 +151,6 @@ export function PropBars({
 
   return (
     <figure className="propbars">
-      {/* Sits over the graph, as asked. Buttons rather than a bare number input
-          so it can be driven by keyboard and by touch without a soft keyboard;
-          the input is there too for jumping straight to a value. */}
-      <div className="pb-setline">
-        <span className="pb-setline-l" id="pb-line-label">Line</span>
-        <button type="button" className="pb-step" onClick={() => nudge(-0.5)}
-          aria-label="Lower the line by 0.5">−</button>
-        <input
-          className="pb-line-in num"
-          type="number" step={0.5} min={0}
-          aria-labelledby="pb-line-label"
-          value={effLine ?? ''}
-          placeholder="—"
-          onChange={(e) => {
-            const v = e.target.value;
-            // Clearing the field returns to the market line rather than
-            // freezing a blank, so the control always has a defined meaning.
-            onLineChange(v === '' ? null : Math.max(0, Number(v)));
-          }}
-        />
-        <button type="button" className="pb-step" onClick={() => nudge(0.5)}
-          aria-label="Raise the line by 0.5">+</button>
-        {custom && (
-          <button type="button" className="pb-reset" onClick={() => onLineChange(null)}>
-            {marketLine == null ? 'clear' : `reset to ${marketLine}`}
-          </button>
-        )}
-      </div>
-
       <div className="pb-chart">
         <div className="pb-axis" aria-hidden="true">
           {ticks.map((t) => (
@@ -223,8 +194,17 @@ export function PropBars({
               >
                 <span className="pb-handle-grip" aria-hidden="true" />
               </div>
-              <span className="pb-line-tag num" aria-hidden="true">
+              <span className="pb-line-tag num">
                 {custom ? 'set' : 'line'} {effLine}
+                {/* The only remaining way back to the book's number for a mouse
+                    user. The stepper row that used to hold reset is gone, and
+                    Escape-on-the-handle is keyboard-only -- without this, a drag
+                    would be one-way. */}
+                {custom && (
+                  <button type="button" className="pb-reset" onClick={() => onLineChange(null)}>
+                    {marketLine == null ? 'clear' : `reset to ${marketLine}`}
+                  </button>
+                )}
               </span>
             </div>
           )}

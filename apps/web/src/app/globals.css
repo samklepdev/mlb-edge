@@ -325,31 +325,20 @@ a:hover { text-decoration: underline; }
 .ph-hr dd { display: flex; align-items: baseline; gap: 0.25rem; }
 .ph-hr-n { font-size: 0.7rem; font-weight: 400; color: var(--faint); }
 
-/* Settable line, over the graph. Chrome only -- --navy on focus, never a hue
-   that would rank one line value above another. */
-.pb-setline {
-  display: flex; align-items: center; gap: 0.3rem;
-  margin: 0 0 0.4rem;
+/* Reset sits inside the line tag now that the stepper row is gone. */
+.pb-reset {
+  margin-left: 0.4rem;
+  border: 1px solid var(--hair); background: var(--panel); color: var(--muted);
+  font-size: 0.65rem; line-height: 1; padding: 0.15rem 0.3rem; cursor: pointer;
 }
-.pb-setline-l { font-size: 0.78rem; color: var(--muted); margin-right: 0.15rem; }
-.pb-step, .pb-reset {
-  border: 1px solid var(--hair); background: var(--panel); color: var(--ink);
-  font-size: 0.8rem; line-height: 1; cursor: pointer;
-}
-.pb-step { width: 1.6rem; height: 1.6rem; }
-.pb-reset { padding: 0 0.5rem; height: 1.6rem; color: var(--muted); }
-.pb-step:hover, .pb-reset:hover { border-color: var(--navy); color: var(--ink); }
-.pb-step:focus-visible, .pb-reset:focus-visible, .pb-line-in:focus-visible {
-  outline: 2px solid var(--navy); outline-offset: 1px;
-}
-.pb-line-in {
-  width: 4rem; height: 1.6rem;
-  border: 1px solid var(--hair); background: var(--panel); color: var(--ink);
-  font-size: 0.8rem; text-align: center;
-}
-/* A moved line is dashed more tightly than the market's, so the two are
-   distinguishable at a glance even before reading the tag. */
-.pb-line-custom { border-top-style: dashed; border-top-width: 2px; }
+.pb-reset:hover { border-color: var(--navy); color: var(--ink); }
+.pb-reset:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+
+/* A moved line carries a soft halo, so the reader can see at a glance that the
+   rule is theirs and not the book's without reading the tag. The old rule here
+   claimed a dashed border, which stopped being true when the line became a
+   solid band -- a comment describing markup that no longer exists. */
+.pb-line-custom { box-shadow: 0 0 0 1px var(--line-edge), 0 0 0 4px rgb(133 77 14 / 0.16); }
 
 /* HTML bars, not SVG: the hover card carries nine fields, which an SVG <title>
    cannot style and a <foreignObject> would have clipped. */
@@ -380,11 +369,10 @@ a:hover { text-decoration: underline; }
   background: var(--line);
   box-shadow: 0 0 0 1px var(--line-edge);
 }
-.pb-line-custom { background: var(--line); }
 /* The handle. Sized well past the 24px minimum touch target in both axes via
    padding, while the visible grip stays small. */
 .pb-handle {
-  position: absolute; right: 0; top: 50%;
+  position: absolute; left: 0; top: 50%;
   transform: translateY(-50%);
   width: 2rem; height: 1.6rem;
   display: flex; align-items: center; justify-content: center;
@@ -406,7 +394,7 @@ a:hover { text-decoration: underline; }
   position: absolute; top: -1.3rem; font-size: 0.7rem; color: var(--muted);
   background: var(--panel); padding: 0 0.25rem;
 }
-.pb-line-tag { right: 2.2rem; }
+.pb-line-tag { right: 0; }
 .pb-proj-tag { left: 0; }
 
 .pb-bars {
