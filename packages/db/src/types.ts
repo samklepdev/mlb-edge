@@ -42,6 +42,13 @@ export interface SlateGame {
   /** Summed from the box score; null until the game has one. */
   homeRuns: number | null;
   awayRuns: number | null;
+  venue: string | null;
+  /** Weather is null for a Scheduled game — MLB's feed returns an empty
+   *  weather object until a game is near first pitch, so an upcoming slate has
+   *  a park but no conditions. Not a missing ingest. */
+  condition: string | null;
+  tempF: number | null;
+  wind: string | null;
 }
 
 export interface TopEdge {
@@ -95,6 +102,14 @@ export interface GamePick {
   side: 'over' | 'under'; line: number; modelProb: number;
   edgePct: number | null;
   result: 'win' | 'loss' | null;
+  /** Best price across the books stored for this prop. `line` above stays the
+   *  reference book's, so settlement and CLV keep grading what they always did;
+   *  these say where the bet would actually have been placed. */
+  bestBook: string | null;
+  bestOdds: number | null;
+  bestLine: number | null;
+  /** 1 means only one book quoted it, so no shopping happened. */
+  booksCompared: number | null;
 }
 export interface GameProbable {
   playerId: number; playerName: string; throws: string | null;
