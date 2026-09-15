@@ -130,6 +130,32 @@ export interface GameDetail {
   picks: GamePick[];
 }
 
+export interface ExplorerPlayer {
+  playerId: number;
+  playerName: string;
+  props: string[];
+}
+export interface PropGame {
+  gameId: number;
+  date: string;
+  value: number;
+  opponent: string | null;
+  home: boolean;
+}
+export interface MatchupContext {
+  venue: string | null;
+  condition: string | null;
+  tempF: number | null;
+  wind: string | null;
+  pitcher: { playerId: number; playerName: string; throws: string | null } | null;
+  /** Career-to-date split vs the probable starter's hand, from the PA-level
+   *  platoon table. Null when the hand is unknown or there are no such PAs. */
+  vsHand: {
+    hand: string; pa: number;
+    hitsPerPa: number; hrPerPa: number; soPerPa: number; tbPerPa: number;
+  } | null;
+}
+
 export interface ResidualRow {
   gameDate: string;
   matchup: string | null;

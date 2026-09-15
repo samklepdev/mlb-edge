@@ -216,6 +216,96 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 0 0 1px var(--hair);
 }
 
+/* ---- prop explorer (/props) ----
+   Three columns: games, chart, filters. No colour encodes data anywhere in
+   here -- selected state is carried by weight and a navy rule, never by a
+   hue that would rank one option above another. */
+.wrap.wide { max-width: 82rem; }
+
+.proptabs {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem;
+  border-bottom: 1px solid var(--hair);
+  margin: 2rem 0 1.25rem;
+}
+.ptab {
+  padding: 0.5rem 0.9rem;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+.ptab:hover { color: var(--ink); text-decoration: none; }
+.ptab-on { color: var(--ink); border-bottom-color: var(--navy); font-weight: 600; }
+.ptab:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+.ptab-date { margin-left: auto; color: var(--faint); font-size: 0.85rem; padding: 0.5rem 0; }
+
+.explore {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr) 13rem;
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (max-width: 68rem) {
+  .explore { grid-template-columns: 1fr; }
+}
+
+.ex-h { font-size: 1rem; margin: 0 0 0.6rem; letter-spacing: 0.01em; }
+
+.ex-games, .ex-filters {
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  padding: 0.9rem 1rem;
+}
+.ex-list { list-style: none; margin: 0; padding: 0; max-height: 34rem; overflow-y: auto; }
+.ex-game {
+  display: flex; align-items: center; gap: 0.45rem;
+  padding: 0.45rem 0.2rem;
+  color: var(--ink); text-decoration: none;
+  border-bottom: 1px solid var(--grid);
+  font-size: 0.9rem;
+}
+.ex-game:hover { color: var(--navy-ink); text-decoration: none; }
+.ex-open { font-weight: 600; }
+.ex-note { margin-left: auto; color: var(--faint); font-size: 0.75rem; font-weight: 400; }
+.ex-players { list-style: none; margin: 0 0 0.4rem; padding: 0 0 0 0.6rem; border-left: 2px solid var(--hair); }
+.ex-player {
+  display: flex; align-items: center; gap: 0.45rem;
+  padding: 0.3rem 0.35rem; font-size: 0.85rem;
+  color: var(--ink); text-decoration: none;
+}
+.ex-player:hover { background: var(--paper); text-decoration: none; }
+.ex-sel { background: var(--paper); font-weight: 600; }
+.ex-empty { padding: 0.3rem 0.35rem; }
+
+.ex-main { min-width: 0; }
+.propbars { margin: 0; }
+.propbars svg { width: 100%; height: auto; background: var(--panel); border: 1px solid var(--hair); }
+.propbars figcaption { margin-top: 0.6rem; max-width: 62ch; }
+
+.ex-matchup { margin-top: 2rem; }
+.ex-cond {
+  display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem;
+  background: var(--panel); border: 1px solid var(--hair);
+  padding: 0.6rem 0.8rem; margin-bottom: 0.9rem;
+  color: var(--muted); font-size: 0.85rem;
+}
+.ex-todo { margin-top: 1.5rem; }
+
+.ex-flabel { margin: 0.9rem 0 0.4rem; font-size: 0.8rem; color: var(--muted); }
+.ex-flabel:first-of-type { margin-top: 0; }
+.ex-fgroup { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.ex-chip {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--hair);
+  color: var(--muted); text-decoration: none;
+  font-size: 0.8rem; font-variant-numeric: tabular-nums;
+}
+.ex-chip:hover { border-color: var(--navy); color: var(--ink); text-decoration: none; }
+.ex-chip-on { border-color: var(--navy); color: var(--ink); font-weight: 600; }
+.ex-chip:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+.ex-warn { margin-top: 1.1rem; }
+
 /* ---- slate date navigation ---- */
 .slatenav {
   display: flex; align-items: center; flex-wrap: wrap;
