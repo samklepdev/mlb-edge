@@ -53,7 +53,13 @@ const strip = (html) =>
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/&(?:[a-z]+|#\d+);/gi, ' ');
+    // Hex entities are the reason for `#x[0-9a-f]+`. React escapes apostrophes
+    // as `&#x27;`, which `#\d+` does not match -- so every apostrophe in page
+    // copy survived stripping and the number regex below harvested `27` from
+    // it as though it were data. The home page alone carried eight phantom
+    // `27`s, and a copy edit that added or removed an apostrophe produced a
+    // spurious diff in the one gate meant to rule those out.
+    .replace(/&(?:[a-z]+|#\d+|#x[0-9a-f]+);/gi, ' ');
 
 const figures = (text) => text.match(/-?\d[\d,]*\.?\d*%?/g) ?? [];
 
@@ -126,7 +132,14 @@ if (!link) throw new Error('no player link found on home page');
 const playerPath = `/player?id=${link[1]}&date=${link[2]}`;
 const player = await fetchPage(playerPath);
 
-for (const [label, html] of [['/', home], [playerPath, player]]) {
+// /model carries the calibration table, the reliability plot and the CLV
+// figures. They used to live on `/` and were covered here by accident; when
+// they moved to their own page this harness had to follow, or the only
+// automated check the web app has would have silently stopped watching the
+// numbers that decide whether the model is worth anything.
+const model = await fetchPage('/model');
+
+for (const [label, html] of [['/', home], [playerPath, player], ['/model', model]]) {
   for (const f of figures(strip(html))) console.log(`${label}\t${f}`);
   for (const f of svgFigures(html)) console.log(`${label}\t${f}`);
 }
