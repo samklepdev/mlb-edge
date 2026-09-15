@@ -125,6 +125,33 @@ td.bad { color: var(--bad); }
    body size a bare arrowhead is a smudge. See _components/Side.tsx. */
 .side { color: var(--muted); font-size: 1.15rem; line-height: 1; cursor: help; }
 
+/* ---- game scoreboard header ----
+   No colour encodes the result. The winner is marked with a glyph, because
+   this page sits directly above the model's picks for the same game and a
+   green winning team would read as the model having called it. */
+.gamescore {
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  border-top: 3px solid var(--navy);
+  padding: 1.25rem 1.35rem;
+  margin: 2rem 0 0;
+}
+.gs-team { display: flex; align-items: center; gap: 0.7rem; padding: 0.35rem 0; }
+.gs-logo {
+  flex: none; width: 34px; height: 34px;
+  background-repeat: no-repeat; background-position: center; background-size: contain;
+}
+.gs-name { font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; min-width: 3.4rem; }
+.gs-full { color: var(--muted); font-size: 0.9rem; }
+.gs-runs { margin-left: auto; font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; }
+.gs-win { color: var(--muted); font-size: 1rem; }
+.gs-meta {
+  display: flex; flex-wrap: wrap; gap: 0.35rem 1rem;
+  margin-top: 0.7rem; padding-top: 0.6rem;
+  border-top: 1px solid var(--grid);
+  color: var(--muted); font-size: 0.85rem;
+}
+
 /* Residual rows. No --good/--bad anywhere here: a residual is not a verdict,
    and beating a projection is not a win. --muted marks a row as inactive
    (DNP), which is a data-availability fact, not a judgement of the figure. */
@@ -184,6 +211,31 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 0 0 1px var(--hair);
 }
 
+/* ---- slate date navigation ---- */
+.slatenav {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 0.5rem; margin: 0 0 1rem;
+}
+.snav-form { display: flex; align-items: center; gap: 0.5rem; margin: 0; }
+.snav-label { color: var(--muted); font-size: 0.85rem; }
+.snav-date {
+  padding: 0.4rem 0.55rem; border: 1px solid var(--hair);
+  background: var(--panel); color: var(--ink);
+  font-size: 0.9rem; font-variant-numeric: tabular-nums;
+}
+.snav-date:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+.snav-btn {
+  padding: 0.4rem 0.7rem; border: 1px solid var(--hair);
+  background: var(--panel); color: var(--ink);
+  font-size: 0.85rem; font-variant-numeric: tabular-nums;
+  text-decoration: none; cursor: pointer;
+}
+a.snav-btn:hover { border-color: var(--navy); color: var(--navy-ink); text-decoration: none; }
+.snav-btn:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+/* Disabled ends of the range: still occupies the slot so the controls don't
+   jump sideways at the first and last slate. */
+.snav-off { color: var(--faint); border-color: var(--grid); cursor: default; }
+
 /* ---- scoreboard strip ---- */
 .slate-strip {
   display: flex;
@@ -203,6 +255,13 @@ a:hover { text-decoration: underline; }
   border-radius: 3px;
   padding: 0.7rem 0.85rem;
 }
+/* The card is an <a>. Reset the global link colour so the team abbreviations
+   stay --ink, and give it a visible hover/focus so it reads as clickable --
+   a card that navigates with no affordance is a trap. */
+a.gamecard { display: block; color: var(--ink); text-decoration: none; }
+a.gamecard:hover { border-color: var(--navy); text-decoration: none; }
+a.gamecard:hover .gc-abbr { color: var(--navy-ink); }
+a.gamecard:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 .gc-team { display: flex; align-items: center; gap: 0.5rem; padding: 0.15rem 0; }
 .gc-logo {
   flex: none;
@@ -213,6 +272,10 @@ a:hover { text-decoration: underline; }
   background-size: contain;
 }
 .gc-abbr { font-size: 1.05rem; font-weight: 700; color: var(--ink); letter-spacing: 0.04em; }
+/* Final score on the card. No colour marks the winner here -- the strip sits
+   directly above the edge table, and a green team would read as the model
+   having called it. */
+.gc-runs { margin-left: auto; font-size: 1.05rem; font-weight: 600; color: var(--ink); }
 .gc-meta {
   margin-top: 0.45rem;
   padding-top: 0.4rem;

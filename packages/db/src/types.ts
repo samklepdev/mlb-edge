@@ -34,6 +34,14 @@ export interface SlateGame {
   startTime: Date | null;
   homeId: number | null;
   awayId: number | null;
+  status: string;
+  /** false = ingested but `project` has not been run for this date yet. The
+   *  card says so rather than being hidden, which used to look like a failed
+   *  ingest. */
+  hasProjections: boolean;
+  /** Summed from the box score; null until the game has one. */
+  homeRuns: number | null;
+  awayRuns: number | null;
 }
 
 export interface TopEdge {
@@ -64,6 +72,47 @@ export interface PlayerCard {
   playerName: string;
   date: string;
   rows: PlayerCardRow[];
+}
+
+export interface GameSide {
+  teamId: number | null;
+  name: string;
+  /** Summed from the box score -- there is no score column. Null when the
+   *  game has not been played, or its boxscore was never ingested. */
+  runs: number | null;
+}
+export interface GameBattingLine {
+  playerId: number; playerName: string; teamId: number | null;
+  pa: number; ab: number; h: number; hr: number; tb: number;
+  so: number; bb: number; r: number; rbi: number;
+}
+export interface GamePitchingLine {
+  playerId: number; playerName: string; teamId: number | null;
+  outs: number; so: number; bb: number; h: number; er: number; bf: number;
+}
+export interface GamePick {
+  playerId: number; playerName: string; propType: string;
+  side: 'over' | 'under'; line: number; modelProb: number;
+  edgePct: number | null;
+  result: 'win' | 'loss' | null;
+}
+export interface GameProbable {
+  playerId: number; playerName: string; throws: string | null;
+}
+export interface GameDetail {
+  gameId: number;
+  date: string;
+  startTime: Date | null;
+  status: string;
+  venue: string | null;
+  home: GameSide;
+  away: GameSide;
+  weather: { condition: string | null; tempF: number | null; wind: string | null } | null;
+  probableHome: GameProbable | null;
+  probableAway: GameProbable | null;
+  batting: GameBattingLine[];
+  pitching: GamePitchingLine[];
+  picks: GamePick[];
 }
 
 export interface ResidualRow {

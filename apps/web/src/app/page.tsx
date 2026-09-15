@@ -3,8 +3,10 @@ import {
   getScorecard, clvByProp, calibrationBuckets,
   backtestSummary, projectionReliability, evalPropTypes,
   latestSlateDate, getSlateGames, getTopEdges, getSlateRoster,
+  adjacentSlateDates, slateDateBounds,
   type ClvRow, type Scorecard,
 } from '@mlb-edge/db';
+import { SlateNav } from './_components/SlateNav';
 import { ReliabilityPlot } from './_components/ReliabilityPlot';
 import { RosterSearch } from './_components/RosterSearch';
 import { GameCard } from './_components/GameCard';
@@ -17,9 +19,14 @@ export const dynamic = 'force-dynamic';
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const signed = (v: number, d = 3) => `${v >= 0 ? '+' : ''}${v.toFixed(d)}`;
 
-async function load() {
+// `requested` is ?date=. Falling back to latestSlateDate() keeps the default
+// landing view on the most recent PROJECTED slate: a default of "today" would
+// often open on a date whose games are ingested but not yet projected, which
+// is an empty dashboard. Navigation can still reach those dates deliberately.
+async function load(requested?: string) {
   try {
-    const [slateDate, evalProps] = await Promise.all([latestSlateDate(), evalPropTypes()]);
+    const [latest, evalProps] = await Promise.all([latestSlateDate(), evalPropTypes()]);
+    const slateDate = requested ?? latest;
     const [scorecard, clv, calib, bt, btBuckets, btByProp, games, edges, roster] = await Promise.all([
       getScorecard(),
       clvByProp(),
@@ -33,17 +40,36 @@ async function load() {
       slateDate ? getTopEdges(slateDate, 25) : Promise.resolve([]),
       slateDate ? getSlateRoster(slateDate) : Promise.resolve([]),
     ]);
-    return { ok: true as const, slateDate, scorecard, clv, calib, bt, btBuckets, btByProp, games, edges, roster };
+    const [adjacent, bounds] = await Promise.all([
+      slateDate ? adjacentSlateDates(slateDate) : Promise.resolve({ prev: null, next: null }),
+      slateDateBounds(),
+    ]);
+    return {
+      ok: true as const, slateDate, scorecard, clv, calib, bt, btBuckets, btByProp,
+      games, edges, roster, adjacent, bounds,
+    };
   } catch (err) {
     return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
-export default async function Page() {
-  const d = await load();
+// A date is only accepted in the canonical YYYY-MM-DD form. Anything else is
+// ignored rather than passed to the query layer, so a hand-edited ?date= can
+// never reach a parameterised date cast and 500 the page.
+const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
+  const sp = await searchParams;
+  const requested = sp.date && VALID_DATE.test(sp.date) ? sp.date : undefined;
+  const d = await load(requested);
 
   const listedByGame = new Map<number, number>();
   if (d.ok) for (const e of d.edges) listedByGame.set(e.gameId, (listedByGame.get(e.gameId) ?? 0) + 1);
+  const unprojected = d.ok ? d.games.filter((g) => !g.hasProjections).length : 0;
 
   return (
     <main className="wrap">
@@ -111,8 +137,15 @@ export default async function Page() {
           {d.slateDate && (
             <section className="clv">
               <h2>Slate · {d.slateDate}</h2>
+              <SlateNav
+                date={d.slateDate}
+                prev={d.adjacent.prev}
+                next={d.adjacent.next}
+                min={d.bounds.min}
+                max={d.bounds.max}
+              />
               {d.games.length === 0 ? (
-                <p className="cap">No projected games. Run <code style={{ display: 'inline' }}>project --date {d.slateDate}</code>.</p>
+                <p className="cap">No games ingested for {d.slateDate}. Run <code style={{ display: 'inline' }}>ingest schedule --date {d.slateDate}</code>.</p>
               ) : (
                 <>
                   <div className="slate-strip" tabIndex={0} role="region" aria-label="Slate scoreboard, scrollable">
@@ -120,6 +153,14 @@ export default async function Page() {
                       <GameCard key={g.gameId} game={g} listedEdges={listedByGame.get(g.gameId) ?? 0} />
                     ))}
                   </div>
+                  {unprojected > 0 && (
+                    <p className="cap">
+                      {unprojected} of these {d.games.length} game(s) have no projection yet, so
+                      they carry no edges — they are ingested, not missing. Run{' '}
+                      <code style={{ display: 'inline' }}>project --date {d.slateDate}</code> to
+                      model them.
+                    </p>
+                  )}
                   <p className="cap">
                     {d.games.length} game(s). &ldquo;Listed&rdquo; counts this
                     game&apos;s picks in the table below, which shows only the
