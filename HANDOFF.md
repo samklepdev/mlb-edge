@@ -42,6 +42,10 @@ Verified: `npm run typecheck` and `npm run web:build` are green.
 
 ## Commands (run from repo root; args after `--` pass through)
 
+> For the ordered sequence — what to run first, what each stage needs, and how
+> to check it landed — see [`RUNBOOK.md`](RUNBOOK.md). The table below is the
+> reference; the runbook is the path through it.
+
 | Command | What it does |
 |---|---|
 | `npm run db:migrate` | apply migrations 001–008 |
