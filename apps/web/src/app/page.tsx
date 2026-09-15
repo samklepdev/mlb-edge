@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import {
   latestSlateDate, getSlateGames, getGamePlayers,
-  getPropHistory, getPropReference, getMatchupContext,
+  getPropHistory, getPropReference, getMatchupContext, totalsFrom,
   type SlateGame, type ExplorerPlayer, type MatchupContext,
 } from '@mlb-edge/db';
 import { Headshot } from './_components/Headshot';
 import { PropLabel } from './_components/PropLabel';
-import { PropBars } from './_components/PropBars';
+import { PlayerPanel } from './_components/PlayerPanel';
 import { abbrev } from './_components/teams';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic';
 // drift away from the leftmost one.
 const PROPS = ['hits', 'home_runs', 'total_bases', 'strikeouts'] as const;
 const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 
 // Every control is a link that rewrites the query string, so the whole page is
 // server-rendered with no client component. State lives in the URL, which also
@@ -64,6 +65,7 @@ export default async function PropsPage({
   const reference = player && openGame
     ? await getPropReference(player.playerId, openGame.gameId, prop)
     : { line: null, projMean: null };
+  const totals = totalsFrom(history);
   const matchup: MatchupContext | null = player && openGame
     ? await getMatchupContext(openGame.gameId, player.playerId)
     : null;
@@ -178,9 +180,6 @@ export default async function PropsPage({
                 </div>
               ) : (
                 <>
-                  <h2 className="ex-h">
-                    {player.playerName} · <PropLabel prop={prop} />
-                  </h2>
                   {!player.props.includes(prop) && (
                     <p className="cap">
                       The model has no {prop.replace(/_/g, ' ')} projection for this player on
@@ -202,8 +201,18 @@ export default async function PropsPage({
                       strikeout total.
                     </p>
                   )}
-                  <PropBars games={history} line={reference.line}
-                    projMean={reference.projMean} prop={prop} />
+                  <PlayerPanel
+                    playerId={player.playerId}
+                    playerName={player.playerName}
+                    prop={prop}
+                    totals={totals}
+                    games={history}
+                    marketLine={reference.line}
+                    projMean={reference.projMean}
+                    windowLabel={`last ${totals.games} game(s)`
+                      + (venue !== 'all' ? ` · ${venue}` : '')
+                      + (hand !== 'all' ? ` · vs ${hand}HP` : '')}
+                  />
 
                   {/* --- matchup: conditions first, then the pitcher --- */}
                   <section className="ex-matchup">

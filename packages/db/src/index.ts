@@ -16,7 +16,8 @@ export { getPlayerCard } from './queries/player.js';
 export { getPlayerResiduals, summarizeResiduals } from './queries/residuals.js';
 export { getGameDetail } from './queries/game.js';
 export {
-  getGamePlayers, getPropHistory, getPropReference, getMatchupContext,
+  getGamePlayers, getPropHistory, getPropReference, getMatchupContext, totalsFrom,
+  type PlayerTotals,
   type PropHistoryFilters,
 } from './queries/explorer.js';
 export { projectionReliability, backtestSummary, evalPropTypes } from './queries/backtest.js';

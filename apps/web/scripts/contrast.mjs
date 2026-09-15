@@ -115,6 +115,10 @@ const pairs = [
   ['ink on paper',                tok('ink'),            tok('paper'),  NORMAL, null],
   ['muted on paper',              tok('muted'),          tok('paper'),  NORMAL, null],
   ['navy heading on panel',       tok('navy'),           tok('panel'),  LARGE,  null],
+  // The draggable line's casing, which is what actually makes it visible --
+  // --line itself is deliberately below 3:1 on white (see the token comment)
+  // and is legible only because this sits around it.
+  ['line edge on panel',          tok('line-edge'),      tok('panel'),  LARGE,  null],
 ];
 
 let failed = 0;

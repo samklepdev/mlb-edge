@@ -68,17 +68,23 @@ export async function ingestBoxscore(gamePk: number): Promise<void> {
           // Total bases sometimes absent; derive it: TB = h + 2B + 2*3B + 3*HR
           const tb = b.totalBases != null ? num(b.totalBases) : h + d2 + 2 * t3 + 3 * hr;
           await c.query(
+            // hbp/sf are here so OBP and BABIP stay exact going forward.
+            // Migration 011 backfilled them from archived payloads; without
+            // this line every newly ingested game would silently reintroduce
+            // the gap those formulas have to drop terms around.
             `INSERT INTO player_game_batting
-               (game_id, player_id, team_id, pa, ab, h, doubles, triples, hr, bb, so, tb, rbi, r)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+               (game_id, player_id, team_id, pa, ab, h, doubles, triples, hr, bb, so, tb, rbi, r, hbp, sf)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
              ON CONFLICT (game_id, player_id) DO UPDATE SET
                pa=EXCLUDED.pa, ab=EXCLUDED.ab, h=EXCLUDED.h, doubles=EXCLUDED.doubles,
                triples=EXCLUDED.triples, hr=EXCLUDED.hr, bb=EXCLUDED.bb, so=EXCLUDED.so,
-               tb=EXCLUDED.tb, rbi=EXCLUDED.rbi, r=EXCLUDED.r`,
+               tb=EXCLUDED.tb, rbi=EXCLUDED.rbi, r=EXCLUDED.r,
+               hbp=EXCLUDED.hbp, sf=EXCLUDED.sf`,
             [
               gamePk, p.person.id, side.team.id,
               num(b.plateAppearances), num(b.atBats), h, d2, t3, hr,
               num(b.baseOnBalls), num(b.strikeOuts), tb, num(b.rbi), num(b.runs),
+              num(b.hitByPitch), num(b.sacFlies),
             ],
           );
         }

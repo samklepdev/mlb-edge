@@ -119,7 +119,8 @@ export async function getPropHistory(
     opponent: string | null; opponent_id: number | null; home: boolean;
     team_runs: string | null; opp_runs: string | null;
     pa: number | null; ab: number | null; h: number | null;
-    doubles: number | null; triples: number | null; so: number | null; bb: number | null;
+    doubles: number | null; triples: number | null; hr: number | null;
+    so: number | null; bb: number | null; hbp: number | null; sf: number | null;
   }>(
     `SELECT DISTINCT ON (g.id) g.id AS game_id,
             to_char(g.game_date, 'YYYY-MM-DD') AS game_date,
@@ -136,7 +137,7 @@ export async function getPropHistory(
             -- The player's batting line for the game, for the hover card.
             -- LEFT JOIN because a pitcher prop selects from player_game_pitching
             -- and the player may have no batting row at all.
-            bl.pa, bl.ab, bl.h, bl.doubles, bl.triples, bl.so, bl.bb
+            bl.pa, bl.ab, bl.h, bl.doubles, bl.triples, bl.hr, bl.so, bl.bb, bl.hbp, bl.sf
      FROM ${src}
      JOIN games g ON g.id = b.game_id
      ${handJoin}
@@ -157,10 +158,53 @@ export async function getPropHistory(
       teamRuns: r.team_runs == null ? null : Number(r.team_runs),
       oppRuns: r.opp_runs == null ? null : Number(r.opp_runs),
       pa: r.pa, ab: r.ab, h: r.h,
-      doubles: r.doubles, triples: r.triples, so: r.so, bb: r.bb,
+      doubles: r.doubles, triples: r.triples, hr: r.hr, so: r.so, bb: r.bb,
+      hbp: r.hbp, sf: r.sf,
     }))
     .sort((a, b) => (a.date < b.date ? 1 : -1))
     .slice(0, limit);
+}
+
+// Batting totals over the same filtered window the chart plots.
+//
+// Deliberately computed from the PropGame rows already fetched rather than by a
+// second query: a separate SELECT would drift out of sync with the venue and
+// handedness filters the moment either changed, and the whole point of the
+// strip is that it describes the games on screen.
+//
+// Hit rate is NOT here. It depends on the line, and the line is adjustable in
+// the chart -- computing it server-side would freeze it at the market's number
+// and disagree with the bars as soon as the reader moved the rule.
+export interface PlayerTotals {
+  games: number;
+  pa: number; ab: number; h: number; bb: number; hbp: number; sf: number;
+  hr: number; so: number; doubles: number; triples: number;
+  avg: number | null;
+  obp: number | null;
+  babip: number | null;
+}
+
+export function totalsFrom(games: PropGame[]): PlayerTotals {
+  const sum = (f: (g: PropGame) => number | null) =>
+    games.reduce((a, g) => a + (f(g) ?? 0), 0);
+
+  const pa = sum((g) => g.pa), ab = sum((g) => g.ab), h = sum((g) => g.h);
+  const bb = sum((g) => g.bb), hbp = sum((g) => g.hbp), sf = sum((g) => g.sf);
+  const hr = sum((g) => g.hr), so = sum((g) => g.so);
+
+  // Exact formulas, which is why migration 011 added hbp/sf. Dropping those
+  // terms gets close and is quietly wrong, which is worse than being absent.
+  const obpDen = ab + bb + hbp + sf;
+  const babipDen = ab - so - hr + sf;
+
+  return {
+    games: games.length,
+    pa, ab, h, bb, hbp, sf, hr, so,
+    doubles: sum((g) => g.doubles), triples: sum((g) => g.triples),
+    avg: ab > 0 ? h / ab : null,
+    obp: obpDen > 0 ? (h + bb + hbp) / obpDen : null,
+    babip: babipDen > 0 ? (h - hr) / babipDen : null,
+  };
 }
 
 // The market line and the model's projection for a player/prop on a slate, so

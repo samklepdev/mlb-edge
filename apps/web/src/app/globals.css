@@ -35,6 +35,17 @@
   --good: #0f766e;
   --bad:  #b23a48;
   --ref:  #aab4bf;
+
+  /* --- the draggable line on the prop chart. Chrome, not data: it marks where
+         the reader has put a threshold, and carries no claim about it.
+         --line alone is 1.92:1 on --panel, well under the 3:1 a meaningful
+         graphical object needs -- a yellow bright enough to read as yellow
+         cannot clear that on white. So the rule is drawn as a yellow band with
+         a --line-edge casing (6.85:1), and it is the casing that makes it
+         visible. Against the bars the yellow itself is fine: 2.85:1 on --good
+         and 3.05:1 on --bad. Do not remove the edge. --- */
+  --line: #eab308;
+  --line-edge: #854d0e;
 }
 
 /* Applied with text-transform, never by uppercasing source strings, so
@@ -289,6 +300,31 @@ a:hover { text-decoration: underline; }
 .propbars { margin: 0; }
 .propbars figcaption { margin-top: 0.6rem; max-width: 62ch; }
 
+/* ---- player header: headshot, name, window totals ---- */
+.ph {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.9rem;
+  background: var(--panel); border: 1px solid var(--hair);
+  padding: 0.75rem 0.9rem; margin: 0 0 0.9rem;
+}
+.ph-id { min-width: 0; }
+.ph-name { margin: 0; font-size: 1.15rem; letter-spacing: -0.01em; }
+.ph-sub { margin: 0.1rem 0 0; color: var(--muted); font-size: 0.8rem; }
+/* Pushed to its own end of the row so the identity and the numbers never
+   compete for the same eye-line. Wraps to a second row when narrow. */
+.ph-stats {
+  display: flex; flex-wrap: wrap; gap: 0.15rem 1.3rem;
+  margin: 0 0 0 auto;
+}
+.ph-stats > div { display: flex; flex-direction: column; align-items: flex-end; }
+.ph-stats dt { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.03em; }
+.ph-stats dd { margin: 0; font-size: 1rem; font-weight: 600; color: var(--ink); }
+.ph-na { color: var(--faint); font-weight: 400; cursor: help; }
+
+/* Hit rate is the first stat in the player header and tracks the draggable
+   line. No colour: a high hit rate is a fact about the past, not a verdict. */
+.ph-hr dd { display: flex; align-items: baseline; gap: 0.25rem; }
+.ph-hr-n { font-size: 0.7rem; font-weight: 400; color: var(--faint); }
+
 /* Settable line, over the graph. Chrome only -- --navy on focus, never a hue
    that would rank one line value above another. */
 .pb-setline {
@@ -332,14 +368,45 @@ a:hover { text-decoration: underline; }
   position: absolute; left: 0; right: 0; height: 1px;
   background: var(--grid);
 }
-.pb-line, .pb-proj { position: absolute; left: 0; right: 0; height: 0; }
-.pb-line { border-top: 1.5px dashed var(--ink); }
+.pb-proj { position: absolute; left: 0; right: 0; height: 0; }
 .pb-proj { border-top: 1px dashed var(--muted); }
+
+/* The draggable line: a yellow band inside a dark casing. The casing is what
+   makes it visible on white -- --line alone is 1.92:1 there. See the token
+   comment in :root. */
+.pb-line {
+  position: absolute; left: 0; right: 0; height: 3px;
+  margin-bottom: -1.5px;
+  background: var(--line);
+  box-shadow: 0 0 0 1px var(--line-edge);
+}
+.pb-line-custom { background: var(--line); }
+/* The handle. Sized well past the 24px minimum touch target in both axes via
+   padding, while the visible grip stays small. */
+.pb-handle {
+  position: absolute; right: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 2rem; height: 1.6rem;
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab;
+  touch-action: none; /* or the browser scrolls instead of dragging */
+}
+.pb-handle:active { cursor: grabbing; }
+.pb-handle-grip {
+  width: 1.5rem; height: 0.85rem;
+  background: var(--line);
+  border: 1px solid var(--line-edge);
+  border-radius: 3px;
+}
+.pb-handle:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+.pb-handle:hover .pb-handle-grip, .pb-handle:focus-visible .pb-handle-grip {
+  filter: brightness(1.08);
+}
 .pb-line-tag, .pb-proj-tag {
-  position: absolute; top: -1.15rem; font-size: 0.7rem; color: var(--muted);
+  position: absolute; top: -1.3rem; font-size: 0.7rem; color: var(--muted);
   background: var(--panel); padding: 0 0.25rem;
 }
-.pb-line-tag { right: 0; }
+.pb-line-tag { right: 2.2rem; }
 .pb-proj-tag { left: 0; }
 
 .pb-bars {

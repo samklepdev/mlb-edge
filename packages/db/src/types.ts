@@ -158,8 +158,13 @@ export interface PropGame {
   h: number | null;
   doubles: number | null;
   triples: number | null;
+  hr: number | null;
   so: number | null;
   bb: number | null;
+  /** Added by migration 011 so OBP and BABIP are exact rather than
+   *  approximated by dropping terms. */
+  hbp: number | null;
+  sf: number | null;
 }
 export interface MatchupContext {
   venue: string | null;

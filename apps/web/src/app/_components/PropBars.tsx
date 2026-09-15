@@ -44,35 +44,29 @@ const GAP = 14;
 //
 // With no market line there is nothing to clear, so bars stay neutral.
 export function PropBars({
-  games, line, projMean, prop,
+  games, line, marketLine, projMean, prop, onLineChange,
 }: {
   games: PropGame[];
+  /** The EFFECTIVE line: the reader's if they moved it, else the market's. */
   line: number | null;
+  /** The book's line, kept separately so the caption can name it when the
+      reader has moved away from it, and so reset has something to return to. */
+  marketLine: number | null;
   projMean: number | null;
   prop: string;
+  onLineChange: (v: number | null) => void;
 }) {
   const plotRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<number | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
-  // A line the reader can move, on top of the market's.
-  //
-  // Deliberately local state rather than a URL parameter, unlike every other
-  // control on this page: stepping a line is a scrubbing gesture, and routing
-  // each press through a force-dynamic server render would make it lag badly.
-  // The cost is that a moved line is not linkable, which is the right trade for
-  // something explicitly framed as a what-if.
-  //
-  // `null` means "follow the market". Resetting restores that rather than
-  // freezing today's number, so the chart keeps tracking the book if the page
-  // is reloaded later.
-  const [override, setOverride] = useState<number | null>(null);
-  const effLine = override ?? line;
-  const custom = override != null;
-  // Props trade at half-integers, so that is the step. Clamped at 0: a negative
-  // line is meaningless for a counting stat.
-  const nudge = (d: number) =>
-    setOverride(Math.max(0, Math.round(((override ?? line ?? 0.5) + d) * 2) / 2));
+  // The line is owned by PlayerPanel, because the hit rate in the player header
+  // reads from it too. This component only reports changes upward.
+  const custom = marketLine == null ? line != null : line !== marketLine;
+  const effLine = line;
+  // Props trade at half-integers, so that is the step and the drag snap.
+  const snap = (v: number) => Math.max(0, Math.round(v * 2) / 2);
+  const nudge = (d: number) => onLineChange(snap((line ?? 0.5) + d));
 
   // Clamp the card inside the plot box rather than letting it overhang. That
   // matters more than usual here: body sets overflow-x: hidden, so anything
@@ -106,6 +100,33 @@ export function PropBars({
   };
 
   const clear = () => { setActive(null); setPos(null); };
+
+  // Drag the line. Pointer capture rather than window listeners: the pointer
+  // keeps reporting to this element even when it leaves the plot, so a fast
+  // drag cannot "drop" the line halfway, and there is nothing to unbind on
+  // unmount. `top` is read at drag time via a ref-free closure over the current
+  // render, which is correct because the axis only changes when the line does.
+  const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const r = plotRef.current?.getBoundingClientRect();
+      if (!r || r.height === 0) return;
+      // The plot is drawn bottom-up, so invert: y at the bottom edge is 0.
+      const frac = 1 - (ev.clientY - r.top) / r.height;
+      onLineChange(snap(Math.min(top, Math.max(0, frac * top))));
+    };
+    const up = (ev: PointerEvent) => {
+      el.releasePointerCapture(ev.pointerId);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  };
 
   if (games.length === 0) {
     return <p className="cap">No games match these filters.</p>;
@@ -147,14 +168,14 @@ export function PropBars({
             const v = e.target.value;
             // Clearing the field returns to the market line rather than
             // freezing a blank, so the control always has a defined meaning.
-            setOverride(v === '' ? null : Math.max(0, Number(v)));
+            onLineChange(v === '' ? null : Math.max(0, Number(v)));
           }}
         />
         <button type="button" className="pb-step" onClick={() => nudge(0.5)}
           aria-label="Raise the line by 0.5">+</button>
         {custom && (
-          <button type="button" className="pb-reset" onClick={() => setOverride(null)}>
-            {line == null ? 'clear' : `reset to ${line}`}
+          <button type="button" className="pb-reset" onClick={() => onLineChange(null)}>
+            {marketLine == null ? 'clear' : `reset to ${marketLine}`}
           </button>
         )}
       </div>
@@ -176,9 +197,36 @@ export function PropBars({
               rule nobody can see is worse than none. They separate by WEIGHT,
               not by hue. */}
           {effLine != null && (
-            <span className={`pb-line${custom ? ' pb-line-custom' : ''}`} style={{ bottom: pctOf(effLine) }} aria-hidden="true">
-              <span className="pb-line-tag num">{custom ? 'set' : 'line'} {effLine}</span>
-            </span>
+            <div className={`pb-line${custom ? ' pb-line-custom' : ''}`} style={{ bottom: pctOf(effLine) }}>
+              {/* The handle is a real slider, not just a drag target. Dragging
+                  is mouse-only by nature, so without the role and the arrow
+                  keys this control would be unusable by keyboard -- and it is
+                  now the primary way to change the line. */}
+              <div
+                className="pb-handle"
+                role="slider"
+                tabIndex={0}
+                aria-label="Line"
+                aria-valuemin={0}
+                aria-valuemax={top}
+                aria-valuenow={effLine}
+                aria-valuetext={`${effLine}${custom ? ' (set by you)' : ' (market line)'}`}
+                onPointerDown={startDrag}
+                onKeyDown={(e) => {
+                  const k = e.key;
+                  if (k === 'ArrowUp' || k === 'ArrowRight') { e.preventDefault(); nudge(0.5); }
+                  else if (k === 'ArrowDown' || k === 'ArrowLeft') { e.preventDefault(); nudge(-0.5); }
+                  else if (k === 'Home') { e.preventDefault(); onLineChange(0); }
+                  else if (k === 'End') { e.preventDefault(); onLineChange(snap(top)); }
+                  else if (k === 'Escape') { e.preventDefault(); onLineChange(null); }
+                }}
+              >
+                <span className="pb-handle-grip" aria-hidden="true" />
+              </div>
+              <span className="pb-line-tag num" aria-hidden="true">
+                {custom ? 'set' : 'line'} {effLine}
+              </span>
+            </div>
           )}
           {projMean != null && (
             <span className="pb-proj" style={{ bottom: pctOf(projMean) }} aria-hidden="true">
@@ -259,9 +307,9 @@ export function PropBars({
             Green cleared {effLine}, red did not.{' '}
             {custom ? (
               <strong>
-                {line == null
+                {marketLine == null
                   ? `${effLine} is a line you set; no book price is stored for this prop.`
-                  : `${effLine} is a line you set, not the market's ${line}.`}
+                  : `${effLine} is a line you set, not the market's ${marketLine}.`}
               </strong>
             ) : (
               <>Measured against <em>today&apos;s</em> line, not the line each game
