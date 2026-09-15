@@ -350,10 +350,19 @@ a:hover { text-decoration: underline; }
      if it could take the mouse it would fight the mousemove that positions it. */
   pointer-events: none;
 }
-.pb-pop-h { margin: 0 0 0.4rem; font-size: 0.8rem; font-weight: 600; color: var(--ink); }
-.pb-pop-res { font-weight: 400; color: var(--muted); }
+/* Header and result are separate lines: the two together overflow the 200px
+   card, and it was the result that got clipped. Both allowed to wrap rather
+   than truncate -- a long park/team name should push the card taller, not
+   silently lose characters. */
+.pb-pop-h { margin: 0; font-size: 0.8rem; font-weight: 600; color: var(--ink); }
+.pb-pop-res { margin: 0; font-size: 0.72rem; font-weight: 400; color: var(--muted); }
+/* The gap sits on the grid, not on the lines above it: the result line is
+   conditional (a game with no box score has no score to report), and hanging
+   the spacing off it would collapse the header onto the stats whenever it is
+   absent. */
 .pb-pop-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 0.15rem 0.6rem; margin: 0;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.15rem 0.6rem;
+  margin: 0.4rem 0 0;
 }
 .pb-pop-grid > div { display: flex; justify-content: space-between; gap: 0.4rem; }
 .pb-pop-grid dt { color: var(--muted); font-size: 0.75rem; }

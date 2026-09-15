@@ -17,7 +17,9 @@ import { abbrev } from './teams';
 // Card box, used to keep it inside the plot. Fixed rather than measured: a
 // read of offsetHeight on every mousemove would force layout each frame.
 const CARD_W = 200;
-const CARD_H = 132;
+// Includes the result line below the header. Must be updated whenever a row is
+// added to the card -- it is what keeps the card clamped inside the plot.
+const CARD_H = 150;
 const GAP = 14;
 
 // Game-by-game outcomes for one prop, against the market line.
@@ -164,10 +166,11 @@ export function PropBars({
             const res = outcome(d);
             return (
               <div className="pb-pop" role="tooltip" style={{ left: pos.left, top: pos.top }}>
-                <p className="pb-pop-h">
-                  {d.date} {d.home ? 'vs' : '@'} {opp}
-                  {res && <span className="pb-pop-res"> ({res})</span>}
-                </p>
+                {/* Two lines, not one. "2026-08-28 @ SF (Won by 4)" does not
+                    fit 200px at this size, and the result was the part that got
+                    clipped -- the least guessable half of the header. */}
+                <p className="pb-pop-h">{d.date} {d.home ? 'vs' : '@'} {opp}</p>
+                {res && <p className="pb-pop-res">{res}</p>}
                 <dl className="pb-pop-grid">
                   <div><dt>PA</dt><dd className="num">{d.pa ?? '—'}</dd></div>
                   <div><dt>H</dt><dd className="num">{d.h ?? '—'}</dd></div>
