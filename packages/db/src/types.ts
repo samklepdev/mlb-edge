@@ -34,6 +34,14 @@ export interface SlateGame {
   startTime: Date | null;
   homeId: number | null;
   awayId: number | null;
+  status: string;
+  /** false = ingested but `project` has not been run for this date yet. The
+   *  card says so rather than being hidden, which used to look like a failed
+   *  ingest. */
+  hasProjections: boolean;
+  /** Summed from the box score; null until the game has one. */
+  homeRuns: number | null;
+  awayRuns: number | null;
 }
 
 export interface TopEdge {

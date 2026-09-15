@@ -211,6 +211,31 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 0 0 1px var(--hair);
 }
 
+/* ---- slate date navigation ---- */
+.slatenav {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 0.5rem; margin: 0 0 1rem;
+}
+.snav-form { display: flex; align-items: center; gap: 0.5rem; margin: 0; }
+.snav-label { color: var(--muted); font-size: 0.85rem; }
+.snav-date {
+  padding: 0.4rem 0.55rem; border: 1px solid var(--hair);
+  background: var(--panel); color: var(--ink);
+  font-size: 0.9rem; font-variant-numeric: tabular-nums;
+}
+.snav-date:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+.snav-btn {
+  padding: 0.4rem 0.7rem; border: 1px solid var(--hair);
+  background: var(--panel); color: var(--ink);
+  font-size: 0.85rem; font-variant-numeric: tabular-nums;
+  text-decoration: none; cursor: pointer;
+}
+a.snav-btn:hover { border-color: var(--navy); color: var(--navy-ink); text-decoration: none; }
+.snav-btn:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+/* Disabled ends of the range: still occupies the slot so the controls don't
+   jump sideways at the first and last slate. */
+.snav-off { color: var(--faint); border-color: var(--grid); cursor: default; }
+
 /* ---- scoreboard strip ---- */
 .slate-strip {
   display: flex;
@@ -247,6 +272,10 @@ a.gamecard:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; 
   background-size: contain;
 }
 .gc-abbr { font-size: 1.05rem; font-weight: 700; color: var(--ink); letter-spacing: 0.04em; }
+/* Final score on the card. No colour marks the winner here -- the strip sits
+   directly above the edge table, and a green team would read as the model
+   having called it. */
+.gc-runs { margin-left: auto; font-size: 1.05rem; font-weight: 600; color: var(--ink); }
 .gc-meta {
   margin-top: 0.45rem;
   padding-top: 0.4rem;

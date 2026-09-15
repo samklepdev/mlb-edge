@@ -12,27 +12,77 @@ export async function latestSlateDate(): Promise<string | null> {
   return r?.d ?? null;
 }
 
+// Every game on a date -- including ones with no projection.
+//
+// This used to require `EXISTS (SELECT 1 FROM projections ...)`, which meant an
+// ingested game was invisible until `project` had been run for its date. That
+// reads as "my ingest failed" when nothing failed at all: the game is in the
+// database, the model simply has not been pointed at it yet. The flag now says
+// so explicitly instead of the row vanishing.
 export async function getSlateGames(date: string): Promise<SlateGame[]> {
   const res = await query<{
     id: number; home: string; away: string; start_time: Date | null;
     home_id: number | null; away_id: number | null;
+    status: string; has_projections: boolean;
+    home_runs: string | null; away_runs: string | null;
   }>(
     `SELECT g.id,
             th.name AS home, ta.name AS away,
-            g.start_time,
-            g.home_team_id AS home_id, g.away_team_id AS away_id
+            g.start_time, g.status,
+            g.home_team_id AS home_id, g.away_team_id AS away_id,
+            EXISTS (SELECT 1 FROM projections p WHERE p.game_id = g.id) AS has_projections,
+            -- Same as the game page: there is no score column, so runs come
+            -- from the box score, and a game without one reports null rather
+            -- than a misleading 0.
+            (SELECT sum(b.r) FROM player_game_batting b
+              WHERE b.game_id = g.id AND b.team_id = g.home_team_id) AS home_runs,
+            (SELECT sum(b.r) FROM player_game_batting b
+              WHERE b.game_id = g.id AND b.team_id = g.away_team_id) AS away_runs
      FROM games g
      LEFT JOIN teams th ON th.id = g.home_team_id
      LEFT JOIN teams ta ON ta.id = g.away_team_id
      WHERE g.game_date = $1
-       AND EXISTS (SELECT 1 FROM projections p WHERE p.game_id = g.id)
+       AND NOT g.is_synthetic
      ORDER BY g.start_time NULLS LAST, g.id`,
     [date],
   );
   return res.rows.map((r) => ({
     gameId: r.id, date, home: r.home, away: r.away, startTime: r.start_time,
     homeId: r.home_id, awayId: r.away_id,
+    status: r.status,
+    hasProjections: r.has_projections,
+    homeRuns: r.home_runs == null ? null : Number(r.home_runs),
+    awayRuns: r.away_runs == null ? null : Number(r.away_runs),
   }));
+}
+
+// Previous and next date that actually has games, for slate navigation.
+// Derived from `games`, not `projections`: the point is to reach a date whose
+// games have not been projected yet.
+export async function adjacentSlateDates(
+  date: string,
+): Promise<{ prev: string | null; next: string | null }> {
+  const r = (
+    await query<{ prev: string | null; next: string | null }>(
+      `SELECT to_char(max(game_date) FILTER (WHERE game_date < $1::date), 'YYYY-MM-DD') AS prev,
+              to_char(min(game_date) FILTER (WHERE game_date > $1::date), 'YYYY-MM-DD') AS next
+       FROM games WHERE NOT is_synthetic`,
+      [date],
+    )
+  ).rows[0];
+  return { prev: r?.prev ?? null, next: r?.next ?? null };
+}
+
+// Full bounds of what can be navigated to, so the date input can clamp.
+export async function slateDateBounds(): Promise<{ min: string | null; max: string | null }> {
+  const r = (
+    await query<{ min: string | null; max: string | null }>(
+      `SELECT to_char(min(game_date), 'YYYY-MM-DD') AS min,
+              to_char(max(game_date), 'YYYY-MM-DD') AS max
+       FROM games WHERE NOT is_synthetic`,
+    )
+  ).rows[0];
+  return { min: r?.min ?? null, max: r?.max ?? null };
 }
 
 // Highest-edge open picks on a date (the model's strongest disagreements).
