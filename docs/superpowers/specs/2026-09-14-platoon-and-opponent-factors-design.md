@@ -132,6 +132,31 @@ strings must map to the same outcomes the boxscore counted. A per-game
 reconciliation against a source already known to be correct is a stronger check
 than any unit test here, and it must pass before the model reads the table.
 
+## Backfill result, and the 5 games the gate refused
+
+Completed: **2,301 of 2,367 games written** (70,199 rows, 178,705 plate
+appearances), 1 game with no plays, **5 games refused**. Table-wide
+reconciliation across **49,640 player-games**: 0 mismatches on pa, singles,
+doubles, triples, hr, so.
+
+All 5 refusals share one cause, and it is a scoring rule rather than a parsing
+bug. When a batter is replaced mid-plate-appearance with two strikes and the
+substitute strikes out, MLB charges the strikeout to the **original** batter
+(Rule 9.15(b)). The feed's `matchup.batter` names whoever finished the plate
+appearance, so feed and boxscore disagree by exactly one PA and one SO, in
+opposite directions for the two players involved.
+
+Confirmed in game 824023: the play carries `matchup.batter` = Logan O'Hoppe
+(681351) while its own description reads "Sebastián Rivero called out on
+strikes", and the boxscore charges the K to Rivero (665861) — hence
+`pa 2!=3, SO 0!=1`.
+
+**Left unfixed, deliberately.** It is 0.2% of games, those games are *absent*
+rather than wrong, and the effect on shrunk rate estimates is immaterial. The
+handedness attribution — the actual purpose of the table — is also unaffected,
+since both batters faced the same pitcher. Re-running `ingest platoon` will
+retry them, so if this is ever worth handling the fix is additive.
+
 ## Do not read the pooled splits as a platoon effect
 
 An early slice of the captured data (~14k PA):
