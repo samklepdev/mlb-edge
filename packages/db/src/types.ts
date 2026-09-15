@@ -134,6 +134,10 @@ export interface ExplorerPlayer {
   playerId: number;
   playerName: string;
   props: string[];
+  /** Resolved from this game's box score when it exists, else the player's most
+   *  recent appearance — an upcoming game has no box score to read. Null when
+   *  the player has never appeared, so the UI must handle an unplaced player. */
+  teamId: number | null;
 }
 export interface PropGame {
   gameId: number;

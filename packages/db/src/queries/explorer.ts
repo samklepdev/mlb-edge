@@ -8,17 +8,40 @@ import type { ExplorerPlayer, PropGame, MatchupContext } from '../types.js';
 // Players with a projection on a game, so the list only offers players the
 // model can actually say something about.
 export async function getGamePlayers(gameId: number): Promise<ExplorerPlayer[]> {
-  const res = await query<{ player_id: number; full_name: string; props: string[] }>(
-    `SELECT p.player_id, pl.full_name, array_agg(DISTINCT p.prop_type ORDER BY p.prop_type) AS props
+  const res = await query<{
+    player_id: number; full_name: string; props: string[]; team_id: number | null;
+  }>(
+    // The team cannot come from this game's box score -- an upcoming game has
+    // none, and upcoming games are what this list is for. The lateral picks the
+    // player's team from this game's row when it exists and falls back to their
+    // most recent appearance otherwise, matching getMatchupContext.
+    `SELECT p.player_id, pl.full_name,
+            array_agg(DISTINCT p.prop_type ORDER BY p.prop_type) AS props,
+            t.team_id
      FROM projections p
      JOIN players pl ON pl.id = p.player_id
+     LEFT JOIN LATERAL (
+       SELECT x.team_id FROM (
+         SELECT b.team_id, g2.game_date, (b.game_id = p.game_id) AS this_game
+         FROM player_game_batting b JOIN games g2 ON g2.id = b.game_id
+         WHERE b.player_id = p.player_id AND b.team_id IS NOT NULL
+         UNION ALL
+         SELECT pp.team_id, g2.game_date, (pp.game_id = p.game_id) AS this_game
+         FROM player_game_pitching pp JOIN games g2 ON g2.id = pp.game_id
+         WHERE pp.player_id = p.player_id AND pp.team_id IS NOT NULL
+       ) x
+       ORDER BY x.this_game DESC, x.game_date DESC
+       LIMIT 1
+     ) t ON TRUE
      WHERE p.game_id = $1
        AND p.model_version = (SELECT max(model_version) FROM projections)
-     GROUP BY 1, 2
+     GROUP BY 1, 2, t.team_id
      ORDER BY pl.full_name`,
     [gameId],
   );
-  return res.rows.map((r) => ({ playerId: r.player_id, playerName: r.full_name, props: r.props }));
+  return res.rows.map((r) => ({
+    playerId: r.player_id, playerName: r.full_name, props: r.props, teamId: r.team_id,
+  }));
 }
 
 // Which box-score column a prop is graded against.

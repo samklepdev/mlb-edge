@@ -103,23 +103,49 @@ export default async function PropsPage({
                         {!g.hasProjections && <span className="ex-note">not projected</span>}
                       </Link>
                       {open && (
-                        <ul className="ex-players">
+                        <>
                           {players.length === 0 && (
-                            <li className="cap ex-empty">No projected players on this game.</li>
+                            <p className="cap ex-empty">No projected players on this game.</p>
                           )}
-                          {players.map((p) => (
-                            <li key={p.playerId}>
-                              <Link
-                                className={`ex-player${p.playerId === player?.playerId ? ' ex-sel' : ''}`}
-                                href={href({ ...base, game: String(g.gameId), player: String(p.playerId) })}
-                                aria-current={p.playerId === player?.playerId ? 'true' : undefined}
-                              >
-                                <Headshot playerId={p.playerId} size={20} />
-                                <span>{p.playerName}</span>
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
+                          {/* Grouped by team, away first, matching how the
+                              matchup reads. The third group is not decoration:
+                              a player whose resolved team is neither side --
+                              traded mid-season, or never having appeared --
+                              would otherwise vanish from a list that is the
+                              only way to reach them. */}
+                          {[
+                            { id: g.awayId, name: g.away, label: 'away' },
+                            { id: g.homeId, name: g.home, label: 'home' },
+                            { id: null, name: 'Other', label: 'unplaced' },
+                          ].map((side) => {
+                            const roster = side.id == null
+                              ? players.filter((p) => p.teamId !== g.awayId && p.teamId !== g.homeId)
+                              : players.filter((p) => p.teamId === side.id);
+                            if (roster.length === 0) return null;
+                            return (
+                              <div key={side.label} className="ex-team">
+                                <p className="ex-team-h cnd">
+                                  {side.id == null ? 'Other' : abbrev(side.id, side.name)}
+                                  <span className="ex-team-n num">{roster.length}</span>
+                                </p>
+                                <ul className="ex-players">
+                                  {roster.map((p) => (
+                                    <li key={p.playerId}>
+                                      <Link
+                                        className={`ex-player${p.playerId === player?.playerId ? ' ex-sel' : ''}`}
+                                        href={href({ ...base, game: String(g.gameId), player: String(p.playerId) })}
+                                        aria-current={p.playerId === player?.playerId ? 'true' : undefined}
+                                      >
+                                        <Headshot playerId={p.playerId} size={20} />
+                                        <span>{p.playerName}</span>
+                                      </Link>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            );
+                          })}
+                        </>
                       )}
                     </li>
                   );
