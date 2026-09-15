@@ -21,10 +21,21 @@ const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
 // server renders, so an unpinned "local" would silently mean the server's zone,
 // and a client-side conversion would trade a cosmetic detail for a hydration
 // mismatch. ET is also how MLB.com labels start times.
-const DAY_TIME = new Intl.DateTimeFormat('en-US', {
-  weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York',
+const DOW = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short', timeZone: 'America/New_York',
 });
-const dayTime = (t: Date | null) => (t ? `${DAY_TIME.format(t)} ET` : 'TBD');
+const TIME = new Intl.DateTimeFormat('en-US', {
+  hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York',
+});
+// Separate formatters rather than one string split on a space: a locale is free
+// to order or punctuate the parts differently, and splitting the output would
+// break the moment it did.
+const dayOf = (t: Date | null) => (t ? DOW.format(t) : 'TBD');
+const timeOf = (t: Date | null) => (t ? `${TIME.format(t)} ET` : null);
+// The accessible name stays one phrase -- "Tue, 6:40 PM ET" reads better than
+// two fragments announced as separate lines.
+const dayTime = (t: Date | null) =>
+  t ? `${DOW.format(t)}, ${TIME.format(t)} ET` : 'time TBD';
 
 // Logo over abbreviation, one per side of the row.
 function ExTeam({ id, name }: { id: number | null; name: string }) {
@@ -137,7 +148,10 @@ export default async function PropsPage({
                       >
                         <ExTeam id={g.awayId} name={g.away} />
                         <span className="exg-when">
-                          <span className="exg-day">{dayTime(g.startTime)}</span>
+                          <span className="exg-dow">{dayOf(g.startTime)}</span>
+                          {timeOf(g.startTime) && (
+                            <span className="exg-time num">{timeOf(g.startTime)}</span>
+                          )}
                           {!g.hasProjections && <span className="ex-note">not projected</span>}
                           <span className="exg-caret" aria-hidden="true">{open ? '▾' : '▸'}</span>
                         </span>

@@ -299,7 +299,10 @@ a:hover { text-decoration: underline; }
   display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
   font-variant-numeric: tabular-nums;
 }
-.exg-day { font-size: 0.72rem; color: var(--muted); white-space: nowrap; font-weight: 400; }
+/* Day above, time below. Splitting them also buys back horizontal room in a
+   15rem rail that already carries two logos and two abbreviations. */
+.exg-dow { font-size: 0.72rem; color: var(--ink); white-space: nowrap; }
+.exg-time { font-size: 0.7rem; color: var(--muted); white-space: nowrap; font-weight: 400; }
 .exg-caret { font-size: 0.6rem; color: var(--faint); line-height: 1; }
 .ex-note { color: var(--faint); font-size: 0.68rem; font-weight: 400; white-space: nowrap; }
 .ex-team { margin: 0 0 0.3rem; }
