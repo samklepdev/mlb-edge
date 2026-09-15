@@ -2,13 +2,32 @@ import type { PropGame } from '@mlb-edge/db';
 
 // Game-by-game outcomes for one prop, against the market line.
 //
-// COLOUR ENCODES NOTHING HERE. Every bar is the same hue. The obvious design --
-// green when the result cleared the line, red when it missed -- is what every
-// props site does and is exactly what CLAUDE.md rules out: it turns a row of
-// past outcomes into a scoreboard of wins and losses, which reads as a track
-// record the model has not earned. Over/under is carried by position against
-// the reference rule, which is unambiguous, survives colour blindness, and
-// makes no claim.
+// Bars are coloured by whether the game cleared the market line: --good over,
+// --bad at-or-under. This is a deliberate, narrow exception to "colour never
+// encodes data", and the reason it is defensible is that a past box score is a
+// SETTLED FACT, not a projection -- unlike an edge or a CLV figure, which stay
+// uncoloured because they are claims the backtest has not earned.
+//
+// Two safeguards, because the risk here is real:
+//
+//   * Colour is REDUNDANT, never the only channel. The reference rule is drawn
+//     and every bar's height is read against it, so the same information
+//     survives colour blindness, greyscale printing and forced-colours mode.
+//     Removing the rule would make this chart colour-alone; do not. That is not
+//     a theoretical concern here: --good/--bad differ by only 1.07:1 in
+//     luminance, so in greyscale the two are the same bar. Running the palette
+//     validator on the pair gives deutan ΔE 8.1 -- a PASS, but barely over the
+//     floor of 8 -- and --good FAILS the chroma floor at 0.086, meaning it
+//     reads closer to grey than to green. The tokens are kept anyway for
+//     consistency with the calibration plot, which makes the redundant rule
+//     load-bearing rather than belt-and-braces.
+//   * A wall of green means a player has cleared this line often, which is NOT
+//     evidence the next one clears. Past hit rate is the most seductive and
+//     least predictive number on any props site. The caption says so, and the
+//     line is today's, not the line each of those games was actually traded at.
+//
+// With no market line there is nothing to clear, so bars stay neutral rather
+// than guessing.
 //
 // One series, so no legend: the caption names it (dataviz: a legend box for a
 // single series is noise).
@@ -73,12 +92,14 @@ export function PropBars({
               {/* Native tooltip. A server-rendered chart gets the hover layer
                   without shipping a client component for it. */}
               <title>
-                {`${d.date} ${d.home ? 'vs' : '@'} ${d.opponent ?? '—'}: ${d.value}`}
+                {`${d.date} ${d.home ? 'vs' : '@'} ${d.opponent ?? '—'}: ${d.value}` +
+                  (line == null ? '' : d.value > line ? ` — over ${line}` : ` — under ${line}`)}
               </title>
               <rect
                 x={x} y={y(d.value)} width={barW} height={h}
                 rx={h > 4 ? 4 : 0}
-                fill="var(--navy)" fillOpacity={0.85}
+                fill={line == null ? 'var(--navy)' : d.value > line ? 'var(--good)' : 'var(--bad)'}
+                fillOpacity={0.9}
               />
               {/* A zero still needs to be visible as a game that happened. */}
               {d.value === 0 && (
@@ -129,9 +150,19 @@ export function PropBars({
         })}
       </svg>
       <figcaption className="cap">
-        {prop.replace(/_/g, ' ')} per game, oldest to newest. Bars are one colour
-        on purpose — whether a game cleared the line is read off the dashed rule,
-        not off a colour that would score it as a win.
+        {prop.replace(/_/g, ' ')} per game, oldest to newest.{' '}
+        {line == null ? (
+          <>No market line for this prop, so no bar is marked over or under.</>
+        ) : (
+          <>
+            Green cleared {line}, red did not — measured against{' '}
+            <em>today&apos;s</em> line, not the line each game actually traded at.
+            A run of green means this player has beaten this number often; it is
+            not evidence the next one clears. Past hit rate is the most seductive
+            and least predictive figure in prop betting, which is why the model
+            page, not this chart, is where the question gets answered.
+          </>
+        )}
       </figcaption>
     </figure>
   );

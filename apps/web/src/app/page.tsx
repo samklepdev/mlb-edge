@@ -1,160 +1,306 @@
 import Link from 'next/link';
 import {
-  latestSlateDate, getSlateGames, getTopEdges, getSlateRoster,
-  adjacentSlateDates, slateDateBounds,
+  latestSlateDate, getSlateGames, getGamePlayers,
+  getPropHistory, getPropReference, getMatchupContext,
+  type SlateGame, type ExplorerPlayer, type MatchupContext,
 } from '@mlb-edge/db';
-import { SlateNav } from './_components/SlateNav';
-import { RosterSearch } from './_components/RosterSearch';
-import { GameCard } from './_components/GameCard';
 import { Headshot } from './_components/Headshot';
-import { Side } from './_components/Side';
 import { PropLabel } from './_components/PropLabel';
+import { PropBars } from './_components/PropBars';
+import { abbrev } from './_components/teams';
 
 export const dynamic = 'force-dynamic';
 
-const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
-const signed = (v: number, d = 3) => `${v >= 0 ? '+' : ''}${v.toFixed(d)}`;
-
-// `requested` is ?date=. Falling back to latestSlateDate() keeps the default
-// landing view on the most recent PROJECTED slate: a default of "today" would
-// often open on a date whose games are ingested but not yet projected, which
-// is an empty dashboard. Navigation can still reach those dates deliberately.
-async function load(requested?: string) {
-  try {
-    const latest = await latestSlateDate();
-    const slateDate = requested ?? latest;
-    const [games, edges, roster] = await Promise.all([
-      slateDate ? getSlateGames(slateDate) : Promise.resolve([]),
-      slateDate ? getTopEdges(slateDate, 25) : Promise.resolve([]),
-      slateDate ? getSlateRoster(slateDate) : Promise.resolve([]),
-    ]);
-    const [adjacent, bounds] = await Promise.all([
-      slateDate ? adjacentSlateDates(slateDate) : Promise.resolve({ prev: null, next: null }),
-      slateDateBounds(),
-    ]);
-    return { ok: true as const, slateDate, games, edges, roster, adjacent, bounds };
-  } catch (err) {
-    return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-// A date is only accepted in the canonical YYYY-MM-DD form. Anything else is
-// ignored rather than passed to the query layer, so a hand-edited ?date= can
-// never reach a parameterised date cast and 500 the page.
+const PROPS = ['total_bases', 'hits', 'home_runs', 'strikeouts'] as const;
 const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-export default async function Page({
+// Every control is a link that rewrites the query string, so the whole page is
+// server-rendered with no client component. State lives in the URL, which also
+// means any view can be linked to or reloaded.
+type Q = {
+  date?: string; game?: string; player?: string; prop?: string;
+  last?: string; venue?: string; hand?: string;
+};
+const href = (q: Q) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(q)) if (v) p.set(k, String(v));
+  return `/?${p.toString()}`;
+};
+
+export default async function PropsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<Q>;
 }) {
   const sp = await searchParams;
-  const requested = sp.date && VALID_DATE.test(sp.date) ? sp.date : undefined;
-  const d = await load(requested);
+  const date = sp.date && VALID_DATE.test(sp.date) ? sp.date : (await latestSlateDate()) ?? '';
+  const prop = PROPS.includes(sp.prop as (typeof PROPS)[number]) ? sp.prop! : 'total_bases';
+  const last = ['5', '10', '15', '25'].includes(sp.last ?? '') ? sp.last! : '15';
+  const venue = ['home', 'away'].includes(sp.venue ?? '') ? sp.venue! : 'all';
+  const hand = ['L', 'R'].includes(sp.hand ?? '') ? sp.hand! : 'all';
 
-  const listedByGame = new Map<number, number>();
-  if (d.ok) for (const e of d.edges) listedByGame.set(e.gameId, (listedByGame.get(e.gameId) ?? 0) + 1);
-  const unprojected = d.ok ? d.games.filter((g) => !g.hasProjections).length : 0;
+  let games: SlateGame[] = [];
+  let players: ExplorerPlayer[] = [];
+  let error: string | null = null;
+  try {
+    games = date ? await getSlateGames(date) : [];
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+  }
+
+  const gameId = sp.game ? Number(sp.game) : null;
+  const openGame = games.find((g) => g.gameId === gameId) ?? null;
+  if (openGame) players = await getGamePlayers(openGame.gameId);
+
+  const playerId = sp.player ? Number(sp.player) : null;
+  const player = players.find((p) => p.playerId === playerId) ?? null;
+
+  const history = player
+    ? await getPropHistory(player.playerId, prop, { venue, hand, limit: Number(last) })
+    : [];
+  const reference = player && openGame
+    ? await getPropReference(player.playerId, openGame.gameId, prop)
+    : { line: null, projMean: null };
+  const matchup: MatchupContext | null = player && openGame
+    ? await getMatchupContext(openGame.gameId, player.playerId)
+    : null;
+
+  const base: Q = { date, game: sp.game, player: sp.player, prop, last, venue: sp.venue, hand: sp.hand };
 
   return (
-    <main className="wrap">
+    <main className="wrap wide">
       <header className="masthead">
-        <h1 className="wordmark">mlb-edge <span>/ slate</span></h1>
+        <h1 className="wordmark">mlb-edge <span>/ props</span></h1>
         <p className="purpose">
-          Today&apos;s games and where the model disagrees with the market. An
-          edge here is a hypothesis, not a recommendation —{' '}
-          {/* The calibration and CLV figures moved to /model, so this link is
-              load-bearing: without it the landing page shows edges with no
-              route to the evidence about whether they mean anything. */}
-          <Link href="/model">check the model</Link> before believing one.
+          One player, one prop, game by game against the market line. Past
+          results are not a forecast — see <Link href="/model">the model</Link> for
+          whether any of this has predictive value, and <Link href="/slate">the
+          slate</Link> for today&apos;s games.
         </p>
       </header>
 
-      {!d.ok ? (
-        <section className="notice">
-          <h2>Can&apos;t reach the database</h2>
-          <p>Start Postgres and apply migrations, then reload. Error: {d.error}</p>
-          <code>{`docker compose up -d\nnpm run db:migrate`}</code>
-        </section>
+      {error ? (
+        <section className="notice"><h2>Error</h2><p>{error}</p></section>
       ) : (
         <>
-          {/* --- today's slate: games + top edges --- */}
-          {d.slateDate && (
-            <section className="clv">
-              <h2>Slate · {d.slateDate}</h2>
-              <SlateNav
-                date={d.slateDate}
-                prev={d.adjacent.prev}
-                next={d.adjacent.next}
-                min={d.bounds.min}
-                max={d.bounds.max}
-              />
-              {d.games.length === 0 ? (
-                <p className="cap">No games ingested for {d.slateDate}. Run <code style={{ display: 'inline' }}>ingest schedule --date {d.slateDate}</code>.</p>
+          <div className="explore">
+            {/* --- left: games, expanding to players --- */}
+            <aside className="ex-games" aria-label="Games and players">
+              <h2 className="ex-h">Games</h2>
+              {games.length === 0 && <p className="cap">No games for {date}.</p>}
+              <ul className="ex-list">
+                {games.map((g) => {
+                  const open = openGame?.gameId === g.gameId;
+                  return (
+                    <li key={g.gameId}>
+                      <Link
+                        className={`ex-game${open ? ' ex-open' : ''}`}
+                        href={href({ ...base, game: open ? undefined : String(g.gameId), player: undefined })}
+                        aria-expanded={open}
+                      >
+                        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+                        <span className="cnd">{abbrev(g.awayId, g.away)} @ {abbrev(g.homeId, g.home)}</span>
+                        {!g.hasProjections && <span className="ex-note">not projected</span>}
+                      </Link>
+                      {open && (
+                        <ul className="ex-players">
+                          {players.length === 0 && (
+                            <li className="cap ex-empty">No projected players on this game.</li>
+                          )}
+                          {players.map((p) => (
+                            <li key={p.playerId}>
+                              <Link
+                                className={`ex-player${p.playerId === player?.playerId ? ' ex-sel' : ''}`}
+                                href={href({ ...base, game: String(g.gameId), player: String(p.playerId) })}
+                                aria-current={p.playerId === player?.playerId ? 'true' : undefined}
+                              >
+                                <Headshot playerId={p.playerId} size={20} />
+                                <span>{p.playerName}</span>
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </aside>
+
+            {/* --- centre: prop tabs, then the chart --- */}
+            <section className="ex-main">
+              {/* Directly above the graph rather than at the top of the page:
+                  the tabs change what the chart plots, so they belong next to
+                  it, not separated from it by the whole layout. */}
+              <nav className="proptabs" aria-label="Prop type">
+                {PROPS.map((p) => (
+                  <Link key={p} href={href({ ...base, prop: p })}
+                    className={`ptab${p === prop ? ' ptab-on' : ''}`}
+                    aria-current={p === prop ? 'page' : undefined}>
+                    <PropLabel prop={p} />
+                  </Link>
+                ))}
+                <span className="ptab-date">{date || '—'}</span>
+              </nav>
+              {!player ? (
+                <div className="notice">
+                  <h2>Pick a player</h2>
+                  <p>Open a game on the left, then choose a player to chart their {prop.replace(/_/g, ' ')} game by game.</p>
+                </div>
               ) : (
                 <>
-                  <div className="slate-strip" tabIndex={0} role="region" aria-label="Slate scoreboard, scrollable">
-                    {d.games.map((g) => (
-                      <GameCard key={g.gameId} game={g} listedEdges={listedByGame.get(g.gameId) ?? 0} />
-                    ))}
-                  </div>
-                  {unprojected > 0 && (
+                  <h2 className="ex-h">
+                    {player.playerName} · <PropLabel prop={prop} />
+                  </h2>
+                  {!player.props.includes(prop) && (
                     <p className="cap">
-                      {unprojected} of these {d.games.length} game(s) have no projection yet, so
-                      they carry no edges — they are ingested, not missing. Run{' '}
-                      <code style={{ display: 'inline' }}>project --date {d.slateDate}</code> to
-                      model them.
+                      The model has no {prop.replace(/_/g, ' ')} projection for this player on
+                      this game — the chart still shows their history, but there is no model
+                      line to compare against.
                     </p>
                   )}
-                  <p className="cap">
-                    {d.games.length} game(s). &ldquo;Listed&rdquo; counts this
-                    game&apos;s picks in the table below, which shows only the
-                    highest-edge {d.edges.length} of the slate — not every edge
-                    on the game.
-                  </p>
+                  {hand !== 'all' && prop !== 'strikeouts' && (
+                    <p className="cap">
+                      Filtered to {hand}HP: each bar is that game&apos;s production
+                      <em> against {hand}-handers only</em>, not the game total — so a
+                      bar can be lower than the player&apos;s actual line that day.
+                    </p>
+                  )}
+                  {hand !== 'all' && prop === 'strikeouts' && (
+                    <p className="cap">
+                      The handedness filter is ignored here. It describes the hand a
+                      <em> batter</em> faced, which says nothing about a pitcher&apos;s own
+                      strikeout total.
+                    </p>
+                  )}
+                  <PropBars games={history} line={reference.line}
+                    projMean={reference.projMean} prop={prop} />
+
+                  {/* --- matchup: conditions first, then the pitcher --- */}
+                  <section className="ex-matchup">
+                    <h2 className="ex-h">Matchup</h2>
+                    {matchup == null ? (
+                      <p className="cap">No matchup context for this game.</p>
+                    ) : (
+                      <>
+                        <div className="ex-cond">
+                          <span>{matchup.venue ?? 'Park unknown'}</span>
+                          {matchup.condition && <span>{matchup.condition}</span>}
+                          {matchup.tempF != null && <span className="num">{matchup.tempF}°F</span>}
+                          {matchup.wind && <span>{matchup.wind}</span>}
+                          {!matchup.condition && matchup.tempF == null && (
+                            <span className="ex-note">weather not posted yet</span>
+                          )}
+                        </div>
+
+                        {matchup.pitcher ? (
+                          <p className="cap">
+                            Probable starter: <strong>{matchup.pitcher.playerName}</strong>
+                            {matchup.pitcher.throws && ` (${matchup.pitcher.throws}HP)`}.
+                          </p>
+                        ) : (
+                          <p className="cap">No probable starter listed for this game.</p>
+                        )}
+
+                        {matchup.vsHand ? (
+                          <>
+                            <div className="tscroll" tabIndex={0} role="region"
+                              aria-label="Batter versus pitcher handedness, scrollable">
+                              <table>
+                                <thead>
+                                  <tr>
+                                    <th>vs {matchup.vsHand.hand}HP</th><th>PA</th>
+                                    <th>H/PA</th><th>TB/PA</th><th>HR/PA</th><th>K/PA</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr>
+                                    <td>{player.playerName}</td>
+                                    <td className="num">{matchup.vsHand.pa}</td>
+                                    <td className="num">{matchup.vsHand.hitsPerPa.toFixed(3)}</td>
+                                    <td className="num">{matchup.vsHand.tbPerPa.toFixed(3)}</td>
+                                    <td className="num">{matchup.vsHand.hrPerPa.toFixed(3)}</td>
+                                    <td className="num">{matchup.vsHand.soPerPa.toFixed(3)}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                            <p className="cap">
+                              Plate-appearance level, not a starter approximation: these are the
+                              PAs this batter actually took against {matchup.vsHand.hand}HP,
+                              including relievers. Read it as context, not as an edge — a split
+                              this coarse over {matchup.vsHand.pa} PA is mostly noise, and
+                              selection matters (a batter benched against same-handed starters
+                              looks better against them than he is).
+                            </p>
+                          </>
+                        ) : (
+                          <p className="cap">
+                            No handedness split available — either the starter&apos;s throwing
+                            hand is unknown or this batter has no recorded plate appearances
+                            against it.
+                          </p>
+                        )}
+
+                        <div className="notice ex-todo">
+                          <h2>Versus pitch types</h2>
+                          <p>
+                            Not built. Per-pitch data (type, speed, zone) is present in the
+                            live feed this project already downloads for every game, but
+                            nothing stores it — adding it means a new table and another pass
+                            over history. Deliberately absent rather than approximated from
+                            something else.
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </section>
                 </>
               )}
-              {d.edges.length > 0 && (
-                <div className="tscroll" tabIndex={0} role="region" aria-label="Top edges, scrollable">
-                  <table>
-                    <thead>
-                      <tr><th>Player</th><th>Prop</th><th>Side</th><th>Line</th><th>Model</th><th>Edge</th></tr>
-                    </thead>
-                    <tbody>
-                      {d.edges.map((e) => (
-                        <tr key={`${e.playerId}-${e.propType}`}>
-                          <td>
-                            <Link className="prow" href={`/player?id=${e.playerId}&date=${d.slateDate}`}>
-                              <Headshot playerId={e.playerId} size={28} />
-                              <span>{e.playerName}</span>
-                            </Link>
-                          </td>
-                          <td><PropLabel prop={e.propType} /></td>
-                          <td><Side side={e.side} /></td>
-                          <td className="num">{e.line}</td>
-                          <td className="num">{pct(e.modelProb)}</td>
-                          <td className="num">{signed(e.edgePct)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
             </section>
-          )}
 
-          {/* --- full browsable roster --- */}
-          {d.slateDate && d.roster.length > 0 && (
-            <section className="clv">
-              <h2>Players on this slate</h2>
-              <p className="cap">
-                All {d.roster.length} projected players. &#9679; marks the model&apos;s
-                flagged edges. Open anyone&apos;s card to see projection vs market.
+            {/* --- right: filters --- */}
+            <aside className="ex-filters" aria-label="Filters">
+              <h2 className="ex-h">Filters</h2>
+
+              <p className="ex-flabel" id="f-window">Window</p>
+              <div className="ex-fgroup" role="group" aria-labelledby="f-window">
+                {['5', '10', '15', '25'].map((n) => (
+                  <Link key={n} href={href({ ...base, last: n })}
+                    className={`ex-chip${n === last ? ' ex-chip-on' : ''}`}
+                    aria-current={n === last ? 'true' : undefined}>last {n}</Link>
+                ))}
+              </div>
+
+              <p className="ex-flabel" id="f-venue">Venue</p>
+              <div className="ex-fgroup" role="group" aria-labelledby="f-venue">
+                {[['all', 'All'], ['home', 'Home'], ['away', 'Away']].map(([v, label]) => (
+                  <Link key={v} href={href({ ...base, venue: v === 'all' ? undefined : v })}
+                    className={`ex-chip${v === venue ? ' ex-chip-on' : ''}`}
+                    aria-current={v === venue ? 'true' : undefined}>{label}</Link>
+                ))}
+              </div>
+
+              <p className="ex-flabel" id="f-hand">Pitcher hand</p>
+              <div className="ex-fgroup" role="group" aria-labelledby="f-hand">
+                {[['all', 'All'], ['L', 'vs LHP'], ['R', 'vs RHP']].map(([v, label]) => (
+                  <Link key={v} href={href({ ...base, hand: v === 'all' ? undefined : v })}
+                    className={`ex-chip${v === hand ? ' ex-chip-on' : ''}`}
+                    aria-current={v === hand ? 'true' : undefined}>{label}</Link>
+                ))}
+              </div>
+
+              <p className="cap ex-warn">
+                Every filter narrows the sample. Slice far enough and any player
+                clears any line — that is the failure mode this project exists to
+                avoid, so read the game count under the chart before reading the
+                shape.
               </p>
-              <RosterSearch roster={d.roster} date={d.slateDate} />
-            </section>
-          )}
-
+              <p className="cap">
+                Showing <span className="num">{history.length}</span> game(s).
+              </p>
+            </aside>
+          </div>
         </>
       )}
     </main>
