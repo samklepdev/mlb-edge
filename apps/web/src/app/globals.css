@@ -254,6 +254,8 @@ a.snav-btn:hover { border-color: var(--navy); color: var(--navy-ink); text-decor
 .gamecard {
   flex: 0 0 auto;
   min-width: 8.5rem;
+  /* Anchor for .gc-cond, which overlays the edge-count line on hover. */
+  position: relative;
   background: var(--panel);
   border: 1px solid var(--hair);
   border-top: 3px solid var(--navy);
@@ -289,6 +291,33 @@ a.gamecard:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; 
   font-size: 0.8rem;
 }
 .gc-edges { color: var(--faint); font-size: 0.78rem; }
+
+/* Park + weather on hover.
+   Positioned over .gc-edges rather than appended below it: the strip is
+   `overflow-x: auto`, so overflow-y computes to auto too and anything leaving
+   the card's box is clipped by the scroller -- there is no popup here without
+   JS. Overlaying also costs zero height, so the strip cannot reflow on hover,
+   and being absolute it contributes no width, so a long park name cannot widen
+   every card. The panel background masks the line underneath. */
+.gc-cond {
+  position: absolute;
+  left: 0.85rem;
+  right: 0.85rem;
+  bottom: 0.7rem;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 90ms ease-out;
+  pointer-events: none;
+}
+a.gamecard:hover .gc-cond,
+a.gamecard:focus-visible .gc-cond { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .gc-cond { transition: none; } }
 
 /* ---- masthead: full-bleed navy bar ---- */
 .masthead {

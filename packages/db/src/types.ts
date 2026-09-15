@@ -42,6 +42,13 @@ export interface SlateGame {
   /** Summed from the box score; null until the game has one. */
   homeRuns: number | null;
   awayRuns: number | null;
+  venue: string | null;
+  /** Weather is null for a Scheduled game — MLB's feed returns an empty
+   *  weather object until a game is near first pitch, so an upcoming slate has
+   *  a park but no conditions. Not a missing ingest. */
+  condition: string | null;
+  tempF: number | null;
+  wind: string | null;
 }
 
 export interface TopEdge {

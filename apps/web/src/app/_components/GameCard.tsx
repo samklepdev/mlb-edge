@@ -35,8 +35,23 @@ function TeamLine({ id, name, runs }: { id: number | null; name: string; runs: n
   );
 }
 
+// Park and weather, as one line. Park is always known; weather is not — MLB's
+// feed carries an empty weather object until a game is near first pitch, so an
+// upcoming slate legitimately has a venue and nothing else. Saying so beats a
+// blank, which would read as broken.
+function conditionsLine(game: SlateGame): string {
+  const weather = [
+    game.condition,
+    game.tempF == null ? null : `${game.tempF}°F`,
+    game.wind,
+  ].filter(Boolean).join(' · ');
+  const park = game.venue ?? 'Park unknown';
+  return weather ? `${park} · ${weather}` : `${park} · weather not posted yet`;
+}
+
 export function GameCard({ game, listedEdges }: { game: SlateGame; listedEdges: number }) {
   const played = game.homeRuns != null || game.awayRuns != null;
+  const conditions = conditionsLine(game);
   return (
     // The whole card is the link, so the target matches what a user reads as
     // one object. The accessible name has to be built explicitly: the card's
@@ -45,10 +60,13 @@ export function GameCard({ game, listedEdges }: { game: SlateGame; listedEdges: 
     <Link
       className="gamecard"
       href={`/game?id=${game.gameId}`}
+      // Conditions are in the accessible name because hover cannot be reached
+      // by keyboard or screen reader; the visual reveal is the same string.
       aria-label={
-        played
-          ? `${game.away} ${game.awayRuns ?? 0}, ${game.home} ${game.homeRuns ?? 0}, ${game.status} — game detail`
-          : `${game.away} at ${game.home}, ${firstPitch(game.startTime)} — game detail`
+        (played
+          ? `${game.away} ${game.awayRuns ?? 0}, ${game.home} ${game.homeRuns ?? 0}, ${game.status}`
+          : `${game.away} at ${game.home}, ${firstPitch(game.startTime)}`) +
+        `. ${conditions}. Game detail`
       }
     >
       <TeamLine id={game.awayId} name={game.away} runs={game.awayRuns} />
@@ -65,6 +83,16 @@ export function GameCard({ game, listedEdges }: { game: SlateGame; listedEdges: 
           ? 'not projected'
           : listedEdges > 0 ? `${listedEdges} listed` : '—'}
       </div>
+      {/* Park and weather, revealed on hover/focus.
+          Absolutely positioned OVER the line above rather than added below it,
+          for two reasons. The strip is `overflow-x: auto`, which makes
+          overflow-y compute to auto as well, so anything escaping the card's
+          box would be clipped by the scroller -- a popup tooltip is not
+          available here without JS. And overlaying costs no height, so the
+          strip does not reflow on hover. `aria-hidden` because the same text is
+          already in the link's aria-label, where a keyboard or screen-reader
+          user can actually reach it. */}
+      <div className="gc-cond" aria-hidden="true">{conditions}</div>
     </Link>
   );
 }

@@ -25,10 +25,17 @@ export async function getSlateGames(date: string): Promise<SlateGame[]> {
     home_id: number | null; away_id: number | null;
     status: string; has_projections: boolean;
     home_runs: string | null; away_runs: string | null;
+    venue_name: string | null;
+    condition: string | null; temp_f: string | null; wind: string | null;
   }>(
     `SELECT g.id,
             th.name AS home, ta.name AS away,
-            g.start_time, g.status,
+            g.start_time, g.status, g.venue_name,
+            -- Weather is only ever present once a game is near or past first
+            -- pitch: MLB's feed returns an empty weather object for a
+            -- Scheduled game, and ingestBoxscore is what writes this table.
+            -- So an upcoming slate legitimately has park but no conditions.
+            c.condition, c.temp_f, c.wind,
             g.home_team_id AS home_id, g.away_team_id AS away_id,
             EXISTS (SELECT 1 FROM projections p WHERE p.game_id = g.id) AS has_projections,
             -- Same as the game page: there is no score column, so runs come
@@ -41,6 +48,7 @@ export async function getSlateGames(date: string): Promise<SlateGame[]> {
      FROM games g
      LEFT JOIN teams th ON th.id = g.home_team_id
      LEFT JOIN teams ta ON ta.id = g.away_team_id
+     LEFT JOIN game_conditions c ON c.game_id = g.id
      WHERE g.game_date = $1
        AND NOT g.is_synthetic
      ORDER BY g.start_time NULLS LAST, g.id`,
@@ -53,6 +61,10 @@ export async function getSlateGames(date: string): Promise<SlateGame[]> {
     hasProjections: r.has_projections,
     homeRuns: r.home_runs == null ? null : Number(r.home_runs),
     awayRuns: r.away_runs == null ? null : Number(r.away_runs),
+    venue: r.venue_name,
+    condition: r.condition,
+    tempF: r.temp_f == null ? null : Number(r.temp_f),
+    wind: r.wind,
   }));
 }
 
