@@ -289,6 +289,32 @@ a:hover { text-decoration: underline; }
 .propbars { margin: 0; }
 .propbars figcaption { margin-top: 0.6rem; max-width: 62ch; }
 
+/* Settable line, over the graph. Chrome only -- --navy on focus, never a hue
+   that would rank one line value above another. */
+.pb-setline {
+  display: flex; align-items: center; gap: 0.3rem;
+  margin: 0 0 0.4rem;
+}
+.pb-setline-l { font-size: 0.78rem; color: var(--muted); margin-right: 0.15rem; }
+.pb-step, .pb-reset {
+  border: 1px solid var(--hair); background: var(--panel); color: var(--ink);
+  font-size: 0.8rem; line-height: 1; cursor: pointer;
+}
+.pb-step { width: 1.6rem; height: 1.6rem; }
+.pb-reset { padding: 0 0.5rem; height: 1.6rem; color: var(--muted); }
+.pb-step:hover, .pb-reset:hover { border-color: var(--navy); color: var(--ink); }
+.pb-step:focus-visible, .pb-reset:focus-visible, .pb-line-in:focus-visible {
+  outline: 2px solid var(--navy); outline-offset: 1px;
+}
+.pb-line-in {
+  width: 4rem; height: 1.6rem;
+  border: 1px solid var(--hair); background: var(--panel); color: var(--ink);
+  font-size: 0.8rem; text-align: center;
+}
+/* A moved line is dashed more tightly than the market's, so the two are
+   distinguishable at a glance even before reading the tag. */
+.pb-line-custom { border-top-style: dashed; border-top-width: 2px; }
+
 /* HTML bars, not SVG: the hover card carries nine fields, which an SVG <title>
    cannot style and a <foreignObject> would have clipped. */
 .pb-chart {

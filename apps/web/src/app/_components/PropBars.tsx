@@ -55,6 +55,25 @@ export function PropBars({
   const [active, setActive] = useState<number | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
+  // A line the reader can move, on top of the market's.
+  //
+  // Deliberately local state rather than a URL parameter, unlike every other
+  // control on this page: stepping a line is a scrubbing gesture, and routing
+  // each press through a force-dynamic server render would make it lag badly.
+  // The cost is that a moved line is not linkable, which is the right trade for
+  // something explicitly framed as a what-if.
+  //
+  // `null` means "follow the market". Resetting restores that rather than
+  // freezing today's number, so the chart keeps tracking the book if the page
+  // is reloaded later.
+  const [override, setOverride] = useState<number | null>(null);
+  const effLine = override ?? line;
+  const custom = override != null;
+  // Props trade at half-integers, so that is the step. Clamped at 0: a negative
+  // line is meaningless for a counting stat.
+  const nudge = (d: number) =>
+    setOverride(Math.max(0, Math.round(((override ?? line ?? 0.5) + d) * 2) / 2));
+
   // Clamp the card inside the plot box rather than letting it overhang. That
   // matters more than usual here: body sets overflow-x: hidden, so anything
   // past the viewport edge is not merely ugly, it is invisible.
@@ -94,7 +113,9 @@ export function PropBars({
 
   // Oldest → newest reads left to right, the way time is read.
   const data = [...games].reverse();
-  const top = Math.max(1, Math.ceil(Math.max(...data.map((d) => d.value), line ?? 0, projMean ?? 0)) + 1);
+  // The axis must accommodate the EFFECTIVE line: nudging it above the tallest
+  // bar would otherwise push the rule off the top of the plot.
+  const top = Math.max(1, Math.ceil(Math.max(...data.map((d) => d.value), effLine ?? 0, projMean ?? 0)) + 1);
   const pctOf = (v: number) => `${(v / top) * 100}%`;
   const ticks = Array.from({ length: top + 1 }, (_, i) => i);
 
@@ -109,6 +130,35 @@ export function PropBars({
 
   return (
     <figure className="propbars">
+      {/* Sits over the graph, as asked. Buttons rather than a bare number input
+          so it can be driven by keyboard and by touch without a soft keyboard;
+          the input is there too for jumping straight to a value. */}
+      <div className="pb-setline">
+        <span className="pb-setline-l" id="pb-line-label">Line</span>
+        <button type="button" className="pb-step" onClick={() => nudge(-0.5)}
+          aria-label="Lower the line by 0.5">−</button>
+        <input
+          className="pb-line-in num"
+          type="number" step={0.5} min={0}
+          aria-labelledby="pb-line-label"
+          value={effLine ?? ''}
+          placeholder="—"
+          onChange={(e) => {
+            const v = e.target.value;
+            // Clearing the field returns to the market line rather than
+            // freezing a blank, so the control always has a defined meaning.
+            setOverride(v === '' ? null : Math.max(0, Number(v)));
+          }}
+        />
+        <button type="button" className="pb-step" onClick={() => nudge(0.5)}
+          aria-label="Raise the line by 0.5">+</button>
+        {custom && (
+          <button type="button" className="pb-reset" onClick={() => setOverride(null)}>
+            {line == null ? 'clear' : `reset to ${line}`}
+          </button>
+        )}
+      </div>
+
       <div className="pb-chart">
         <div className="pb-axis" aria-hidden="true">
           {ticks.map((t) => (
@@ -125,9 +175,9 @@ export function PropBars({
               whole chart is read against; --ref is only 2.10:1 on --panel and a
               rule nobody can see is worse than none. They separate by WEIGHT,
               not by hue. */}
-          {line != null && (
-            <span className="pb-line" style={{ bottom: pctOf(line) }} aria-hidden="true">
-              <span className="pb-line-tag num">line {line}</span>
+          {effLine != null && (
+            <span className={`pb-line${custom ? ' pb-line-custom' : ''}`} style={{ bottom: pctOf(effLine) }} aria-hidden="true">
+              <span className="pb-line-tag num">{custom ? 'set' : 'line'} {effLine}</span>
             </span>
           )}
           {projMean != null && (
@@ -138,7 +188,7 @@ export function PropBars({
 
           <ol className="pb-bars" onMouseLeave={clear}>
             {data.map((d, i) => {
-              const cleared = line == null ? null : d.value > line;
+              const cleared = effLine == null ? null : d.value > effLine;
               const opp = abbrev(d.opponentId, d.opponent ?? '');
               const res = outcome(d);
               return (
@@ -202,15 +252,25 @@ export function PropBars({
       <figcaption className="cap">
         {prop.replace(/_/g, ' ')} per game, oldest to newest. The card follows the
         pointer; tabbing to a bar anchors it over that bar instead.{' '}
-        {line == null ? (
-          <>No market line for this prop, so no bar is marked over or under.</>
+        {effLine == null ? (
+          <>No market line for this prop — set one above to mark bars over or under.</>
         ) : (
           <>
-            Green cleared {line}, red did not — against <em>today&apos;s</em> line,
-            not the line each game actually traded at. A run of green means this
-            player has beaten this number often; it is not evidence the next one
-            clears. Max exit velocity is not stored yet — it is in the live feed
-            already downloaded for every game, alongside pitch types.
+            Green cleared {effLine}, red did not.{' '}
+            {custom ? (
+              <strong>
+                {line == null
+                  ? `${effLine} is a line you set; no book price is stored for this prop.`
+                  : `${effLine} is a line you set, not the market's ${line}.`}
+              </strong>
+            ) : (
+              <>Measured against <em>today&apos;s</em> line, not the line each game
+              actually traded at.</>
+            )}{' '}
+            A run of green means this player has beaten this number often; it is
+            not evidence the next one clears. Max exit velocity is not stored yet
+            — it is in the live feed already downloaded for every game, alongside
+            pitch types.
           </>
         )}
       </figcaption>
