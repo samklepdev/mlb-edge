@@ -351,6 +351,17 @@ a:hover { text-decoration: underline; }
 .ph-hr dd { display: flex; align-items: baseline; gap: 0.25rem; }
 .ph-hr-n { font-size: 0.7rem; font-weight: 400; color: var(--faint); }
 
+/* Shown only when there is no line at all -- the one way to create one now
+   that the stepper row is gone. Centred in the plot so it cannot be missed. */
+.pb-addline {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 4;
+  border: 1px solid var(--line-edge); background: var(--panel); color: var(--ink);
+  font-size: 0.78rem; padding: 0.35rem 0.7rem; cursor: pointer;
+}
+.pb-addline:hover { background: var(--line); }
+.pb-addline:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+
 /* Reset sits inside the line tag now that the stepper row is gone. */
 .pb-reset {
   margin-left: 0.4rem;

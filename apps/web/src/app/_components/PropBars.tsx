@@ -149,6 +149,14 @@ export function PropBars({
   const avg = (d: PropGame) =>
     d.ab != null && d.ab > 0 && d.h != null ? (d.h / d.ab).toFixed(3).replace(/^0/, '') : '—';
 
+  // Where "Set a line" starts: the window's median, dropped to the half-integer
+  // below it. Half-integers because that is how props trade, and because a whole
+  // number would make every game equal to the line a push rather than a side.
+  // This is a starting point for the reader to drag, not a suggested bet.
+  const sorted = [...data].map((d) => d.value).sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+  const suggestedLine = Math.max(0.5, Math.floor(median) + 0.5);
+
   return (
     <figure className="propbars">
       <div className="pb-chart">
@@ -167,6 +175,18 @@ export function PropBars({
               whole chart is read against; --ref is only 2.10:1 on --panel and a
               rule nobody can see is worse than none. They separate by WEIGHT,
               not by hue. */}
+          {/* No market line means no rule, and therefore no handle -- which
+              left no way to create one once the stepper row was removed. The
+              caption said "set one above" and there was nothing above to set it
+              with. This is that missing affordance. It is a button rather than
+              an auto-seeded line on purpose: inventing a threshold and colouring
+              every bar against it would assert a number no book is offering. */}
+          {effLine == null && (
+            <button type="button" className="pb-addline"
+              onClick={() => onLineChange(suggestedLine)}>
+              Set a line ({suggestedLine})
+            </button>
+          )}
           {effLine != null && (
             <div className={`pb-line${custom ? ' pb-line-custom' : ''}`} style={{ bottom: pctOf(effLine) }}>
               {/* The handle is a real slider, not just a drag target. Dragging
@@ -281,7 +301,11 @@ export function PropBars({
         {prop.replace(/_/g, ' ')} per game, oldest to newest. The card follows the
         pointer; tabbing to a bar anchors it over that bar instead.{' '}
         {effLine == null ? (
-          <>No market line for this prop — set one above to mark bars over or under.</>
+          <>
+            No book line is stored for this prop, so no bar is marked over or under.
+            Use <strong>Set a line</strong> on the chart to pick a threshold and drag it
+            — the result is yours, not the market&apos;s.
+          </>
         ) : (
           <>
             Green cleared {effLine}, red did not.{' '}
