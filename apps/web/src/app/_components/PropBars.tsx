@@ -44,7 +44,7 @@ const GAP = 14;
 //
 // With no market line there is nothing to clear, so bars stay neutral.
 export function PropBars({
-  games, line, marketLine, projMean, prop, onLineChange,
+  games, line, marketLine, source, projMean, prop, onLineChange,
 }: {
   games: PropGame[];
   /** The EFFECTIVE line: the reader's if they moved it, else the market's. */
@@ -52,6 +52,10 @@ export function PropBars({
   /** The book's line, kept separately so the caption can name it when the
       reader has moved away from it, and so reset has something to return to. */
   marketLine: number | null;
+  /** Where `line` came from. 'seeded' means no book price exists and the value
+      was derived from this player's own window -- the tag and caption have to
+      say so, or a derived threshold reads as a market one. */
+  source: 'market' | 'seeded' | 'custom';
   projMean: number | null;
   prop: string;
   onLineChange: (v: number | null) => void;
@@ -62,7 +66,7 @@ export function PropBars({
 
   // The line is owned by PlayerPanel, because the hit rate in the player header
   // reads from it too. This component only reports changes upward.
-  const custom = marketLine == null ? line != null : line !== marketLine;
+  const custom = source === 'custom';
   const effLine = line;
   // Props trade at half-integers, so that is the step and the drag snap.
   const snap = (v: number) => Math.max(0, Math.round(v * 2) / 2);
@@ -149,14 +153,6 @@ export function PropBars({
   const avg = (d: PropGame) =>
     d.ab != null && d.ab > 0 && d.h != null ? (d.h / d.ab).toFixed(3).replace(/^0/, '') : '—';
 
-  // Where "Set a line" starts: the window's median, dropped to the half-integer
-  // below it. Half-integers because that is how props trade, and because a whole
-  // number would make every game equal to the line a push rather than a side.
-  // This is a starting point for the reader to drag, not a suggested bet.
-  const sorted = [...data].map((d) => d.value).sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
-  const suggestedLine = Math.max(0.5, Math.floor(median) + 0.5);
-
   return (
     <figure className="propbars">
       <div className="pb-chart">
@@ -175,18 +171,6 @@ export function PropBars({
               whole chart is read against; --ref is only 2.10:1 on --panel and a
               rule nobody can see is worse than none. They separate by WEIGHT,
               not by hue. */}
-          {/* No market line means no rule, and therefore no handle -- which
-              left no way to create one once the stepper row was removed. The
-              caption said "set one above" and there was nothing above to set it
-              with. This is that missing affordance. It is a button rather than
-              an auto-seeded line on purpose: inventing a threshold and colouring
-              every bar against it would assert a number no book is offering. */}
-          {effLine == null && (
-            <button type="button" className="pb-addline"
-              onClick={() => onLineChange(suggestedLine)}>
-              Set a line ({suggestedLine})
-            </button>
-          )}
           {effLine != null && (
             <div className={`pb-line${custom ? ' pb-line-custom' : ''}`} style={{ bottom: pctOf(effLine) }}>
               {/* The handle is a real slider, not just a drag target. Dragging
@@ -215,14 +199,14 @@ export function PropBars({
                 <span className="pb-handle-grip" aria-hidden="true" />
               </div>
               <span className="pb-line-tag num">
-                {custom ? 'set' : 'line'} {effLine}
+                {source === 'custom' ? 'set' : source === 'market' ? 'line' : 'median'} {effLine}
                 {/* The only remaining way back to the book's number for a mouse
                     user. The stepper row that used to hold reset is gone, and
                     Escape-on-the-handle is keyboard-only -- without this, a drag
                     would be one-way. */}
-                {custom && (
+                {custom && marketLine != null && (
                   <button type="button" className="pb-reset" onClick={() => onLineChange(null)}>
-                    {marketLine == null ? 'clear' : `reset to ${marketLine}`}
+                    reset to {marketLine}
                   </button>
                 )}
               </span>
@@ -300,24 +284,25 @@ export function PropBars({
       <figcaption className="cap">
         {prop.replace(/_/g, ' ')} per game, oldest to newest. The card follows the
         pointer; tabbing to a bar anchors it over that bar instead.{' '}
-        {effLine == null ? (
-          <>
-            No book line is stored for this prop, so no bar is marked over or under.
-            Use <strong>Set a line</strong> on the chart to pick a threshold and drag it
-            — the result is yours, not the market&apos;s.
-          </>
-        ) : (
+        {(
           <>
             Green cleared {effLine}, red did not.{' '}
-            {custom ? (
+            {source === 'custom' && (
               <strong>
                 {marketLine == null
                   ? `${effLine} is a line you set; no book price is stored for this prop.`
                   : `${effLine} is a line you set, not the market's ${marketLine}.`}
               </strong>
-            ) : (
+            )}
+            {source === 'market' && (
               <>Measured against <em>today&apos;s</em> line, not the line each game
               actually traded at.</>
+            )}
+            {source === 'seeded' && (
+              <strong>
+                No book price is stored for this prop, so {effLine} is this player&apos;s own
+                median rather than a market line. Drag the handle to move it.
+              </strong>
             )}{' '}
             A run of green means this player has beaten this number often; it is
             not evidence the next one clears. Max exit velocity is not stored yet

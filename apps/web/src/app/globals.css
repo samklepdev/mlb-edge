@@ -405,6 +405,14 @@ a:hover { text-decoration: underline; }
   margin-bottom: -1.5px;
   background: var(--line);
   box-shadow: 0 0 0 1px var(--line-edge);
+  /* Above .pb-bars, which is `position: absolute; inset: 0` and comes LATER in
+     the DOM -- without this it paints over the rule and swallows every pointer
+     event aimed at the handle, which is exactly why the line could not be
+     dragged. Below .pb-pop (5) so the hover card still wins. */
+  z-index: 3;
+  /* The rule spans the full width, so leaving it interactive would block bar
+     hovers all along its row. Only the handle and the tag take the pointer. */
+  pointer-events: none;
 }
 /* The handle. Sized well past the 24px minimum touch target in both axes via
    padding, while the visible grip stays small. */
@@ -416,6 +424,7 @@ a:hover { text-decoration: underline; }
   cursor: grab;
   touch-action: none; /* or the browser scrolls instead of dragging */
 }
+.pb-handle { pointer-events: auto; }
 .pb-handle:active { cursor: grabbing; }
 .pb-handle-grip {
   width: 1.5rem; height: 0.85rem;
@@ -431,7 +440,7 @@ a:hover { text-decoration: underline; }
   position: absolute; top: -1.3rem; font-size: 0.7rem; color: var(--muted);
   background: var(--panel); padding: 0 0.25rem;
 }
-.pb-line-tag { right: 0; }
+.pb-line-tag { right: 0; pointer-events: auto; }
 .pb-proj-tag { left: 0; }
 
 .pb-bars {

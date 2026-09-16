@@ -32,7 +32,26 @@ export function PlayerPanel({
   // null means "follow the market", so a reset keeps tracking the book rather
   // than freezing today's number.
   const [override, setOverride] = useState<number | null>(null);
-  const line = override ?? marketLine;
+
+  // With no book line, seed one from the player's own window rather than
+  // leaving the chart uncoloured until the reader acts. The seed is the median
+  // dropped to the half-integer below it: half-integers because that is how
+  // props trade, and because a whole number would make every game equal to the
+  // line a push rather than a side.
+  //
+  // This DOES mean bars are coloured against a threshold no book is offering,
+  // which is why `source` exists and why the tag and caption name it. The
+  // number is derived from the player's own distribution, so it is a
+  // description of their history, not a suggested bet.
+  const seeded = (() => {
+    const v = games.map((g) => g.value).sort((a, b) => a - b);
+    const med = v[Math.floor(v.length / 2)] ?? 0;
+    return Math.max(0.5, Math.floor(med) + 0.5);
+  })();
+
+  const line = override ?? marketLine ?? seeded;
+  const source: 'market' | 'seeded' | 'custom' =
+    override != null ? 'custom' : marketLine != null ? 'market' : 'seeded';
 
   const cleared = line == null ? 0 : games.filter((g) => g.value > line).length;
   const hitRate = line == null || games.length === 0
@@ -74,8 +93,8 @@ export function PlayerPanel({
       </div>
 
       <PropBars
-        games={games} line={line} marketLine={marketLine} projMean={projMean}
-        prop={prop} onLineChange={setOverride}
+        games={games} line={line} marketLine={marketLine} source={source}
+        projMean={projMean} prop={prop} onLineChange={setOverride}
       />
     </>
   );
