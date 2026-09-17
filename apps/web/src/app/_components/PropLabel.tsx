@@ -17,6 +17,12 @@ const ABBR: Record<string, string> = {
   // and these tabs sit beside a pitcher prop.
   batter_walks: 'B-BB',
   hits_runs_rbis: 'H+R+RBI',
+  // Pitcher props. 'H allowed' and 'P-BB' rather than bare H/BB, which already
+  // mean the batter's versions on the tabs beside them.
+  pitcher_outs: 'Outs',
+  earned_runs: 'ER',
+  hits_allowed: 'H allowed',
+  pitcher_walks: 'P-BB',
 };
 
 export function PropLabel({ prop }: { prop: string }) {

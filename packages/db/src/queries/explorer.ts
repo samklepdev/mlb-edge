@@ -75,7 +75,22 @@ const PROP_COLUMN: Record<string, { table: 'bat' | 'pit'; expr: string; platoon?
   // The composite books quote as H+R+RBI. A player who singles and scores on
   // the next hit gets credit twice by design -- that is the prop, not an error.
   hits_runs_rbis: { table: 'bat', expr: 'b.h + b.r + b.rbi' },
+
+  // Pitcher props. These are CHART-only: plotting what a pitcher already did is
+  // just a box-score column, and carries no claim. The pitcher-props spec's
+  // objections -- earned runs cluster, outs are censored by the manager -- are
+  // about PROJECTING them, which nothing here does.
+  pitcher_outs: { table: 'pit', expr: 'b.outs' },
+  earned_runs: { table: 'pit', expr: 'b.er' },
+  hits_allowed: { table: 'pit', expr: 'b.h' },
+  pitcher_walks: { table: 'pit', expr: 'b.bb' },
 };
+
+// Which props read a pitcher's line rather than a batter's. Drives both the
+// hover card and the header totals: showing a pitcher's plate appearances and
+// batting average would be noise at best.
+export const PITCHER_PROPS: readonly string[] =
+  Object.entries(PROP_COLUMN).filter(([, m]) => m.table === 'pit').map(([k]) => k);
 
 export interface PropHistoryFilters {
   /** 'all' | 'home' | 'away' */
@@ -140,6 +155,8 @@ export async function getPropHistory(
     pa: number | null; ab: number | null; h: number | null;
     doubles: number | null; triples: number | null; hr: number | null;
     so: number | null; bb: number | null; hbp: number | null; sf: number | null;
+    p_outs: number | null; p_bf: number | null; p_h: number | null;
+    p_er: number | null; p_bb: number | null; p_so: number | null;
   }>(
     `SELECT DISTINCT ON (g.id) g.id AS game_id,
             to_char(g.game_date, 'YYYY-MM-DD') AS game_date,
@@ -156,11 +173,14 @@ export async function getPropHistory(
             -- The player's batting line for the game, for the hover card.
             -- LEFT JOIN because a pitcher prop selects from player_game_pitching
             -- and the player may have no batting row at all.
-            bl.pa, bl.ab, bl.h, bl.doubles, bl.triples, bl.hr, bl.so, bl.bb, bl.hbp, bl.sf
+            bl.pa, bl.ab, bl.h, bl.doubles, bl.triples, bl.hr, bl.so, bl.bb, bl.hbp, bl.sf,
+            pl.outs AS p_outs, pl.bf AS p_bf, pl.h AS p_h, pl.er AS p_er,
+            pl.bb AS p_bb, pl.so AS p_so
      FROM ${src}
      JOIN games g ON g.id = b.game_id
      ${handJoin}
      LEFT JOIN player_game_batting bl ON bl.game_id = g.id AND bl.player_id = $1
+     LEFT JOIN player_game_pitching pl ON pl.game_id = g.id AND pl.player_id = $1
      LEFT JOIN teams th ON th.id = g.home_team_id
      LEFT JOIN teams ta ON ta.id = g.away_team_id
      WHERE b.player_id = $1 AND ${where.join(' AND ')}
@@ -179,6 +199,7 @@ export async function getPropHistory(
       pa: r.pa, ab: r.ab, h: r.h,
       doubles: r.doubles, triples: r.triples, hr: r.hr, so: r.so, bb: r.bb,
       hbp: r.hbp, sf: r.sf,
+      pOuts: r.p_outs, pBf: r.p_bf, pH: r.p_h, pEr: r.p_er, pBb: r.p_bb, pSo: r.p_so,
     }))
     .sort((a, b) => (a.date < b.date ? 1 : -1))
     .slice(0, limit);
@@ -201,6 +222,12 @@ export interface PlayerTotals {
   avg: number | null;
   obp: number | null;
   babip: number | null;
+  /** Pitching aggregates, for the pitcher props. ERA and WHIP are the two
+   *  figures a pitcher header is read for, and both are exact from what is
+   *  stored -- unlike the batter side, which needed migration 011 first. */
+  pOuts: number; pBf: number; pH: number; pEr: number; pBb: number; pSo: number;
+  era: number | null;
+  whip: number | null;
 }
 
 export function totalsFrom(games: PropGame[]): PlayerTotals {
@@ -216,6 +243,10 @@ export function totalsFrom(games: PropGame[]): PlayerTotals {
   const obpDen = ab + bb + hbp + sf;
   const babipDen = ab - so - hr + sf;
 
+  const pOuts = sum((g) => g.pOuts), pBf = sum((g) => g.pBf), pH = sum((g) => g.pH);
+  const pEr = sum((g) => g.pEr), pBb = sum((g) => g.pBb), pSo = sum((g) => g.pSo);
+  const ip = pOuts / 3;
+
   return {
     games: games.length,
     pa, ab, h, bb, hbp, sf, hr, so,
@@ -223,6 +254,9 @@ export function totalsFrom(games: PropGame[]): PlayerTotals {
     avg: ab > 0 ? h / ab : null,
     obp: obpDen > 0 ? (h + bb + hbp) / obpDen : null,
     babip: babipDen > 0 ? (h - hr) / babipDen : null,
+    pOuts, pBf, pH, pEr, pBb, pSo,
+    era: ip > 0 ? (pEr * 9) / ip : null,
+    whip: ip > 0 ? (pH + pBb) / ip : null,
   };
 }
 

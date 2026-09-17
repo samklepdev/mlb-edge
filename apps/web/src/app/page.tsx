@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {
   latestSlateDate, getSlateGames, getGamePlayers,
-  getPropHistory, getPropReference, getMatchupContext, totalsFrom,
+  getPropHistory, getPropReference, getMatchupContext, totalsFrom, PITCHER_PROPS,
   type SlateGame, type ExplorerPlayer, type MatchupContext,
 } from '@mlb-edge/db';
 import { Headshot } from './_components/Headshot';
@@ -15,13 +15,16 @@ export const dynamic = 'force-dynamic';
 // is PROPS[0] rather than a separate constant, so the landing tab can never
 // drift away from the leftmost one.
 const PROPS = [
-  'hits', 'home_runs', 'total_bases', 'strikeouts',
-  'hits_runs_rbis', 'runs', 'rbis', 'batter_walks',
+  'hits', 'home_runs', 'total_bases', 'hits_runs_rbis', 'runs', 'rbis', 'batter_walks',
+  'strikeouts', 'pitcher_outs', 'earned_runs', 'hits_allowed', 'pitcher_walks',
 ] as const;
 // Props with no per-hand split in player_game_platoon, which stores only
 // pa/singles/doubles/triples/hr/so. The filter is ignored for these and the
 // chart says so, rather than plotting a whole-game total under a "vs LHP" label.
-const NO_PLATOON: readonly string[] = ['strikeouts', 'runs', 'rbis', 'batter_walks', 'hits_runs_rbis'];
+const NO_PLATOON: readonly string[] = [
+  'strikeouts', 'pitcher_outs', 'earned_runs', 'hits_allowed', 'pitcher_walks',
+  'runs', 'rbis', 'batter_walks', 'hits_runs_rbis',
+];
 const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Pinned to ET for the same reason GameCard is: these pages are force-dynamic
@@ -254,8 +257,8 @@ export default async function PropsPage({
                   {hand !== 'all' && NO_PLATOON.includes(prop) && (
                     <p className="cap">
                       The handedness filter is ignored for this prop.{' '}
-                      {prop === 'strikeouts'
-                        ? 'It describes the hand a batter faced, which says nothing about a pitcher\u2019s own strikeout total.'
+                      {PITCHER_PROPS.includes(prop)
+                        ? 'It describes the hand a batter faced, which says nothing about a pitcher\u2019s own line.'
                         : 'Runs, RBIs and walks are not broken out by pitcher hand \u2014 the plate-appearance table stores only hits, extra-base hits and strikeouts \u2014 so there is no split to show.'}
                     </p>
                   )}
@@ -263,6 +266,7 @@ export default async function PropsPage({
                     playerId={player.playerId}
                     playerName={player.playerName}
                     prop={prop}
+                    pitching={PITCHER_PROPS.includes(prop)}
                     totals={totals}
                     games={history}
                     marketLine={reference.line}
