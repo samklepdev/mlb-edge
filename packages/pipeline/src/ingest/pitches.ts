@@ -23,17 +23,19 @@ export interface PitchRow {
 // MLB's pitch-result codes, split by whether the batter offered.
 //
 // Enumerated from real pitches rather than from documentation: B, C, F, S, X,
-// D, E, *B, T, O, W, H, L, P, M. Both sets are explicit and a code in
+// D, E, *B, T, O, W, H, L, P, M, Q. Both sets are explicit and a code in
 // NEITHER is counted and reported rather than silently treated as a take --
 // the reconciliation gate below checks pitch COUNT, so a misclassified swing
 // would otherwise pass unnoticed.
 // 'O' is a second foul-tip code alongside 'T' -- found by the unknown-code
 // report, not by documentation, and confirmed from the feed's own description.
 // It is contact, so it counts as a swing and NOT as a whiff.
-const SWING = new Set(['F', 'S', 'T', 'O', 'W', 'L', 'M', 'X', 'D', 'E']);
+const SWING = new Set(['F', 'S', 'T', 'O', 'W', 'L', 'M', 'Q', 'X', 'D', 'E']);
 const TAKE = new Set(['B', '*B', 'C', 'H', 'P', 'V', 'VB', 'AB', 'IB', 'I']);
 // A swing that missed. Foul tips (T) are contact, fouls (F) are contact.
-const WHIFF = new Set(['S', 'W', 'M']);
+// 'Q' is a Swinging Pitchout -- a swing at a pitch thrown deliberately wide,
+// so it misses. Also found by the unknown-code report rather than documentation.
+const WHIFF = new Set(['S', 'W', 'M', 'Q']);
 
 export interface PitchParse {
   rows: PitchRow[];
@@ -56,8 +58,18 @@ export function pitchRowsFromFeed(feed: LiveFeedResponse | null): PitchParse {
   const plays: LivePlay[] = feed?.liveData?.plays?.allPlays ?? [];
   const rows: PitchRow[] = [];
   const unknownCalls: Record<string, number> = {};
-  // Carried across plays: the pitcher on the mound right now.
-  let current: number | null = null;
+  // Two mounds, tracked independently. The sides alternate, so a single
+  // "current pitcher" is wrong the moment a half-inning flips -- and resetting
+  // to matchup.pitcher at the boundary is ALSO wrong, because matchup.pitcher
+  // names whoever FINISHED the plate appearance.
+  //
+  // Game 823033, top of the 4th, is the case that proves it: Kyle Leahy threw
+  // three pitches, rain delayed the game, George Soriano replaced him, and
+  // Soriano finished the PA. matchup.pitcher is Soriano, so resetting to him at
+  // the boundary handed him Leahy's three pitches. Remembering each side's last
+  // pitcher instead gets it right, and the boxscore count gate is what surfaced
+  // both attempts.
+  const byHalf: Record<string, number | null> = { top: null, bottom: null };
 
   for (const p of plays) {
     const batterId = p.matchup?.batter?.id;
@@ -66,10 +78,10 @@ export function pitchRowsFromFeed(feed: LiveFeedResponse | null): PitchParse {
     if (batterId == null || pitcherId == null || atBatIndex == null) continue;
 
     const events = p.playEvents ?? [];
-    // With no change in this plate appearance, matchup.pitcher is authoritative
-    // and resyncing to it corrects any drift. With a change, the carried-over
-    // pitcher owns the pitches before the action fires.
-    if (!events.some(isPitchingChange) || current == null) current = pitcherId;
+    const half = p.about?.halfInning === 'bottom' ? 'bottom' : 'top';
+    // Whoever was last on this side's mound. Falls back to matchup.pitcher only
+    // for the first plate appearance each side pitches.
+    let current: number = byHalf[half] ?? pitcherId;
 
     for (const e of events) {
       if (isPitchingChange(e) && e.player?.id != null) { current = e.player.id; continue; }
@@ -84,7 +96,7 @@ export function pitchRowsFromFeed(feed: LiveFeedResponse | null): PitchParse {
 
       const zone = e.pitchData?.zone ?? null;
       rows.push({
-        atBatIndex, pitchNumber, batterId, pitcherId: current ?? pitcherId,
+        atBatIndex, pitchNumber, batterId, pitcherId: current,
         batSide: p.matchup?.batSide?.code?.toUpperCase() ?? null,
         pitchHand: p.matchup?.pitchHand?.code?.toUpperCase() ?? null,
         pitchType: e.details?.type?.code ?? null,
@@ -109,7 +121,8 @@ export function pitchRowsFromFeed(feed: LiveFeedResponse | null): PitchParse {
         strikes: e.count?.strikes ?? null,
       });
     }
-    current = pitcherId;
+    // Whoever finished the plate appearance holds the mound for this side.
+    byHalf[half] = pitcherId;
   }
   return { rows, unknownCalls };
 }

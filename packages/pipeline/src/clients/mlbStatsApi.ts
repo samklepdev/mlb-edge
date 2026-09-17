@@ -91,7 +91,7 @@ export interface LivePlay {
     };
     count?: { balls?: number; strikes?: number };
   }>;
-  about?: { atBatIndex?: number };
+  about?: { atBatIndex?: number; inning?: number; halfInning?: string };
   matchup?: {
     batter?: { id?: number };
     pitcher?: { id?: number };
