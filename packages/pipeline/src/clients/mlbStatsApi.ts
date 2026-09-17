@@ -58,6 +58,40 @@ export interface LivePlay {
     details?: { runner?: { id?: number } };
     movement?: { originBase?: string | null };
   }>;
+  // Every pitch of the plate appearance, plus non-pitch actions. The pitch
+  // events carry type, velocity, location and batted-ball data -- the whole
+  // Statcast-shaped half of what this project was missing.
+  playEvents?: Array<{
+    isPitch?: boolean;
+    pitchNumber?: number;
+    /** 'pitch' | 'action' | ... -- an `action` can be a pitching change, which
+     *  happens MID plate appearance and re-attributes every pitch after it. */
+    type?: string;
+    /** On a pitching-change action this is the INCOMING pitcher. */
+    player?: { id?: number };
+    details?: {
+      call?: { code?: string };
+      type?: { code?: string };
+      description?: string;
+      event?: string;
+      isStrike?: boolean;
+      isBall?: boolean;
+      isInPlay?: boolean;
+    };
+    pitchData?: {
+      startSpeed?: number;
+      zone?: number;
+      coordinates?: { pX?: number; pZ?: number };
+    };
+    hitData?: {
+      launchSpeed?: number;
+      launchAngle?: number;
+      totalDistance?: number;
+      trajectory?: string;
+    };
+    count?: { balls?: number; strikes?: number };
+  }>;
+  about?: { atBatIndex?: number };
   matchup?: {
     batter?: { id?: number };
     pitcher?: { id?: number };

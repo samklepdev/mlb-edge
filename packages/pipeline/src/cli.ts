@@ -5,6 +5,7 @@ import { ingestSchedule } from './ingest/schedule.js';
 import { ingestFinalGames, ingestBoxscore } from './ingest/games.js';
 import { ingestPeople } from './ingest/people.js';
 import { backfillPlatoon } from './ingest/platoon.js';
+import { backfillPitches } from './ingest/pitches.js';
 import { seedDemo } from './seed/demo.js';
 import { runProjections, ALL_PROPS, type PropKind } from './project/index.js';
 import { backfill } from './project/backfill.js';
@@ -165,6 +166,36 @@ ingest
       `platoon: ${r.ok} game(s) written (${r.rows} rows), ` +
         `${r.skipped} with no plays, ${r.failed} failed`,
     );
+    for (const m of r.mismatchedGames.slice(0, 10)) {
+      console.log(`  RECONCILIATION FAILED game ${m.gameId}: ${m.sample}`);
+    }
+    if (r.failed > 0) process.exitCode = 1;
+  });
+ingest
+  .command('pitches')
+  .description("backfill per-pitch data (type, velocity, zone, exit velo) from each game's live feed")
+  .option('--from <YYYY-MM-DD>', 'start of a date range (inclusive)')
+  .option('--to <YYYY-MM-DD>', 'end of a date range (inclusive)')
+  .option('--limit <n>', 'stop after n games (for a trial run)')
+  .action(async (o: { from?: string; to?: string; limit?: string }) => {
+    const r = await backfillPitches({
+      from: o.from,
+      to: o.to,
+      limit: o.limit ? Number(o.limit) : undefined,
+      onProgress: (done, total, pitches) => {
+        if (done % 25 === 0 || done === total) console.log(`  ${done}/${total} games, ${pitches} pitches`);
+      },
+    });
+    console.log(
+      `pitches: ${r.ok} game(s) written (${r.pitches} pitches), ` +
+        `${r.skipped} with no pitch data, ${r.failed} failed`,
+    );
+    const unknown = Object.entries(r.unknownCalls);
+    if (unknown.length > 0) {
+      // Surfaced, not swallowed: an unrecognised call code is classified as a
+      // take, and the count gate cannot catch that.
+      console.log(`  UNRECOGNISED call codes: ${unknown.map(([k, v]) => `${k}=${v}`).join(' ')}`);
+    }
     for (const m of r.mismatchedGames.slice(0, 10)) {
       console.log(`  RECONCILIATION FAILED game ${m.gameId}: ${m.sample}`);
     }
