@@ -16,13 +16,21 @@ import { PropBars } from './PropBars';
 // enters the client bundle. Props arrive as plain JSON.
 
 const fmt3 = (v: number | null) => (v == null ? '—' : v.toFixed(3).replace(/^0/, ''));
+const fmt2 = (v: number | null) => (v == null ? '—' : v.toFixed(2));
+// Outs -> innings in baseball's own notation: 19 outs is 6.1, not 6.33.
+const ip = (outs: number) => `${Math.floor(outs / 3)}.${outs % 3}`;
 
 export function PlayerPanel({
-  playerId, playerName, prop, totals, games, marketLine, projMean, windowLabel,
+  playerId, playerName, prop, pitching, totals, games, marketLine, projMean, windowLabel,
 }: {
   playerId: number;
   playerName: string;
   prop: string;
+  /** Computed on the SERVER and passed down. PITCHER_PROPS lives in
+   *  @mlb-edge/db, whose module graph reaches `pg`; importing it as a value
+   *  here -- rather than as a type -- would drag a server-only driver into the
+   *  client bundle, which CLAUDE.md forbids outright. */
+  pitching: boolean;
   totals: PlayerTotals;
   games: PropGame[];
   marketLine: number | null;
@@ -67,6 +75,9 @@ export function PlayerPanel({
           <p className="ph-sub"><PropLabel prop={prop} /> · {windowLabel}</p>
         </div>
         <dl className="ph-stats">
+          {/* A pitcher prop gets a pitcher's line. Showing plate appearances
+              and a batting average beside a strikeout chart would be noise --
+              the same mistake as applying the handedness filter to a pitcher. */}
           {/* Hit rate first, and it tracks the line the reader sets below --
               which is why this header is inside the client component at all.
               No colour: a high hit rate is a fact about the past, not a verdict
@@ -80,21 +91,34 @@ export function PlayerPanel({
               )}
             </dd>
           </div>
-          <div><dt>PA</dt><dd className="num">{totals.pa}</dd></div>
-          <div><dt>Hits</dt><dd className="num">{totals.h}</dd></div>
-          <div><dt>AVG</dt><dd className="num">{fmt3(totals.avg)}</dd></div>
-          <div><dt>OBP</dt><dd className="num">{fmt3(totals.obp)}</dd></div>
-          <div>
-            <dt>xBA</dt>
-            <dd className="ph-na" title="Statcast expected batting average — needs per-pitch hitData, which is not ingested">—</dd>
-          </div>
-          <div><dt>BABIP</dt><dd className="num">{fmt3(totals.babip)}</dd></div>
+          {pitching ? (
+            <>
+              <div><dt>IP</dt><dd className="num">{ip(totals.pOuts)}</dd></div>
+              <div><dt>BF</dt><dd className="num">{totals.pBf}</dd></div>
+              <div><dt>K</dt><dd className="num">{totals.pSo}</dd></div>
+              <div><dt>BB</dt><dd className="num">{totals.pBb}</dd></div>
+              <div><dt>ERA</dt><dd className="num">{fmt2(totals.era)}</dd></div>
+              <div><dt>WHIP</dt><dd className="num">{fmt2(totals.whip)}</dd></div>
+            </>
+          ) : (
+            <>
+              <div><dt>PA</dt><dd className="num">{totals.pa}</dd></div>
+              <div><dt>Hits</dt><dd className="num">{totals.h}</dd></div>
+              <div><dt>AVG</dt><dd className="num">{fmt3(totals.avg)}</dd></div>
+              <div><dt>OBP</dt><dd className="num">{fmt3(totals.obp)}</dd></div>
+              <div>
+                <dt>xBA</dt>
+                <dd className="ph-na" title="Statcast expected batting average — needs per-pitch hitData, which is not ingested">—</dd>
+              </div>
+              <div><dt>BABIP</dt><dd className="num">{fmt3(totals.babip)}</dd></div>
+            </>
+          )}
         </dl>
       </div>
 
       <PropBars
         games={games} line={line} marketLine={marketLine} source={source}
-        projMean={projMean} prop={prop} onLineChange={setOverride}
+        projMean={projMean} prop={prop} pitching={pitching} onLineChange={setOverride}
       />
     </>
   );

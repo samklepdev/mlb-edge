@@ -165,6 +165,14 @@ export interface PropGame {
    *  approximated by dropping terms. */
   hbp: number | null;
   sf: number | null;
+  /** The player's PITCHING line for that game, for pitcher props. Null when
+   *  they did not pitch. */
+  pOuts: number | null;
+  pBf: number | null;
+  pH: number | null;
+  pEr: number | null;
+  pBb: number | null;
+  pSo: number | null;
 }
 export interface MatchupContext {
   venue: string | null;

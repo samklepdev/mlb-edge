@@ -44,7 +44,7 @@ const GAP = 14;
 //
 // With no market line there is nothing to clear, so bars stay neutral.
 export function PropBars({
-  games, line, marketLine, source, projMean, prop, onLineChange,
+  games, line, marketLine, source, projMean, prop, pitching, onLineChange,
 }: {
   games: PropGame[];
   /** The EFFECTIVE line: the reader's if they moved it, else the market's. */
@@ -56,6 +56,8 @@ export function PropBars({
       was derived from this player's own window -- the tag and caption have to
       say so, or a derived threshold reads as a market one. */
   source: 'market' | 'seeded' | 'custom';
+  /** Server-computed; see PlayerPanel for why it is a prop and not an import. */
+  pitching: boolean;
   projMean: number | null;
   prop: string;
   onLineChange: (v: number | null) => void;
