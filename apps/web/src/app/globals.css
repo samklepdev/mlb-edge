@@ -247,6 +247,25 @@ a:hover { text-decoration: underline; }
   font-size: 0.95rem;
 }
 .ptab:hover { color: var(--ink); text-decoration: none; }
+
+/* A prop the selected player has no history for.
+   --faint rather than opacity: opacity would drag the text below AA, where
+   --faint is a gated token at 5.10:1 on --panel. Still a link, never disabled --
+   see the comment at the call site. */
+.ptab-dim { color: var(--faint); }
+/* On hover it resolves into an obvious button, so a dimmed tab reads as
+   "unlikely to be useful" rather than "broken". */
+.ptab-dim:hover,
+.ptab-dim:focus-visible {
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--hair);
+  border-bottom-color: transparent;
+  border-radius: 3px 3px 0 0;
+  /* The border would otherwise add 2px and nudge the row; take it back from
+     the padding so nothing shifts under the pointer. */
+  padding: calc(0.5rem - 1px) calc(0.9rem - 1px);
+}
 .ptab-on { color: var(--ink); border-bottom-color: var(--navy); font-weight: 600; }
 .ptab:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
 .ptab-date { margin-left: auto; color: var(--faint); font-size: 0.85rem; padding: 0.5rem 0; }

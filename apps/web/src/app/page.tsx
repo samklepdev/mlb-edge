@@ -2,6 +2,7 @@ import Link from 'next/link';
 import {
   latestSlateDate, getSlateGames, getGamePlayers,
   getPropHistory, getPropReference, getMatchupContext, totalsFrom, PITCHER_PROPS,
+  getPlayerRoles,
   type SlateGame, type ExplorerPlayer, type MatchupContext,
 } from '@mlb-edge/db';
 import { Headshot } from './_components/Headshot';
@@ -115,6 +116,12 @@ export default async function PropsPage({
     ? await getPropReference(player.playerId, openGame.gameId, prop)
     : { line: null, projMean: null };
   const totals = totalsFrom(history);
+  // Which prop groups this player actually has data for. Drives the dimmed
+  // tabs; a player with neither (no history at all) dims nothing, since there
+  // is no evidence either way.
+  const roles = player
+    ? await getPlayerRoles(player.playerId)
+    : { hasBatting: true, hasPitching: true };
   const matchup: MatchupContext | null = player && openGame
     ? await getMatchupContext(openGame.gameId, player.playerId)
     : null;
@@ -224,13 +231,25 @@ export default async function PropsPage({
                   the tabs change what the chart plots, so they belong next to
                   it, not separated from it by the whole layout. */}
               <nav className="proptabs" aria-label="Prop type">
-                {PROPS.map((p) => (
-                  <Link key={p} href={href({ ...base, prop: p })}
-                    className={`ptab${p === prop ? ' ptab-on' : ''}`}
-                    aria-current={p === prop ? 'page' : undefined}>
-                    <PropLabel prop={p} />
-                  </Link>
-                ))}
+                {PROPS.map((p) => {
+                  // Dimmed, never disabled. The player may be mislabelled, the
+                  // data may be thin, and a tab that refuses to open is worse
+                  // than one that opens and shows nothing -- so these stay
+                  // clickable and say why they are dim.
+                  const isPitcherProp = PITCHER_PROPS.includes(p);
+                  const dim = (isPitcherProp && !roles.hasPitching)
+                    || (!isPitcherProp && !roles.hasBatting);
+                  return (
+                    <Link key={p} href={href({ ...base, prop: p })}
+                      className={`ptab${p === prop ? ' ptab-on' : ''}${dim ? ' ptab-dim' : ''}`}
+                      aria-current={p === prop ? 'page' : undefined}
+                      title={dim
+                        ? `${player?.playerName ?? 'This player'} has no ${isPitcherProp ? 'pitching' : 'batting'} history — this prop will be empty`
+                        : undefined}>
+                      <PropLabel prop={p} />
+                    </Link>
+                  );
+                })}
                 <span className="ptab-date">{date || '—'}</span>
               </nav>
               {!player ? (
