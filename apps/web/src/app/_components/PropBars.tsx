@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import type { PropGame } from '@mlb-edge/db';
-import { abbrev } from './teams';
+import { abbrev, logoUrl } from './teams';
 
 // A client component, which is allowed here only because nothing server-only
 // reaches it: the @mlb-edge/db import is `import type`, so it is erased at
@@ -271,15 +271,32 @@ export function PropBars({
             );
           })()}
         </div>
-      </div>
 
-      <ol className="pb-dates" aria-hidden="true">
-        {data.map((d, i) => {
-          const step = Math.ceil(data.length / 8);
-          const show = i % step === 0 || i === data.length - 1;
-          return <li key={d.gameId} className="num">{show ? d.date.slice(5) : ''}</li>;
-        })}
-      </ol>
+        {/* One cell per bar: opponent logo over the date played. It lives
+            INSIDE .pb-chart as a grid row under the plot, so it inherits the
+            plot's exact column geometry. The strip it replaces used hardcoded
+            padding to approximate that alignment, which drifted the moment the
+            axis width changed.
+            aria-hidden because every bar's own aria-label already carries the
+            date and opponent -- announcing them again would double every
+            column for a screen reader. */}
+        <ol className="pb-foot" aria-hidden="true">
+          {data.map((d) => {
+            const logo = logoUrl(d.opponentId);
+            const [, m, day] = d.date.split('-');
+            return (
+              <li key={d.gameId} className="pb-foot-col">
+                <span
+                  className="pb-foot-logo"
+                  style={logo ? { backgroundImage: `url(${logo})` } : undefined}
+                  title={`${d.home ? 'vs' : '@'} ${abbrev(d.opponentId, d.opponent ?? '')}`}
+                />
+                <span className="pb-foot-date num">{Number(m)}/{Number(day)}</span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
 
       <figcaption className="cap">
         {prop.replace(/_/g, ' ')} per game, oldest to newest. The card follows the

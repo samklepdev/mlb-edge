@@ -379,17 +379,22 @@ a:hover { text-decoration: underline; }
 
 /* HTML bars, not SVG: the hover card carries nine fields, which an SVG <title>
    cannot style and a <foreignObject> would have clipped. */
+/* Grid, not flex, so the footer row under the plot shares the plot's exact
+   column track. The date strip this replaced used hardcoded left padding to
+   line up, which is only correct while the axis happens to be 1.6rem. */
 .pb-chart {
-  display: flex; gap: 0.4rem;
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr);
+  gap: 0.35rem 0.4rem;
   background: var(--panel); border: 1px solid var(--hair);
   padding: 0.9rem 0.9rem 0.6rem;
 }
-.pb-axis { position: relative; width: 1.6rem; flex: none; }
+.pb-axis { position: relative; grid-column: 1; grid-row: 1; }
 .pb-tick {
   position: absolute; right: 0; transform: translateY(50%);
   font-size: 0.7rem; color: var(--faint);
 }
-.pb-plot { position: relative; flex: 1; min-width: 0; height: 15rem; }
+.pb-plot { position: relative; grid-column: 2; grid-row: 1; min-width: 0; height: 15rem; }
 .pb-grid {
   position: absolute; left: 0; right: 0; height: 1px;
   background: var(--grid);
@@ -496,11 +501,27 @@ a:hover { text-decoration: underline; }
 .pb-pop-grid dd { margin: 0; font-size: 0.75rem; color: var(--ink); }
 .pb-pop-na { color: var(--faint); font-size: 0.68rem; }
 
-.pb-dates {
-  display: flex; gap: 2px; list-style: none;
-  margin: 0.3rem 0 0; padding: 0 0.9rem 0 2.9rem;
+/* Opponent logo over the date, one cell per bar. Same flex geometry and gap as
+   .pb-bars, in the grid cell directly beneath the plot, so every cell sits
+   under its own bar. */
+.pb-foot {
+  grid-column: 2; grid-row: 2;
+  display: flex; gap: 2px; list-style: none; margin: 0; padding: 0;
 }
-.pb-dates li { flex: 1 1 0; min-width: 0; font-size: 0.65rem; color: var(--faint); text-align: center; }
+.pb-foot-col {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+}
+.pb-foot-logo {
+  width: 18px; height: 18px; flex: none;
+  background-repeat: no-repeat; background-position: center; background-size: contain;
+}
+/* Shrinks with the window: at last=25 a column is ~28px, so the date has to
+   give up a point or two rather than wrap or overflow its cell. */
+.pb-foot-date {
+  font-size: 0.6rem; color: var(--faint);
+  white-space: nowrap; overflow: hidden; max-width: 100%;
+}
 
 .ex-matchup { margin-top: 2rem; }
 .ex-cond {
