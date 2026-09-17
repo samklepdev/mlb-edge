@@ -99,6 +99,10 @@ async function fetchPage(path) {
 }
 
 const home = await fetchPage('/');
+// The slate moved off `/` when the prop explorer became the landing page. It is
+// still the page with the most figures on it, and it is where the player links
+// live, so it has to be fetched explicitly rather than reached from home.
+const slate = await fetchPage('/slate');
 
 // Freshness gate. `next build` writes .next/BUILD_ID, and an App Router
 // production render inlines that id into its flight payload. A `next dev`
@@ -126,9 +130,10 @@ if (!home.includes(buildId)) {
 }
 
 // Follow the first player link rather than hardcoding an id, so the harness
-// keeps working across slates.
-const link = home.match(/\/player\?id=(\d+)&(?:amp;)?date=([\d-]+)/);
-if (!link) throw new Error('no player link found on home page');
+// keeps working across slates. Read off /slate, not /: the landing page is the
+// prop explorer now and links to itself, not to player cards.
+const link = slate.match(/\/player\?id=(\d+)&(?:amp;)?date=([\d-]+)/);
+if (!link) throw new Error('no player link found on /slate');
 const playerPath = `/player?id=${link[1]}&date=${link[2]}`;
 const player = await fetchPage(playerPath);
 
@@ -139,7 +144,9 @@ const player = await fetchPage(playerPath);
 // numbers that decide whether the model is worth anything.
 const model = await fetchPage('/model');
 
-for (const [label, html] of [['/', home], [playerPath, player], ['/model', model]]) {
+for (const [label, html] of [
+  ['/', home], ['/slate', slate], [playerPath, player], ['/model', model],
+]) {
   for (const f of figures(strip(html))) console.log(`${label}\t${f}`);
   for (const f of svgFigures(html)) console.log(`${label}\t${f}`);
 }

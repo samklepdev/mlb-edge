@@ -137,9 +137,19 @@ vs reality; `backtest` = calibration report (reliability, ECE, Brier).
   any calibration change by re-backfilling and re-backtesting on a **different**
   date range.
 - Don't dress up prop numbers as team/game predictions.
-- **Colour never encodes data.** `--navy`/`--red` are chrome. `--good`/`--bad`
-  are calibration-only — there the backtest earned the claim. Edge and CLV
-  figures get none: green on an untested hypothesis reads as an endorsement.
+- **Colour never encodes a *claim*.** `--navy`/`--red` are chrome. Edge, CLV and
+  residual figures get no colour at all: green on an untested hypothesis reads
+  as an endorsement the backtest has not earned. That rule is unchanged and is
+  the important half.
+  `--good`/`--bad` are allowed on **settled facts only** — calibration (where
+  the backtest earned it) and, since the prop explorer, whether a past box score
+  cleared a line. Both are things that already happened. Two conditions on the
+  second use: colour must be REDUNDANT (the explorer draws the line, so height
+  carries the same information for a colour-blind or greyscale reader — delete
+  the rule and the chart becomes colour-alone), and the caption must say that a
+  run of green is not predictive. Past hit rate is the most seductive and least
+  predictive figure in prop betting; colouring it is a presentation choice, not
+  a finding.
 - Keep the responsible-gambling framing in code and UI. This is a measurement
   tool; the most likely honest finding is that the market is efficient — and
   reaching that conclusion correctly is a success, not a failure.

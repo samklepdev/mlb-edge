@@ -130,6 +130,56 @@ export interface GameDetail {
   picks: GamePick[];
 }
 
+export interface ExplorerPlayer {
+  playerId: number;
+  playerName: string;
+  props: string[];
+  /** Resolved from this game's box score when it exists, else the player's most
+   *  recent appearance — an upcoming game has no box score to read. Null when
+   *  the player has never appeared, so the UI must handle an unplaced player. */
+  teamId: number | null;
+}
+export interface PropGame {
+  gameId: number;
+  date: string;
+  value: number;
+  opponent: string | null;
+  opponentId: number | null;
+  home: boolean;
+  /** Both sides' runs, summed from the box score — there is no score column. */
+  teamRuns: number | null;
+  oppRuns: number | null;
+  /** The player's batting line for that game, for the hover card. Null when the
+   *  player has no batting row (e.g. a pitcher prop). Max exit velocity is
+   *  deliberately absent: it lives in the live feed's hitData.launchSpeed,
+   *  which nothing stores yet. */
+  pa: number | null;
+  ab: number | null;
+  h: number | null;
+  doubles: number | null;
+  triples: number | null;
+  hr: number | null;
+  so: number | null;
+  bb: number | null;
+  /** Added by migration 011 so OBP and BABIP are exact rather than
+   *  approximated by dropping terms. */
+  hbp: number | null;
+  sf: number | null;
+}
+export interface MatchupContext {
+  venue: string | null;
+  condition: string | null;
+  tempF: number | null;
+  wind: string | null;
+  pitcher: { playerId: number; playerName: string; throws: string | null } | null;
+  /** Career-to-date split vs the probable starter's hand, from the PA-level
+   *  platoon table. Null when the hand is unknown or there are no such PAs. */
+  vsHand: {
+    hand: string; pa: number;
+    hitsPerPa: number; hrPerPa: number; soPerPa: number; tbPerPa: number;
+  } | null;
+}
+
 export interface ResidualRow {
   gameDate: string;
   matchup: string | null;

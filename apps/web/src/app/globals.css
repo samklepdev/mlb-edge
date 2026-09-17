@@ -35,6 +35,17 @@
   --good: #0f766e;
   --bad:  #b23a48;
   --ref:  #aab4bf;
+
+  /* --- the draggable line on the prop chart. Chrome, not data: it marks where
+         the reader has put a threshold, and carries no claim about it.
+         --line alone is 1.92:1 on --panel, well under the 3:1 a meaningful
+         graphical object needs -- a yellow bright enough to read as yellow
+         cannot clear that on white. So the rule is drawn as a yellow band with
+         a --line-edge casing (6.85:1), and it is the casing that makes it
+         visible. Against the bars the yellow itself is fine: 2.85:1 on --good
+         and 3.05:1 on --bad. Do not remove the edge. --- */
+  --line: #eab308;
+  --line-edge: #854d0e;
 }
 
 /* Applied with text-transform, never by uppercasing source strings, so
@@ -215,6 +226,304 @@ a:hover { text-decoration: underline; }
   background: var(--paper);
   box-shadow: 0 0 0 1px var(--hair);
 }
+
+/* ---- prop explorer (/props) ----
+   Three columns: games, chart, filters. No colour encodes data anywhere in
+   here -- selected state is carried by weight and a navy rule, never by a
+   hue that would rank one option above another. */
+.wrap.wide { max-width: 82rem; }
+
+.proptabs {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem;
+  border-bottom: 1px solid var(--hair);
+  margin: 2rem 0 1.25rem;
+}
+.ptab {
+  padding: 0.5rem 0.9rem;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+.ptab:hover { color: var(--ink); text-decoration: none; }
+.ptab-on { color: var(--ink); border-bottom-color: var(--navy); font-weight: 600; }
+.ptab:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+.ptab-date { margin-left: auto; color: var(--faint); font-size: 0.85rem; padding: 0.5rem 0; }
+
+.explore {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr) 13rem;
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (max-width: 68rem) {
+  .explore { grid-template-columns: 1fr; }
+}
+
+.ex-h { font-size: 1rem; margin: 0 0 0.6rem; letter-spacing: 0.01em; }
+
+.ex-games, .ex-filters {
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  padding: 0.9rem 1rem;
+}
+.ex-list { list-style: none; margin: 0; padding: 0; max-height: 34rem; overflow-y: auto; }
+/* (team) day/time (team). Grid rather than flex so the centre column is
+   genuinely centred in the row -- with flex the two side columns would have to
+   be exactly equal in width for that to hold, and abbreviations are not. */
+.ex-game {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.15rem;
+  color: var(--ink); text-decoration: none;
+  border-bottom: 1px solid var(--grid);
+}
+.ex-game:hover { text-decoration: none; }
+.ex-game:hover .exg-abbr { color: var(--navy-ink); }
+.ex-game:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+/* Open rows get a navy edge as well as weight, so the state is not carried by
+   boldness alone. */
+.ex-open { font-weight: 600; box-shadow: inset 2px 0 0 var(--navy); }
+
+.exg-team { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; min-width: 0; }
+.exg-logo {
+  width: 26px; height: 26px; flex: none;
+  background-repeat: no-repeat; background-position: center; background-size: contain;
+}
+.exg-abbr { font-size: 0.85rem; color: var(--ink); }
+
+.exg-when {
+  display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+  font-variant-numeric: tabular-nums;
+}
+/* Day above, time below. Splitting them also buys back horizontal room in a
+   15rem rail that already carries two logos and two abbreviations. */
+.exg-dow { font-size: 0.72rem; color: var(--ink); white-space: nowrap; }
+.exg-time { font-size: 0.7rem; color: var(--muted); white-space: nowrap; font-weight: 400; }
+.exg-caret { font-size: 0.6rem; color: var(--faint); line-height: 1; }
+.ex-note { color: var(--faint); font-size: 0.68rem; font-weight: 400; white-space: nowrap; }
+.ex-team { margin: 0 0 0.3rem; }
+.ex-team-h {
+  display: flex; align-items: baseline; gap: 0.4rem;
+  margin: 0.4rem 0 0.15rem; padding-left: 0.6rem;
+  font-size: 0.72rem; color: var(--muted);
+}
+.ex-team-n { margin-left: auto; color: var(--faint); }
+.ex-players { list-style: none; margin: 0 0 0.4rem; padding: 0 0 0 0.6rem; border-left: 2px solid var(--hair); }
+.ex-player {
+  display: flex; align-items: center; gap: 0.45rem;
+  padding: 0.3rem 0.35rem; font-size: 0.85rem;
+  color: var(--ink); text-decoration: none;
+}
+.ex-player:hover { background: var(--paper); text-decoration: none; }
+.ex-sel { background: var(--paper); font-weight: 600; }
+.ex-empty { padding: 0.3rem 0.35rem; }
+
+.ex-main { min-width: 0; }
+.propbars { margin: 0; }
+.propbars figcaption { margin-top: 0.6rem; max-width: 62ch; }
+
+/* ---- player header: headshot, name, window totals ---- */
+.ph {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.9rem;
+  background: var(--panel); border: 1px solid var(--hair);
+  padding: 0.75rem 0.9rem; margin: 0 0 0.9rem;
+}
+.ph-id { min-width: 0; }
+.ph-name { margin: 0; font-size: 1.15rem; letter-spacing: -0.01em; }
+.ph-sub { margin: 0.1rem 0 0; color: var(--muted); font-size: 0.8rem; }
+/* Pushed to its own end of the row so the identity and the numbers never
+   compete for the same eye-line. Wraps to a second row when narrow. */
+.ph-stats {
+  display: flex; flex-wrap: wrap; gap: 0.15rem 1.3rem;
+  margin: 0 0 0 auto;
+}
+.ph-stats > div { display: flex; flex-direction: column; align-items: flex-end; }
+.ph-stats dt { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.03em; }
+.ph-stats dd { margin: 0; font-size: 1rem; font-weight: 600; color: var(--ink); }
+.ph-na { color: var(--faint); font-weight: 400; cursor: help; }
+
+/* Hit rate is the first stat in the player header and tracks the draggable
+   line. No colour: a high hit rate is a fact about the past, not a verdict. */
+.ph-hr dd { display: flex; align-items: baseline; gap: 0.25rem; }
+.ph-hr-n { font-size: 0.7rem; font-weight: 400; color: var(--faint); }
+
+/* Shown only when there is no line at all -- the one way to create one now
+   that the stepper row is gone. Centred in the plot so it cannot be missed. */
+.pb-addline {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 4;
+  border: 1px solid var(--line-edge); background: var(--panel); color: var(--ink);
+  font-size: 0.78rem; padding: 0.35rem 0.7rem; cursor: pointer;
+}
+.pb-addline:hover { background: var(--line); }
+.pb-addline:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+
+/* Reset sits inside the line tag now that the stepper row is gone. */
+.pb-reset {
+  margin-left: 0.4rem;
+  border: 1px solid var(--hair); background: var(--panel); color: var(--muted);
+  font-size: 0.65rem; line-height: 1; padding: 0.15rem 0.3rem; cursor: pointer;
+}
+.pb-reset:hover { border-color: var(--navy); color: var(--ink); }
+.pb-reset:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+
+/* A moved line carries a soft halo, so the reader can see at a glance that the
+   rule is theirs and not the book's without reading the tag. The old rule here
+   claimed a dashed border, which stopped being true when the line became a
+   solid band -- a comment describing markup that no longer exists. */
+.pb-line-custom { box-shadow: 0 0 0 1px var(--line-edge), 0 0 0 4px rgb(133 77 14 / 0.16); }
+
+/* HTML bars, not SVG: the hover card carries nine fields, which an SVG <title>
+   cannot style and a <foreignObject> would have clipped. */
+.pb-chart {
+  display: flex; gap: 0.4rem;
+  background: var(--panel); border: 1px solid var(--hair);
+  padding: 0.9rem 0.9rem 0.6rem;
+}
+.pb-axis { position: relative; width: 1.6rem; flex: none; }
+.pb-tick {
+  position: absolute; right: 0; transform: translateY(50%);
+  font-size: 0.7rem; color: var(--faint);
+}
+.pb-plot { position: relative; flex: 1; min-width: 0; height: 15rem; }
+.pb-grid {
+  position: absolute; left: 0; right: 0; height: 1px;
+  background: var(--grid);
+}
+.pb-proj { position: absolute; left: 0; right: 0; height: 0; }
+.pb-proj { border-top: 1px dashed var(--muted); }
+
+/* The draggable line: a yellow band inside a dark casing. The casing is what
+   makes it visible on white -- --line alone is 1.92:1 there. See the token
+   comment in :root. */
+.pb-line {
+  position: absolute; left: 0; right: 0; height: 3px;
+  margin-bottom: -1.5px;
+  background: var(--line);
+  box-shadow: 0 0 0 1px var(--line-edge);
+  /* Above .pb-bars, which is `position: absolute; inset: 0` and comes LATER in
+     the DOM -- without this it paints over the rule and swallows every pointer
+     event aimed at the handle, which is exactly why the line could not be
+     dragged. Below .pb-pop (5) so the hover card still wins. */
+  z-index: 3;
+  /* The rule spans the full width, so leaving it interactive would block bar
+     hovers all along its row. Only the handle and the tag take the pointer. */
+  pointer-events: none;
+}
+/* The handle. Sized well past the 24px minimum touch target in both axes via
+   padding, while the visible grip stays small. */
+.pb-handle {
+  position: absolute; left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 2rem; height: 1.6rem;
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab;
+  touch-action: none; /* or the browser scrolls instead of dragging */
+}
+.pb-handle { pointer-events: auto; }
+.pb-handle:active { cursor: grabbing; }
+.pb-handle-grip {
+  width: 1.5rem; height: 0.85rem;
+  background: var(--line);
+  border: 1px solid var(--line-edge);
+  border-radius: 3px;
+}
+.pb-handle:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+.pb-handle:hover .pb-handle-grip, .pb-handle:focus-visible .pb-handle-grip {
+  filter: brightness(1.08);
+}
+.pb-line-tag, .pb-proj-tag {
+  position: absolute; top: -1.3rem; font-size: 0.7rem; color: var(--muted);
+  background: var(--panel); padding: 0 0.25rem;
+}
+.pb-line-tag { right: 0; pointer-events: auto; }
+.pb-proj-tag { left: 0; }
+
+.pb-bars {
+  position: absolute; inset: 0;
+  display: flex; align-items: flex-end; gap: 2px;
+  list-style: none; margin: 0; padding: 0;
+}
+/* Each column is the hover/focus target, full height so the card is easy to
+   reach even when the bar itself is short. */
+.pb-col { position: relative; flex: 1 1 0; min-width: 0; height: 100%;
+  display: flex; align-items: flex-end; }
+.pb-col:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+.pb-bar {
+  width: 100%; min-height: 2px;
+  background: var(--navy); border-radius: 4px 4px 0 0;
+}
+.pb-over { background: var(--good); }
+.pb-under { background: var(--bad); }
+.pb-col:hover .pb-bar, .pb-col:focus-visible .pb-bar { filter: brightness(1.12); }
+
+/* The card follows the pointer, so `left`/`top` are set inline from JS and
+   there is no CSS-driven show/hide -- the element only exists while a bar is
+   active. Width MUST stay in sync with CARD_W/CARD_H in PropBars.tsx, which is
+   what keeps it clamped inside the plot. */
+.pb-pop {
+  position: absolute;
+  z-index: 5;
+  width: 200px;
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  box-shadow: 0 2px 10px rgb(16 22 29 / 0.14);
+  padding: 0.55rem 0.65rem;
+  /* Never intercept the pointer: the card sits under the cursor by design, and
+     if it could take the mouse it would fight the mousemove that positions it. */
+  pointer-events: none;
+}
+/* Header and result are separate lines: the two together overflow the 200px
+   card, and it was the result that got clipped. Both allowed to wrap rather
+   than truncate -- a long park/team name should push the card taller, not
+   silently lose characters. */
+.pb-pop-h { margin: 0; font-size: 0.8rem; font-weight: 600; color: var(--ink); }
+.pb-pop-res { margin: 0; font-size: 0.72rem; font-weight: 400; color: var(--muted); }
+/* The gap sits on the grid, not on the lines above it: the result line is
+   conditional (a game with no box score has no score to report), and hanging
+   the spacing off it would collapse the header onto the stats whenever it is
+   absent. */
+.pb-pop-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.15rem 0.6rem;
+  margin: 0.4rem 0 0;
+}
+.pb-pop-grid > div { display: flex; justify-content: space-between; gap: 0.4rem; }
+.pb-pop-grid dt { color: var(--muted); font-size: 0.75rem; }
+.pb-pop-grid dd { margin: 0; font-size: 0.75rem; color: var(--ink); }
+.pb-pop-na { color: var(--faint); font-size: 0.68rem; }
+
+.pb-dates {
+  display: flex; gap: 2px; list-style: none;
+  margin: 0.3rem 0 0; padding: 0 0.9rem 0 2.9rem;
+}
+.pb-dates li { flex: 1 1 0; min-width: 0; font-size: 0.65rem; color: var(--faint); text-align: center; }
+
+.ex-matchup { margin-top: 2rem; }
+.ex-cond {
+  display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem;
+  background: var(--panel); border: 1px solid var(--hair);
+  padding: 0.6rem 0.8rem; margin-bottom: 0.9rem;
+  color: var(--muted); font-size: 0.85rem;
+}
+.ex-todo { margin-top: 1.5rem; }
+
+.ex-flabel { margin: 0.9rem 0 0.4rem; font-size: 0.8rem; color: var(--muted); }
+.ex-flabel:first-of-type { margin-top: 0; }
+.ex-fgroup { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.ex-chip {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--hair);
+  color: var(--muted); text-decoration: none;
+  font-size: 0.8rem; font-variant-numeric: tabular-nums;
+}
+.ex-chip:hover { border-color: var(--navy); color: var(--ink); text-decoration: none; }
+.ex-chip-on { border-color: var(--navy); color: var(--ink); font-weight: 600; }
+.ex-chip:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+.ex-warn { margin-top: 1.1rem; }
 
 /* ---- slate date navigation ---- */
 .slatenav {

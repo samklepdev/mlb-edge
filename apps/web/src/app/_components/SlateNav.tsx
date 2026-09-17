@@ -23,14 +23,14 @@ export function SlateNav({
   return (
     <div className="slatenav">
       {prev ? (
-        <Link className="snav-btn" href={`/?date=${prev}`} aria-label={`Previous slate, ${prev}`}>
+        <Link className="snav-btn" href={`/slate?date=${prev}`} aria-label={`Previous slate, ${prev}`}>
           ← {prev}
         </Link>
       ) : (
         <span className="snav-btn snav-off" aria-hidden="true">←</span>
       )}
 
-      <form className="snav-form" method="get" action="/">
+      <form className="snav-form" method="get" action="/slate">
         <label className="snav-label" htmlFor="slate-date">Slate date</label>
         <input
           className="snav-date"
@@ -45,7 +45,7 @@ export function SlateNav({
       </form>
 
       {next ? (
-        <Link className="snav-btn" href={`/?date=${next}`} aria-label={`Next slate, ${next}`}>
+        <Link className="snav-btn" href={`/slate?date=${next}`} aria-label={`Next slate, ${next}`}>
           {next} →
         </Link>
       ) : (
