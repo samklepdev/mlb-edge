@@ -141,6 +141,50 @@ export async function getSlatePlayerIndex(date: string): Promise<SlateSearchHit[
   }));
 }
 
+// The game's run line for one team, and the total.
+//
+// Same live-quote guard as the player-prop readers: a price fetched at or after
+// first pitch is an in-game number, so it is excluded rather than shown as a
+// pre-game line. DISTINCT ON prefers the sharp book, then the newest quote.
+export interface GameLines {
+  runLine: { line: number; odds: number } | null;
+  total: { line: number; overOdds: number | null; underOdds: number | null } | null;
+}
+export async function getGameLines(gameId: number, teamId: number | null): Promise<GameLines> {
+  const rows = (
+    await query<{ market: string; side: string; line: string; odds: number }>(
+      `SELECT DISTINCT ON (m.market, m.side) m.market, m.side, m.line, m.odds
+       FROM game_market_lines m JOIN games g ON g.id = m.game_id
+       WHERE m.game_id = $1 AND m.fetched_at < g.start_time
+       ORDER BY m.market, m.side, m.is_sharp DESC, m.fetched_at DESC`,
+      [gameId],
+    )
+  ).rows;
+
+  const g = (
+    await query<{ home_team_id: number | null }>('SELECT home_team_id FROM games WHERE id = $1', [gameId])
+  ).rows[0];
+  // The run line is per team, so which row is "theirs" depends on the side the
+  // player is on. With no team resolved there is no meaningful run line to show.
+  const wantSide = teamId == null ? null : teamId === g?.home_team_id ? 'home' : 'away';
+
+  const rl = wantSide == null ? undefined
+    : rows.find((r) => r.market === 'run_line' && r.side === wantSide);
+  const over = rows.find((r) => r.market === 'total' && r.side === 'over');
+  const under = rows.find((r) => r.market === 'total' && r.side === 'under');
+
+  return {
+    runLine: rl ? { line: Number(rl.line), odds: rl.odds } : null,
+    total: over || under
+      ? {
+          line: Number((over ?? under)!.line),
+          overOdds: over ? over.odds : null,
+          underOdds: under ? under.odds : null,
+        }
+      : null,
+  };
+}
+
 // The opposing probable starter's season line, as rates.
 //
 // Everything here is season-to-date from player_game_pitching -- no modelling,

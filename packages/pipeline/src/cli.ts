@@ -13,6 +13,7 @@ import { backtestReport } from './backtest/report.js';
 import { healthReport } from './health/report.js';
 import { MODEL_VERSION } from './project/model.js';
 import { pullLines, captureClosing, settleResults, repriceLines, type PullOptions } from './market/lines.js';
+import { pullGameLines } from './market/gameLines.js';
 import { clvReport } from './clv/index.js';
 import { calibrationReport } from './calibration/index.js';
 import { dateRange } from './dates.js';
@@ -283,6 +284,30 @@ lines
       );
     } else if (r.picksWritten === 0 && r.linesStored > 0) {
       console.log('Hint: lines stored but no edges. Run `project` for this date first, or lower --edge.');
+    }
+  });
+lines
+  .command('games')
+  .description('pull run lines and totals for a slate (one request for the whole league)')
+  .requiredOption('--date <YYYY-MM-DD>', 'slate date')
+  .option('--books <keys>', 'comma-separated bookmaker keys to store', 'draftkings,fanduel')
+  .option('--sharp <key>', 'reference/sharp bookmaker key', 'pinnacle')
+  .option('--regions <regions>', 'odds regions (pinnacle needs eu)', 'us')
+  .action(async (o: { date: string; books: string; sharp: string; regions: string }) => {
+    const r = await pullGameLines(o.date, {
+      books: o.books.split(',').map((s) => s.trim()).filter(Boolean),
+      sharp: o.sharp.trim(),
+      regions: o.regions.trim(),
+    });
+    console.log(
+      `game lines: ${r.rowsWritten} row(s) across ${r.matchedGames} game(s) on ${r.date}` +
+        (r.skippedStarted > 0 ? `; skipped ${r.skippedStarted} already started` : ''),
+    );
+    console.log(`  odds events returned: ${r.oddsEvents} (league-wide; most belong to other dates)`);
+    // Surfaced because this command spends from a small free-tier quota and
+    // nothing else in the CLI reports it.
+    if (r.quota.remaining != null) {
+      console.log(`  API quota: ${r.quota.used ?? '?'} used, ${r.quota.remaining} remaining`);
     }
   });
 lines

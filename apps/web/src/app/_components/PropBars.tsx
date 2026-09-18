@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import type { PropGame, OppPitcherProfile } from '@mlb-edge/db';
+import type { PropGame, OppPitcherProfile, GameLines } from '@mlb-edge/db';
 import { abbrev, logoUrl } from './teams';
 
 // A client component, which is allowed here only because nothing server-only
@@ -16,6 +16,11 @@ import { abbrev, logoUrl } from './teams';
 
 // Card box, used to keep it inside the plot. Fixed rather than measured: a
 // read of offsetHeight on every mousemove would force layout each frame.
+// A handicap reads as a signed number and American odds always carry a sign,
+// so both need the + that toFixed/String drop.
+const signed = (n: number): string => (n > 0 ? `+${n}` : String(n));
+const american = (n: number): string => (n > 0 ? `+${n}` : String(n));
+
 const CARD_W = 200;
 // Includes the result line below the header. Must be updated whenever a row is
 // added to the card -- it is what keeps the card clamped inside the plot.
@@ -71,7 +76,9 @@ export function PropBars({
    *  once that game has a box score -- then it is history like the rest. */
   pending?: {
     date: string; opponentId: number | null; opponent: string | null; home: boolean;
+    teamId: number | null; team: string | null;
     opp: OppPitcherProfile | null;
+    lines: GameLines;
   } | null;
   projMean: number | null;
   prop: string;
@@ -295,12 +302,36 @@ export function PropBars({
                 {abbrev(pending.opponentId, pending.opponent ?? '')}
               </p>
               <dl className="pb-pop-grid">
-                {/* Game markets are not ingested: `lines pull` requests player
-                    props only, so market_lines holds no spread or total. Shown
-                    as gaps rather than dropped, so it is obvious they are
-                    missing rather than forgotten. */}
-                <div><dt>Run line</dt><dd className="pb-pop-na">not ingested</dd></div>
-                <div><dt>Total</dt><dd className="pb-pop-na">not ingested</dd></div>
+                {/* Book numbers for the game itself, from `lines games`. The
+                    run line is THIS player's team's handicap -- named, because
+                    a bare -1.5 does not say whose it is. Still a gap when the
+                    slate has not been pulled, so missing stays visible. */}
+                <div>
+                  <dt>{abbrev(pending.teamId, pending.team ?? '')} run line</dt>
+                  <dd>
+                    {pending.lines.runLine == null ? (
+                      <span className="pb-pop-na">not pulled</span>
+                    ) : (
+                      <span className="num">
+                        {signed(pending.lines.runLine.line)} ({american(pending.lines.runLine.odds)})
+                      </span>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Total runs</dt>
+                  <dd>
+                    {pending.lines.total == null ? (
+                      <span className="pb-pop-na">not pulled</span>
+                    ) : (
+                      <span className="num">
+                        {pending.lines.total.line.toFixed(1)}
+                        {pending.lines.total.overOdds != null &&
+                          ` (o${american(pending.lines.total.overOdds)})`}
+                      </span>
+                    )}
+                  </dd>
+                </div>
               </dl>
 
               <p className="pb-pop-sec cnd">Opp pitcher rankings</p>

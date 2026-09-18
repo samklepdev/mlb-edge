@@ -131,6 +131,25 @@ which is why backtesting here is model-vs-reality, not market-edge.
 `lines pull` replaces a slate's picks idempotently, and skips games whose first
 pitch has passed — a price quoted after first pitch is a live in-game price.
 
+### Game lines — `lines games`
+
+Run line and total runs for the slate, which the prop explorer's upcoming-game
+popover reads. These are **market context only**: nothing prices against them
+and no pick is written from them.
+
+```bash
+npm run lines -- games --date 2026-09-18
+```
+
+One league-wide request covers every upcoming game, so this costs a couple of
+credits for the whole slate rather than one per game. It prints the API quota
+used and remaining, because the free tier's budget is small and no other
+command reports it.
+
+Rows land in `game_market_lines`, separate from `market_lines` — that table is
+keyed by `player_id NOT NULL` and every reader assumes a player prop. Started
+games are skipped, same guard as `lines pull`.
+
 ---
 
 ## 5. Closing lines — `lines capture`

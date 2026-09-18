@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { PropGame, PlayerTotals, OppPitcherProfile } from '@mlb-edge/db';
+import type { PropGame, PlayerTotals, OppPitcherProfile, GameLines } from '@mlb-edge/db';
 import { Headshot } from './Headshot';
 import { PropLabel } from './PropLabel';
 import { PropBars } from './PropBars';
@@ -34,7 +34,9 @@ export function PlayerPanel({
   /** The upcoming game this chart is set up for; see PropBars. */
   pending?: {
     date: string; opponentId: number | null; opponent: string | null; home: boolean;
+    teamId: number | null; team: string | null;
     opp: OppPitcherProfile | null;
+    lines: GameLines;
   } | null;
   totals: PlayerTotals;
   games: PropGame[];

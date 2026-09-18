@@ -39,7 +39,7 @@ Verify before assuming a change took effect:
 ## Commands (root npm scripts; args after `--`)
 `db:migrate` · `seed:demo` · `ingest -- schedule|games|game …` ·
 `project -- --date <d>` · `backfill -- --from <d> --to <d>` · `backtest` ·
-`lines -- pull|capture --date <d> …` · `settle -- --date <d>` · `clv` ·
+`lines -- pull|capture|games --date <d> …` · `settle -- --date <d>` · `clv` ·
 `calibrate` · `web:dev`/`web:build` · `typecheck` ·
 `parity` (needs `PARITY_BASE=<a next start server>`) · `contrast`.
 Fallback: `npm run -w @mlb-edge/pipeline cli -- <args>`.
@@ -87,6 +87,11 @@ vs reality; `backtest` = calibration report (reliability, ECE, Brier).
 - Park factors are a stub table; the pitcher factor is a hits-allowed proxy.
 - The per-PA independence assumption slightly understates variance (mild residual
   overconfidence in high-probability buckets at large n).
+- Game-level markets (run line, total) live in `game_market_lines`, written by
+  `lines games` and read only by the explorer's upcoming-game popover. They are
+  market context, not model input: nothing prices against them and no pick is
+  derived from them. Kept out of `market_lines` because that table is keyed by
+  `player_id NOT NULL` and every reader there assumes a player prop.
 - Live in-game quotes are excluded at both ends: `fetchLines` skips games whose
   first pitch has passed (so they never reach `market_lines`, and no credit is
   spent on them), and both readers — `loadStoredLines` and `getPlayerCard` —

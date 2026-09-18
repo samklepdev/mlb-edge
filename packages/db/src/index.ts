@@ -17,8 +17,8 @@ export { getPlayerResiduals, summarizeResiduals } from './queries/residuals.js';
 export { getGameDetail } from './queries/game.js';
 export {
   getGamePlayers, getPropHistory, getPropReference, getMatchupContext, totalsFrom,
-  PITCHER_PROPS, getPlayerRoles, getSlatePlayerIndex, getOppPitcherProfile,
-  type OppPitcherProfile,
+  PITCHER_PROPS, getPlayerRoles, getSlatePlayerIndex, getOppPitcherProfile, getGameLines,
+  type OppPitcherProfile, type GameLines,
   type SlateSearchHit,
   type PlayerTotals,
   type PropHistoryFilters,
