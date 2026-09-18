@@ -2,7 +2,7 @@ import Link from 'next/link';
 import {
   latestSlateDate, getSlateGames, getGamePlayers,
   getPropHistory, getPropReference, getMatchupContext, totalsFrom, PITCHER_PROPS,
-  getPlayerRoles, getSlatePlayerIndex, getOppPitcherProfile,
+  getPlayerRoles, getSlatePlayerIndex, getOppPitcherProfile, getGameLines,
   type SlateGame, type ExplorerPlayer, type MatchupContext, type SlateSearchHit,
 } from '@mlb-edge/db';
 import { Headshot } from './_components/Headshot';
@@ -150,9 +150,14 @@ export default async function PropsPage({
         home: player!.teamId != null && player!.teamId === openGame!.homeId,
         opponentId: player!.teamId === openGame!.homeId ? openGame!.awayId : openGame!.homeId,
         opponent: player!.teamId === openGame!.homeId ? openGame!.away : openGame!.home,
+        teamId: player!.teamId,
+        team: player!.teamId === openGame!.homeId ? openGame!.home : openGame!.away,
         // Season-to-date rates for the starter this player will face. Fetched
         // only for an unplayed game, since that is the only time the panel shows.
         opp: await getOppPitcherProfile(openGame!.gameId, player!.playerId),
+        // The book's run line for THIS player's team and the game total. Both
+        // are market facts about the upcoming game, not model output.
+        lines: await getGameLines(openGame!.gameId, player!.teamId),
       }
     : null;
 
