@@ -18,7 +18,8 @@ export { getGameDetail } from './queries/game.js';
 export {
   getGamePlayers, getPropHistory, getPropReference, getMatchupContext, totalsFrom,
   PITCHER_PROPS, getPlayerRoles, getSlatePlayerIndex, getOppPitcherProfile, getGameLines,
-  type OppPitcherProfile, type GameLines,
+  getArsenalMatchup,
+  type OppPitcherProfile, type GameLines, type ArsenalRow, type ArsenalMatchup,
   type SlateSearchHit,
   type PlayerTotals,
   type PropHistoryFilters,
