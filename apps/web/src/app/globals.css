@@ -255,6 +255,22 @@ a:hover { text-decoration: underline; }
 .ptab-dim { color: var(--faint); }
 /* Genuinely inert: rendered as a <span>, so there is nothing to click. The
    cursor says so before the click does. */
+/* ---- masthead nav ----
+   Replaces the sentence each page used to carry here. Links sit on --navy, so
+   they use the same light steps the wordmark does rather than the ink ramp,
+   which is tuned for light surfaces. */
+.mnav { display: flex; gap: 1.1rem; margin-top: 0.6rem; }
+.mnav-link {
+  color: #c3d0e0;
+  font-size: 0.9rem;
+  text-decoration: none;
+  padding-bottom: 0.15rem;
+  border-bottom: 2px solid transparent;
+}
+.mnav-link:hover { color: #ffffff; text-decoration: none; }
+.mnav-on { color: #ffffff; border-bottom-color: var(--red); }
+.mnav-link:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+
 .ptab-dim { cursor: not-allowed; }
 /* Still brightens on hover -- the label has to be READABLE to be understood as
    unavailable, and the title explains why. It deliberately does NOT take the

@@ -9,6 +9,7 @@ import { Headshot } from './_components/Headshot';
 import { PropLabel } from './_components/PropLabel';
 import { PlayerPanel } from './_components/PlayerPanel';
 import { abbrev, logoUrl } from './_components/teams';
+import { Masthead } from './_components/Masthead';
 
 export const dynamic = 'force-dynamic';
 
@@ -139,14 +140,7 @@ export default async function PropsPage({
 
   return (
     <main className="wrap wide">
-      <header className="masthead">
-        <h1 className="wordmark">mlb-edge <span>/ props</span></h1>
-        <p className="purpose">
-          One player, one prop, game by game. Set the line where you want it and
-          read the history yourself. <Link href="/slate">Slate</Link> ·{' '}
-          <Link href="/model">Model</Link>
-        </p>
-      </header>
+      <Masthead section="props" />
 
       {error ? (
         <section className="notice"><h2>Error</h2><p>{error}</p></section>

@@ -9,6 +9,7 @@ import { GameCard } from '../_components/GameCard';
 import { Headshot } from '../_components/Headshot';
 import { Side } from '../_components/Side';
 import { PropLabel } from '../_components/PropLabel';
+import { Masthead } from '../_components/Masthead';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,19 +59,7 @@ export default async function Page({
 
   return (
     <main className="wrap">
-      <header className="masthead">
-        <h1 className="wordmark">
-          <Link href="/">mlb-edge</Link> <span>/ slate</span>
-        </h1>
-        <p className="purpose">
-          Today&apos;s games and where the model disagrees with the market. An
-          edge here is a hypothesis, not a recommendation —{' '}
-          {/* The calibration and CLV figures moved to /model, so this link is
-              load-bearing: without it the landing page shows edges with no
-              route to the evidence about whether they mean anything. */}
-          <Link href="/model">check the model</Link> before believing one.
-        </p>
-      </header>
+      <Masthead section="slate" />
 
       {!d.ok ? (
         <section className="notice">

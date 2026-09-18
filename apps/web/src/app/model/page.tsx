@@ -6,6 +6,7 @@ import {
 } from '@mlb-edge/db';
 import { ReliabilityPlot } from '../_components/ReliabilityPlot';
 import { PropLabel } from '../_components/PropLabel';
+import { Masthead } from '../_components/Masthead';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,15 +41,7 @@ export default async function ModelPage() {
 
   return (
     <main className="wrap">
-      <header className="masthead">
-        <h1 className="wordmark">
-          <Link href="/">mlb-edge</Link> <span>/ model</span>
-        </h1>
-        <p className="purpose">
-          Is the model calibrated, and does it beat the closing line? Those two
-          answers decide whether an edge is real. Everything else is noise.
-        </p>
-      </header>
+      <Masthead section="model" />
 
       {!d.ok ? (
         <section className="notice">

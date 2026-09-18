@@ -95,7 +95,7 @@ const LARGE = 3.0;
 const pairs = [
   // masthead: literal foregrounds on --navy
   ['wordmark on navy',            lit('.wordmark'),      tok('navy'),   LARGE,  'on --navy'],
-  ['purpose on navy',             lit('.purpose'),       tok('navy'),   NORMAL, 'on --navy'],
+  ['nav link on navy',            lit('.mnav-link'),     tok('navy'),   NORMAL, 'on --navy'],
   ['wordmark span on navy',       lit('.wordmark span'), tok('navy'),   LARGE,  'on --navy'],
   // the text ramp against the surfaces it is actually used on
   ['ink on panel',                tok('ink'),            tok('panel'),  NORMAL, null],
