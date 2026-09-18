@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import type { PropGame } from '@mlb-edge/db';
+import type { PropGame, OppPitcherProfile } from '@mlb-edge/db';
 import { abbrev, logoUrl } from './teams';
 
 // A client component, which is allowed here only because nothing server-only
@@ -20,7 +20,14 @@ const CARD_W = 200;
 // Includes the result line below the header. Must be updated whenever a row is
 // added to the card -- it is what keeps the card clamped inside the plot.
 const CARD_H = 150;
+// The upcoming-game card carries a matchup header plus six pitcher rates, so it
+// needs its own height for the same clamping the per-game card gets.
+const PENDING_CARD_H = 208;
 const GAP = 14;
+
+// Baseball rate conventions: .331 without the leading zero, 9.4% with one place.
+const rate3 = (v: number | null) => (v == null ? '—' : v.toFixed(3).replace(/^0/, ''));
+const pct1 = (v: number | null) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
 
 // Game-by-game outcomes for one prop, against the market line.
 //
@@ -44,7 +51,7 @@ const GAP = 14;
 //
 // With no market line there is nothing to clear, so bars stay neutral.
 export function PropBars({
-  games, line, marketLine, source, projMean, prop, pitching, onLineChange,
+  games, line, marketLine, source, projMean, prop, pitching, pending, onLineChange,
 }: {
   games: PropGame[];
   /** The EFFECTIVE line: the reader's if they moved it, else the market's. */
@@ -58,12 +65,25 @@ export function PropBars({
   source: 'market' | 'seeded' | 'custom';
   /** Server-computed; see PlayerPanel for why it is a prop and not an import. */
   pitching: boolean;
+  /** The game this chart is set up for, which has not been played. Drawn as an
+   *  empty dashed slot at the right so the upcoming matchup has a place on the
+   *  timeline instead of the chart simply stopping at the last result. Null
+   *  once that game has a box score -- then it is history like the rest. */
+  pending?: {
+    date: string; opponentId: number | null; opponent: string | null; home: boolean;
+    opp: OppPitcherProfile | null;
+  } | null;
   projMean: number | null;
   prop: string;
   onLineChange: (v: number | null) => void;
 }) {
   const plotRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState<number | null>(null);
+  // ONE state for which column is open, not two booleans. The previous shape --
+  // an `active` index plus a separate `pendingOn` flag -- let both be true at
+  // once: the bar handlers set the index without clearing the flag, so moving
+  // from the dashed column onto a bar showed two cards. A union makes that
+  // unrepresentable rather than relying on every handler to clear the other.
+  const [active, setActive] = useState<number | 'pending' | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   // The line is owned by PlayerPanel, because the hit rate in the player header
@@ -77,15 +97,15 @@ export function PropBars({
   // Clamp the card inside the plot box rather than letting it overhang. That
   // matters more than usual here: body sets overflow-x: hidden, so anything
   // past the viewport edge is not merely ugly, it is invisible.
-  const place = (x: number, y: number) => {
+  const place = (x: number, y: number, cardH = CARD_H) => {
     const w = plotRef.current?.clientWidth ?? 0;
     const h = plotRef.current?.clientHeight ?? 0;
     let left = x + GAP;
     if (left + CARD_W > w) left = x - GAP - CARD_W;
     left = Math.max(0, Math.min(left, Math.max(0, w - CARD_W)));
-    let top = y - GAP - CARD_H;
+    let top = y - GAP - cardH;
     if (top < 0) top = y + GAP;
-    top = Math.max(0, Math.min(top, Math.max(0, h - CARD_H)));
+    top = Math.max(0, Math.min(top, Math.max(0, h - cardH)));
     setPos({ left, top });
   };
 
@@ -238,13 +258,81 @@ export function PropBars({
                 </li>
               );
             })}
+            {pending && (
+              // No value, so no bar -- an outline where one would go. Sized as a
+              // sibling column so the played bars keep their widths rather than
+              // being squeezed by an extra entry.
+              <li
+                className="pb-col pb-col-pending"
+                tabIndex={0}
+                aria-label={`${pending.date}, ${pending.home ? 'vs' : 'at'} ${abbrev(pending.opponentId, pending.opponent ?? '')} — not played yet`}
+                onMouseMove={(e) => {
+                  const r = plotRef.current?.getBoundingClientRect();
+                  if (!r) return;
+                  setActive('pending');
+                  place(e.clientX - r.left, e.clientY - r.top, PENDING_CARD_H);
+                }}
+                onFocus={(e) => {
+                  const el = e.currentTarget;
+                  setActive('pending');
+                  place(el.offsetLeft + el.offsetWidth / 2, el.offsetTop + 8, PENDING_CARD_H);
+                }}
+                onBlur={clear}
+              >
+                <span className="pb-pending" />
+              </li>
+            )}
           </ol>
+
+          {/* The upcoming game's card: the matchup, then the opposing starter's
+              season rates. Everything in it is season-to-date fact -- no
+              projection, which is why a chart that otherwise only shows history
+              can carry it. */}
+          {active === 'pending' && pending && pos && (
+            <div className="pb-pop pb-pop-wide" role="tooltip" style={{ left: pos.left, top: pos.top }}>
+              <p className="pb-pop-h">
+                {pending.date} {pending.home ? 'vs' : '@'}{' '}
+                {abbrev(pending.opponentId, pending.opponent ?? '')}
+              </p>
+              <dl className="pb-pop-grid">
+                {/* Game markets are not ingested: `lines pull` requests player
+                    props only, so market_lines holds no spread or total. Shown
+                    as gaps rather than dropped, so it is obvious they are
+                    missing rather than forgotten. */}
+                <div><dt>Run line</dt><dd className="pb-pop-na">not ingested</dd></div>
+                <div><dt>Total</dt><dd className="pb-pop-na">not ingested</dd></div>
+              </dl>
+
+              <p className="pb-pop-sec cnd">Opp pitcher rankings</p>
+              {pending.opp == null ? (
+                <p className="pb-pop-res">No probable starter listed.</p>
+              ) : (
+                <>
+                  <p className="pb-pop-res">
+                    {pending.opp.playerName}
+                    {pending.opp.throws && ` (${pending.opp.throws}HP)`} ·{' '}
+                    <span className="num">{pending.opp.bf}</span> BF
+                  </p>
+                  <dl className="pb-pop-grid">
+                    <div><dt>OBP</dt><dd className="num">{rate3(pending.opp.obp)}</dd></div>
+                    <div><dt>BB%</dt><dd className="num">{pct1(pending.opp.bbPct)}</dd></div>
+                    <div><dt>LOB%</dt><dd className="num">{pct1(pending.opp.lobPct)}</dd></div>
+                    {/* Fixed league weights, not refit to this season -- see the
+                        WOBA constant in the query. */}
+                    <div><dt title="Fixed league linear weights, not refit to this season">wOBA</dt><dd className="num">{rate3(pending.opp.woba)}</dd></div>
+                    <div><dt>K%</dt><dd className="num">{pct1(pending.opp.kPct)}</dd></div>
+                    <div><dt>HR/9</dt><dd className="num">{pending.opp.hr9 == null ? '—' : pending.opp.hr9.toFixed(2)}</dd></div>
+                  </dl>
+                </>
+              )}
+            </div>
+          )}
 
           {/* One card, moved to the pointer, rather than fifteen hidden ones.
               It sits outside the <ol> so it is never a child of the element
               being hovered -- pointer-events: none plus that separation means
               it cannot steal the mousemove and flicker. */}
-          {active != null && pos != null && (() => {
+          {typeof active === 'number' && pos != null && (() => {
             const d = data[active];
             const opp = abbrev(d.opponentId, d.opponent ?? '');
             const res = outcome(d);
@@ -256,18 +344,35 @@ export function PropBars({
                 <p className="pb-pop-h">{d.date} {d.home ? 'vs' : '@'} {opp}</p>
                 {res && <p className="pb-pop-res">{res}</p>}
                 <dl className="pb-pop-grid">
-                  <div><dt>PA</dt><dd className="num">{d.pa ?? '—'}</dd></div>
-                  <div><dt>H</dt><dd className="num">{d.h ?? '—'}</dd></div>
-                  <div><dt>2B</dt><dd className="num">{d.doubles ?? '—'}</dd></div>
-                  <div><dt>3B</dt><dd className="num">{d.triples ?? '—'}</dd></div>
-                  <div><dt>K</dt><dd className="num">{d.so ?? '—'}</dd></div>
-                  <div><dt>BB</dt><dd className="num">{d.bb ?? '—'}</dd></div>
-                  <div><dt>AVG</dt><dd className="num">{avg(d)}</dd></div>
-                  {/* Exit velocity IS stored now -- game_pitches.launch_speed,
-                      121,596 batted balls -- but this card is not yet wired to
-                      it. Saying "not wired up" rather than "not ingested",
-                      which stopped being true with the per-pitch ingest. */}
-                  <div><dt>Max EV</dt><dd className="pb-pop-na">not wired up</dd></div>
+                  {/* A pitcher prop gets the pitching line. The batting fields
+                      are empty for most starters, so leaving them would read as
+                      missing data rather than as the wrong table. */}
+                  {pitching ? (
+                    <>
+                      <div><dt>IP</dt><dd className="num">{d.pOuts == null ? '—' : `${Math.floor(d.pOuts / 3)}.${d.pOuts % 3}`}</dd></div>
+                      <div><dt>BF</dt><dd className="num">{d.pBf ?? '—'}</dd></div>
+                      <div><dt>H</dt><dd className="num">{d.pH ?? '—'}</dd></div>
+                      <div><dt>ER</dt><dd className="num">{d.pEr ?? '—'}</dd></div>
+                      <div><dt>K</dt><dd className="num">{d.pSo ?? '—'}</dd></div>
+                      <div><dt>BB</dt><dd className="num">{d.pBb ?? '—'}</dd></div>
+                      {/* Hardest ball hit OFF him, not by him. */}
+                      <div><dt>Max EV</dt><dd className="num">{d.maxEv == null ? '—' : d.maxEv.toFixed(1)}</dd></div>
+                    </>
+                  ) : (
+                    <>
+                      <div><dt>PA</dt><dd className="num">{d.pa ?? '—'}</dd></div>
+                      <div><dt>H</dt><dd className="num">{d.h ?? '—'}</dd></div>
+                      <div><dt>2B</dt><dd className="num">{d.doubles ?? '—'}</dd></div>
+                      <div><dt>3B</dt><dd className="num">{d.triples ?? '—'}</dd></div>
+                      <div><dt>K</dt><dd className="num">{d.so ?? '—'}</dd></div>
+                      <div><dt>BB</dt><dd className="num">{d.bb ?? '—'}</dd></div>
+                      <div><dt>AVG</dt><dd className="num">{avg(d)}</dd></div>
+                      {/* The hardest ball this batter hit. An em dash means
+                          nothing was put in play -- a walk-and-strikeout day has
+                          no exit velocity, which is different from missing. */}
+                      <div><dt>Max EV</dt><dd className="num">{d.maxEv == null ? '—' : d.maxEv.toFixed(1)}</dd></div>
+                    </>
+                  )}
                 </dl>
               </div>
             );
@@ -297,6 +402,20 @@ export function PropBars({
               </li>
             );
           })}
+          {pending && (
+            <li className="pb-foot-col pb-foot-pending">
+              <span
+                className="pb-foot-logo"
+                style={logoUrl(pending.opponentId)
+                  ? { backgroundImage: `url(${logoUrl(pending.opponentId)})` }
+                  : undefined}
+                title={`${pending.home ? 'vs' : '@'} ${abbrev(pending.opponentId, pending.opponent ?? '')} — not played yet`}
+              />
+              <span className="pb-foot-date num">
+                {Number(pending.date.split('-')[1])}/{Number(pending.date.split('-')[2])}
+              </span>
+            </li>
+          )}
         </ol>
       </div>
 

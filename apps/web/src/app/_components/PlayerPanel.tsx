@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { PropGame, PlayerTotals } from '@mlb-edge/db';
+import type { PropGame, PlayerTotals, OppPitcherProfile } from '@mlb-edge/db';
 import { Headshot } from './Headshot';
 import { PropLabel } from './PropLabel';
 import { PropBars } from './PropBars';
@@ -21,7 +21,7 @@ const fmt2 = (v: number | null) => (v == null ? '—' : v.toFixed(2));
 const ip = (outs: number) => `${Math.floor(outs / 3)}.${outs % 3}`;
 
 export function PlayerPanel({
-  playerId, playerName, prop, pitching, totals, games, marketLine, projMean, windowLabel,
+  playerId, playerName, prop, pitching, pending, totals, games, marketLine, projMean, windowLabel,
 }: {
   playerId: number;
   playerName: string;
@@ -31,6 +31,11 @@ export function PlayerPanel({
    *  here -- rather than as a type -- would drag a server-only driver into the
    *  client bundle, which CLAUDE.md forbids outright. */
   pitching: boolean;
+  /** The upcoming game this chart is set up for; see PropBars. */
+  pending?: {
+    date: string; opponentId: number | null; opponent: string | null; home: boolean;
+    opp: OppPitcherProfile | null;
+  } | null;
   totals: PlayerTotals;
   games: PropGame[];
   marketLine: number | null;
@@ -118,7 +123,8 @@ export function PlayerPanel({
 
       <PropBars
         games={games} line={line} marketLine={marketLine} source={source}
-        projMean={projMean} prop={prop} pitching={pitching} onLineChange={setOverride}
+        projMean={projMean} prop={prop} pitching={pitching} pending={pending}
+        onLineChange={setOverride}
       />
     </>
   );

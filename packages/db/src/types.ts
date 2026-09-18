@@ -170,6 +170,9 @@ export interface PropGame {
   sf: number | null;
   /** The player's PITCHING line for that game, for pitcher props. Null when
    *  they did not pitch. */
+  /** Hardest ball hit in the game: by this batter for a batter prop, off this
+   *  pitcher for a pitcher prop. Null when nothing was put in play. */
+  maxEv: number | null;
   pOuts: number | null;
   pBf: number | null;
   pH: number | null;
