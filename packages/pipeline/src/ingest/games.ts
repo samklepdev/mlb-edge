@@ -94,16 +94,24 @@ export async function ingestBoxscore(gamePk: number): Promise<void> {
         const pit: StatMap | undefined = p.stats?.pitching;
         if (pit && Object.keys(pit).length > 0) {
           await c.query(
+            // pitches/strikes are not optional extras: writeGamePitches
+            // reconciles the parsed play-by-play against `pitches`, so a row
+            // without it leaves the gate nothing to check and every newly
+            // ingested game is refused with "no stored pitch counts". Migration
+            // 013 backfilled history from archived payloads; this is what keeps
+            // it true going forward.
             `INSERT INTO player_game_pitching
-               (game_id, player_id, team_id, outs, so, bb, h, er, bf)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+               (game_id, player_id, team_id, outs, so, bb, h, er, bf, pitches, strikes)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
              ON CONFLICT (game_id, player_id) DO UPDATE SET
                outs=EXCLUDED.outs, so=EXCLUDED.so, bb=EXCLUDED.bb,
-               h=EXCLUDED.h, er=EXCLUDED.er, bf=EXCLUDED.bf`,
+               h=EXCLUDED.h, er=EXCLUDED.er, bf=EXCLUDED.bf,
+               pitches=EXCLUDED.pitches, strikes=EXCLUDED.strikes`,
             [
               gamePk, p.person.id, side.team.id,
               ipToOuts(pit.inningsPitched), num(pit.strikeOuts), num(pit.baseOnBalls),
               num(pit.hits), num(pit.earnedRuns), num(pit.battersFaced),
+              num(pit.numberOfPitches), num(pit.strikes),
             ],
           );
         }
