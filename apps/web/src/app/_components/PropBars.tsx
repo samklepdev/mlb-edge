@@ -78,11 +78,13 @@ export function PropBars({
   onLineChange: (v: number | null) => void;
 }) {
   const plotRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState<number | null>(null);
+  // ONE state for which column is open, not two booleans. The previous shape --
+  // an `active` index plus a separate `pendingOn` flag -- let both be true at
+  // once: the bar handlers set the index without clearing the flag, so moving
+  // from the dashed column onto a bar showed two cards. A union makes that
+  // unrepresentable rather than relying on every handler to clear the other.
+  const [active, setActive] = useState<number | 'pending' | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-  // The upcoming column is tracked separately from `active`, which indexes into
-  // played games and has no slot for a game that has not happened.
-  const [pendingOn, setPendingOn] = useState(false);
 
   // The line is owned by PlayerPanel, because the hit rate in the player header
   // reads from it too. This component only reports changes upward.
@@ -123,7 +125,7 @@ export function PropBars({
     place(el.offsetLeft + el.offsetWidth / 2, el.offsetTop + 8);
   };
 
-  const clear = () => { setActive(null); setPendingOn(false); setPos(null); };
+  const clear = () => { setActive(null); setPos(null); };
 
   // Drag the line. Pointer capture rather than window listeners: the pointer
   // keeps reporting to this element even when it leaves the plot, so a fast
@@ -267,14 +269,12 @@ export function PropBars({
                 onMouseMove={(e) => {
                   const r = plotRef.current?.getBoundingClientRect();
                   if (!r) return;
-                  setActive(null);
-                  setPendingOn(true);
+                  setActive('pending');
                   place(e.clientX - r.left, e.clientY - r.top, PENDING_CARD_H);
                 }}
                 onFocus={(e) => {
                   const el = e.currentTarget;
-                  setActive(null);
-                  setPendingOn(true);
+                  setActive('pending');
                   place(el.offsetLeft + el.offsetWidth / 2, el.offsetTop + 8, PENDING_CARD_H);
                 }}
                 onBlur={clear}
@@ -288,7 +288,7 @@ export function PropBars({
               season rates. Everything in it is season-to-date fact -- no
               projection, which is why a chart that otherwise only shows history
               can carry it. */}
-          {pendingOn && pending && pos && (
+          {active === 'pending' && pending && pos && (
             <div className="pb-pop pb-pop-wide" role="tooltip" style={{ left: pos.left, top: pos.top }}>
               <p className="pb-pop-h">
                 {pending.date} {pending.home ? 'vs' : '@'}{' '}
@@ -332,7 +332,7 @@ export function PropBars({
               It sits outside the <ol> so it is never a child of the element
               being hovered -- pointer-events: none plus that separation means
               it cannot steal the mousemove and flicker. */}
-          {active != null && pos != null && (() => {
+          {typeof active === 'number' && pos != null && (() => {
             const d = data[active];
             const opp = abbrev(d.opponentId, d.opponent ?? '');
             const res = outcome(d);
