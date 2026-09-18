@@ -524,10 +524,16 @@ export async function getMatchupContext(
   const g = (
     await query<{
       home_team_id: number | null; away_team_id: number | null;
-      venue_name: string | null;
+      venue_name: string | null; game_date: string;
       condition: string | null; temp_f: string | null; wind: string | null;
     }>(
-      `SELECT g.home_team_id, g.away_team_id, g.venue_name, c.condition, c.temp_f, c.wind
+      // game_date is read here purely to cap the platoon split below. It is
+      // free on a row already being fetched, and taking it this way keeps
+      // getMatchupContext's signature at (gameId, playerId) -- every caller
+      // already has the game id, and none of them should have to know that
+      // one sub-query needs a lookahead guard.
+      `SELECT g.home_team_id, g.away_team_id, g.venue_name, g.game_date,
+              c.condition, c.temp_f, c.wind
        FROM games g LEFT JOIN game_conditions c ON c.game_id = g.id
        WHERE g.id = $1`,
       [gameId],
@@ -572,14 +578,21 @@ export async function getMatchupContext(
   const hand = pitcher?.throws === 'L' || pitcher?.throws === 'R' ? pitcher.throws : null;
   const split = hand == null ? undefined : (
     await query<{ pa: string; hits: string; hr: string; so: string; tb: string }>(
-      `SELECT sum(pa) AS pa,
-              sum(singles + doubles + triples + hr) AS hits,
-              sum(hr) AS hr,
-              sum(so) AS so,
-              sum(singles + 2*doubles + 3*triples + 4*hr) AS tb
-       FROM player_game_platoon
-       WHERE player_id = $1 AND pitch_hand = $2`,
-      [playerId, hand],
+      // Capped at the selected game's date. Without this the explorer shows a
+      // batter's FULL-SEASON platoon line while displaying a game from April --
+      // the panel would be reporting PAs that had not happened yet. Same guard
+      // the projection history queries carry (game_date < target), and the
+      // arsenal panel directly below this one is capped the same way; two
+      // adjacent panels disagreeing about what "to date" means is the bug.
+      `SELECT sum(pl.pa) AS pa,
+              sum(pl.singles + pl.doubles + pl.triples + pl.hr) AS hits,
+              sum(pl.hr) AS hr,
+              sum(pl.so) AS so,
+              sum(pl.singles + 2*pl.doubles + 3*pl.triples + 4*pl.hr) AS tb
+       FROM player_game_platoon pl
+       JOIN games g2 ON g2.id = pl.game_id
+       WHERE pl.player_id = $1 AND pl.pitch_hand = $2 AND g2.game_date < $3`,
+      [playerId, hand, g.game_date],
     )
   ).rows[0];
 
