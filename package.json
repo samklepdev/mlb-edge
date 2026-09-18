@@ -24,6 +24,7 @@
     "contrast": "npm run -w @mlb-edge/web contrast",
     "backfill": "npm run -w @mlb-edge/pipeline backfill --",
     "backtest": "npm run -w @mlb-edge/pipeline backtest",
-    "health": "npm run -w @mlb-edge/pipeline health"
+    "health": "npm run -w @mlb-edge/pipeline health",
+    "test": "npm run -w @mlb-edge/db test"
   }
 }

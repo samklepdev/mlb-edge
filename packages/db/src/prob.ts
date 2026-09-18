@@ -95,3 +95,26 @@ export function pOverFromPmf(pmf: number[], line: number): number {
   for (let k = kMin; k < pmf.length; k++) s += pmf[k] ?? 0;
   return Math.min(1, Math.max(0, s));
 }
+
+// Wilson score interval for a binomial proportion.
+//
+// Not the normal (Wald) interval, which is the one everybody reaches for and
+// is wrong exactly where this project needs it: at small n and at p near 0
+// or 1 it produces bounds outside [0, 1] and a zero-width interval for x=0.
+// The pitch-type panel's whole purpose is to be honest about thin samples --
+// a splitter row with 11 swings -- so the interval has to behave there.
+//
+// Deliberately asymmetric about x/n. Callers render explicit bounds rather
+// than "p +/- h"; at n=44, p=0.23 the sides differ by ~4 points, which is too
+// much to paper over with a single number.
+export function wilson(x: number, n: number, z = 1.96): { lo: number; hi: number } {
+  if (n <= 0) return { lo: 0, hi: 1 };
+  const p = x / n;
+  const z2 = z * z;
+  const denom = 1 + z2 / n;
+  const centre = (p + z2 / (2 * n)) / denom;
+  const half = (z / denom) * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n));
+  // Clamped: the score interval can still cross 0 or 1 at extreme p, and a
+  // percentage column showing 103% is worse than a slightly conservative bound.
+  return { lo: Math.max(0, centre - half), hi: Math.min(1, centre + half) };
+}

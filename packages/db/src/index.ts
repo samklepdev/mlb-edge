@@ -3,7 +3,7 @@ export { pool, query, withTx } from './pool.js';
 export * from './types.js';
 export {
   normalCdf, pOver, pOverFromPmf, americanToImplied, deVig,
-  americanToProfit, evPerUnit,
+  americanToProfit, evPerUnit, wilson,
 } from './prob.js';
 export { clvByProp, clvExcludedCount } from './queries/clv.js';
 export { calibrationBuckets } from './queries/calibration.js';
