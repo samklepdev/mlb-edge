@@ -2,6 +2,7 @@ import Link from 'next/link';
 import {
   latestSlateDate, getSlateGames, getGamePlayers,
   getPropHistory, getPropReference, getMatchupContext, totalsFrom, PITCHER_PROPS,
+  getPlayerRoles,
   type SlateGame, type ExplorerPlayer, type MatchupContext,
 } from '@mlb-edge/db';
 import { Headshot } from './_components/Headshot';
@@ -108,11 +109,26 @@ export default async function PropsPage({
   const playerId = sp.player ? Number(sp.player) : null;
   const player = players.find((p) => p.playerId === playerId) ?? null;
 
+  // Roles first: the prop actually charted depends on them, so fetching the
+  // history before this would query a prop the player has no data for and then
+  // discard it.
+  const roles = player
+    ? await getPlayerRoles(player.playerId)
+    : { hasBatting: true, hasPitching: true };
+
+  // A prop the player has no history for is not merely un-clickable, it must
+  // not be the SELECTED one either -- otherwise picking a pitcher while a
+  // batter prop is active lands on an empty chart whose own tab is disabled,
+  // which is a dead end rather than a guard.
+  const applies = (p: string) =>
+    PITCHER_PROPS.includes(p) ? roles.hasPitching : roles.hasBatting;
+  const shownProp = applies(prop) ? prop : (PROPS.find(applies) ?? prop);
+
   const history = player
-    ? await getPropHistory(player.playerId, prop, { venue, hand, limit: Number(last) })
+    ? await getPropHistory(player.playerId, shownProp, { venue, hand, limit: Number(last) })
     : [];
   const reference = player && openGame
-    ? await getPropReference(player.playerId, openGame.gameId, prop)
+    ? await getPropReference(player.playerId, openGame.gameId, shownProp)
     : { line: null, projMean: null };
   const totals = totalsFrom(history);
   const matchup: MatchupContext | null = player && openGame
@@ -224,40 +240,59 @@ export default async function PropsPage({
                   the tabs change what the chart plots, so they belong next to
                   it, not separated from it by the whole layout. */}
               <nav className="proptabs" aria-label="Prop type">
-                {PROPS.map((p) => (
-                  <Link key={p} href={href({ ...base, prop: p })}
-                    className={`ptab${p === prop ? ' ptab-on' : ''}`}
-                    aria-current={p === prop ? 'page' : undefined}>
-                    <PropLabel prop={p} />
-                  </Link>
-                ))}
+                {PROPS.map((p) => {
+                  const isPitcherProp = PITCHER_PROPS.includes(p);
+                  const dim = !applies(p);
+                  const label = dim
+                    ? `${player?.playerName ?? 'This player'} has no ${isPitcherProp ? 'pitching' : 'batting'} history, so this prop has no data`
+                    : undefined;
+                  // A span, not a link: there is nothing to navigate to, and a
+                  // dead link that loads an empty chart is worse than a control
+                  // that plainly cannot be used. aria-disabled rather than
+                  // removing it, so the tab is still announced and the reader
+                  // learns the prop exists.
+                  if (dim) {
+                    return (
+                      <span key={p} className="ptab ptab-dim" aria-disabled="true" title={label}>
+                        <PropLabel prop={p} />
+                      </span>
+                    );
+                  }
+                  return (
+                    <Link key={p} href={href({ ...base, prop: p })}
+                      className={`ptab${p === shownProp ? ' ptab-on' : ''}`}
+                      aria-current={p === shownProp ? 'page' : undefined}>
+                      <PropLabel prop={p} />
+                    </Link>
+                  );
+                })}
                 <span className="ptab-date">{date || '—'}</span>
               </nav>
               {!player ? (
                 <div className="notice">
                   <h2>Pick a player</h2>
-                  <p>Open a game on the left, then choose a player to chart their {prop.replace(/_/g, ' ')} game by game.</p>
+                  <p>Open a game on the left, then choose a player to chart their {shownProp.replace(/_/g, ' ')} game by game.</p>
                 </div>
               ) : (
                 <>
-                  {!player.props.includes(prop) && (
+                  {!player.props.includes(shownProp) && (
                     <p className="cap">
-                      The model has no {prop.replace(/_/g, ' ')} projection for this player on
+                      The model has no {shownProp.replace(/_/g, ' ')} projection for this player on
                       this game — the chart still shows their history, but there is no model
                       line to compare against.
                     </p>
                   )}
-                  {hand !== 'all' && !NO_PLATOON.includes(prop) && (
+                  {hand !== 'all' && !NO_PLATOON.includes(shownProp) && (
                     <p className="cap">
                       Filtered to {hand}HP: each bar is that game&apos;s production
                       <em> against {hand}-handers only</em>, not the game total — so a
                       bar can be lower than the player&apos;s actual line that day.
                     </p>
                   )}
-                  {hand !== 'all' && NO_PLATOON.includes(prop) && (
+                  {hand !== 'all' && NO_PLATOON.includes(shownProp) && (
                     <p className="cap">
                       The handedness filter is ignored for this prop.{' '}
-                      {PITCHER_PROPS.includes(prop)
+                      {PITCHER_PROPS.includes(shownProp)
                         ? 'It describes the hand a batter faced, which says nothing about a pitcher\u2019s own line.'
                         : 'Runs, RBIs and walks are not broken out by pitcher hand \u2014 the plate-appearance table stores only hits, extra-base hits and strikeouts \u2014 so there is no split to show.'}
                     </p>
@@ -265,8 +300,8 @@ export default async function PropsPage({
                   <PlayerPanel
                     playerId={player.playerId}
                     playerName={player.playerName}
-                    prop={prop}
-                    pitching={PITCHER_PROPS.includes(prop)}
+                    prop={shownProp}
+                    pitching={PITCHER_PROPS.includes(shownProp)}
                     totals={totals}
                     games={history}
                     marketLine={reference.line}

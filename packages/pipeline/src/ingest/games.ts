@@ -1,6 +1,7 @@
 import { getBoxscore, getLiveFeed, type StatMap } from '../clients/mlbStatsApi.js';
 import { query, withTx } from '@mlb-edge/db';
 import { writeGamePlatoon } from './platoon.js';
+import { writeGamePitches } from './pitches.js';
 
 const num = (v: number | string | undefined, d = 0): number => {
   const n = typeof v === 'string' ? Number(v) : v;
@@ -121,5 +122,17 @@ export async function ingestBoxscore(gamePk: number): Promise<void> {
   const platoon = await writeGamePlatoon(gamePk, feed);
   for (const m of platoon.mismatches.slice(0, 3)) {
     console.warn(`platoon reconciliation failed for game ${gamePk}: ${m}`);
+  }
+
+  // Per-pitch data, from that same feed payload -- so this too costs no extra
+  // request. Also after the transaction, because its gate reads the pitch
+  // counts on the player_game_pitching rows just committed.
+  const pitches = await writeGamePitches(gamePk, feed);
+  for (const m of pitches.mismatches.slice(0, 3)) {
+    console.warn(`pitch reconciliation failed for game ${gamePk}: ${m}`);
+  }
+  const unknown = Object.keys(pitches.unknownCalls);
+  if (unknown.length > 0) {
+    console.warn(`unrecognised pitch call codes in game ${gamePk}: ${unknown.join(' ')}`);
   }
 }

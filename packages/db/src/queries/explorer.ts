@@ -92,6 +92,25 @@ const PROP_COLUMN: Record<string, { table: 'bat' | 'pit'; expr: string; platoon?
 export const PITCHER_PROPS: readonly string[] =
   Object.entries(PROP_COLUMN).filter(([, m]) => m.table === 'pit').map(([k]) => k);
 
+// Whether a player has any batting or pitching history at all.
+//
+// Deliberately data-driven rather than read off players.position: 60 players in
+// this database have BOTH -- two-way players and position players who pitched
+// in a blowout -- and a position label would dim a tab that has real data
+// behind it. Absence of data is the honest test for "this prop does not apply".
+export async function getPlayerRoles(
+  playerId: number,
+): Promise<{ hasBatting: boolean; hasPitching: boolean }> {
+  const r = (
+    await query<{ has_batting: boolean; has_pitching: boolean }>(
+      `SELECT EXISTS(SELECT 1 FROM player_game_batting  b WHERE b.player_id = $1 AND b.pa > 0) AS has_batting,
+              EXISTS(SELECT 1 FROM player_game_pitching g WHERE g.player_id = $1 AND g.bf > 0) AS has_pitching`,
+      [playerId],
+    )
+  ).rows[0];
+  return { hasBatting: r?.has_batting ?? false, hasPitching: r?.has_pitching ?? false };
+}
+
 export interface PropHistoryFilters {
   /** 'all' | 'home' | 'away' */
   venue?: string;
