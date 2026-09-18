@@ -921,3 +921,14 @@ tbody tr:nth-child(even) { background: var(--stripe); }
   padding-bottom: 0;
   margin: 0;
 }
+
+.ex-arsenal { margin-top: 1.6rem; }
+/* The spanning "pitcher"/"batter" band. Deliberately quiet: it groups columns,
+   it is not a heading anyone reads first. */
+.ars-band {
+  font-size: 0.68rem; font-weight: 400; text-transform: lowercase;
+  letter-spacing: 0.04em; color: var(--faint);
+}
+/* Wilson bounds ride alongside the point estimate at reduced weight -- the
+   estimate is the figure, the interval is how much to trust it. */
+.ars-ci { color: var(--faint); font-size: 0.8em; white-space: nowrap; }
