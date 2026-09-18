@@ -634,7 +634,6 @@ a:hover { text-decoration: underline; }
   padding: 0.6rem 0.8rem; margin-bottom: 0.9rem;
   color: var(--muted); font-size: 0.85rem;
 }
-.ex-todo { margin-top: 1.5rem; }
 
 .ex-flabel { margin: 0.9rem 0 0.4rem; font-size: 0.8rem; color: var(--muted); }
 .ex-flabel:first-of-type { margin-top: 0; }
