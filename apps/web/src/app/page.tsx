@@ -2,8 +2,8 @@ import Link from 'next/link';
 import {
   latestSlateDate, getSlateGames, getGamePlayers,
   getPropHistory, getPropReference, getMatchupContext, totalsFrom, PITCHER_PROPS,
-  getPlayerRoles,
-  type SlateGame, type ExplorerPlayer, type MatchupContext,
+  getPlayerRoles, searchSlatePlayers,
+  type SlateGame, type ExplorerPlayer, type MatchupContext, type SlateSearchHit,
 } from '@mlb-edge/db';
 import { Headshot } from './_components/Headshot';
 import { PropLabel } from './_components/PropLabel';
@@ -74,7 +74,7 @@ function ExTeam({ id, name }: { id: number | null; name: string }) {
 // means any view can be linked to or reloaded.
 type Q = {
   date?: string; game?: string; player?: string; prop?: string;
-  last?: string; venue?: string; hand?: string;
+  last?: string; venue?: string; hand?: string; q?: string;
 };
 const href = (q: Q) => {
   const p = new URLSearchParams();
@@ -93,6 +93,9 @@ export default async function PropsPage({
   const last = ['5', '10', '15', '25'].includes(sp.last ?? '') ? sp.last! : '15';
   const venue = ['home', 'away'].includes(sp.venue ?? '') ? sp.venue! : 'all';
   const hand = ['L', 'R'].includes(sp.hand ?? '') ? sp.hand! : 'all';
+  // Trimmed and capped: this goes straight into an ILIKE pattern, and an
+  // unbounded string is a pointless scan rather than a useful search.
+  const q = (sp.q ?? '').slice(0, 40);
 
   let games: SlateGame[] = [];
   let players: ExplorerPlayer[] = [];
@@ -136,7 +139,11 @@ export default async function PropsPage({
     ? await getMatchupContext(openGame.gameId, player.playerId)
     : null;
 
-  const base: Q = { date, game: sp.game, player: sp.player, prop, last, venue: sp.venue, hand: sp.hand };
+  const hits: SlateSearchHit[] = q.trim().length >= 2 && date
+    ? await searchSlatePlayers(date, q)
+    : [];
+
+  const base: Q = { date, game: sp.game, player: sp.player, prop, last, venue: sp.venue, hand: sp.hand, q: sp.q };
 
   return (
     <main className="wrap wide">
@@ -150,6 +157,60 @@ export default async function PropsPage({
             {/* --- left: games, expanding to players --- */}
             <aside className="ex-games" aria-label="Games and players">
               <h2 className="ex-h">Games</h2>
+
+              {/* Server-rendered GET, like every other control here, so search
+                  needs no client component and a result page is linkable. The
+                  hidden fields carry the view's state; `game` and `player` are
+                  deliberately NOT among them, since a new search should not
+                  keep the previously opened player selected. */}
+              <form className="ex-search" method="get" action="/">
+                <input type="hidden" name="date" value={date} />
+                <input type="hidden" name="prop" value={prop} />
+                <input type="hidden" name="last" value={last} />
+                {sp.venue && <input type="hidden" name="venue" value={sp.venue} />}
+                {sp.hand && <input type="hidden" name="hand" value={sp.hand} />}
+                <input
+                  className="ex-search-in"
+                  type="search"
+                  name="q"
+                  defaultValue={q}
+                  placeholder="Find a player…"
+                  aria-label="Find a player on this slate"
+                />
+                <button className="ex-search-go" type="submit">Go</button>
+              </form>
+
+              {q.trim().length >= 2 && (
+                <div className="ex-results">
+                  <p className="cap ex-results-h">
+                    {hits.length} match(es) for &ldquo;{q.trim()}&rdquo; ·{' '}
+                    <Link href={href({ ...base, q: undefined })}>clear</Link>
+                  </p>
+                  {hits.length === 0 ? (
+                    <p className="cap ex-empty">
+                      No projected player on {date} matches that.
+                    </p>
+                  ) : (
+                    <ul className="ex-players">
+                      {hits.map((h) => (
+                        <li key={`${h.gameId}-${h.playerId}`}>
+                          <Link
+                            className={`ex-player${h.playerId === player?.playerId ? ' ex-sel' : ''}`}
+                            href={href({ ...base, game: String(h.gameId), player: String(h.playerId) })}
+                          >
+                            <Headshot playerId={h.playerId} size={20} />
+                            <span>{h.playerName}</span>
+                            <span className="ex-hit-game">
+                              {abbrev(h.awayId, h.away ?? '')}@{abbrev(h.homeId, h.home ?? '')}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
               {games.length === 0 && <p className="cap">No games for {date}.</p>}
               <ul className="ex-list">
                 {games.map((g) => {
