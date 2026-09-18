@@ -24,6 +24,117 @@ Every task's requirements implicitly include these.
 
 ---
 
+### Task 0: Give parity eyes on the explorer, then capture the baseline
+
+**Must run before any other task.** Parity's "before" side has to be captured from app code that does not yet contain this branch's changes, and the harness has to be able to see the panel before that capture is worth anything.
+
+`figure-parity.mjs` fetches `/` with no query parameters. The explorer's whole matchup section is behind `{!player ? … : …}` (`page.tsx:306`), so with no params the harness reads "Pick a player" and nothing else. It is currently blind to every figure the explorer actually renders — including the vs-hand table Task 2 changes and the arsenal panel Tasks 3–5 add. Running it unextended would produce a clean diff that proves nothing, which the script's own header calls out as worse than no gate.
+
+**Files:**
+- Modify: `apps/web/scripts/figure-parity.mjs`
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: a parity baseline at `$SP/parity-baseline.txt`, where `SP` is the scratchpad path below. Task 6 diffs against it.
+
+- [ ] **Step 1: Add an explorer path with a player selected**
+
+The script already discovers a player id from `/slate` rather than hardcoding one (`figure-parity.mjs:133-137`), so the harness survives a slate change. Follow that pattern — do not hardcode a game or player id.
+
+After the existing `const model = await fetchPage('/model');`, add:
+
+```js
+// The explorer with a game and player actually selected.
+//
+// `/` alone renders "Pick a player" and nothing else: the matchup section,
+// the prop chart and the arsenal table are all behind a selected player. For
+// as long as this harness fetched only `/`, the landing page's ENTIRE content
+// was unwatched -- the explorer became the landing page and parity kept
+// reading its empty state.
+//
+// Ids are discovered, not hardcoded, for the same reason the player link
+// above is: a fixed id rots the first time the slate moves.
+const explorerGame = home.match(/\/\?[^"']*game=(\d+)/);
+let explorerPath = null;
+let explorer = null;
+if (explorerGame) {
+  const gamePage = await fetchPage(`/?game=${explorerGame[1]}`);
+  const playerLink = gamePage.match(/\/\?[^"']*game=\d+&(?:amp;)?player=(\d+)/);
+  if (playerLink) {
+    explorerPath = `/?game=${explorerGame[1]}&player=${playerLink[1]}`;
+    explorer = await fetchPage(explorerPath);
+  }
+}
+if (!explorer) {
+  // Loud, not silent. A slate with no games is a real state, but so is "the
+  // link shape changed and this regex now matches nothing" -- and the second
+  // one silently returns this harness to watching an empty page.
+  console.error(
+    'figure-parity: could not reach an explorer page with a player selected.\n' +
+      '  Either the slate is empty, or the game/player link shape on `/` changed.\n' +
+      '  Fix this rather than ignoring it: without it, `/` contributes almost no figures.'
+  );
+  process.exit(4);
+}
+```
+
+Then add it to the emit loop:
+
+```js
+for (const [label, html] of [
+  ['/', home], ['/slate', slate], [playerPath, player], ['/model', model],
+  [explorerPath, explorer],
+]) {
+```
+
+- [ ] **Step 2: Verify it reaches a real player page**
+
+```bash
+SP=/private/tmp/claude-501/-Users-sam-Projects-mlb-edge/a3f25d61-599b-4546-8274-fdd530db6e81/scratchpad
+npm run web:build
+(cd apps/web && npx next start -p 3100 > "$SP/server-base.log" 2>&1 &)
+sleep 6
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3100/
+```
+
+Expected: `200`.
+
+- [ ] **Step 3: Confirm the new path contributes figures**
+
+```bash
+PARITY_BASE=http://localhost:3100 npm run parity 2>&1 | grep -c 'player='
+```
+
+Expected: a non-zero count — and materially more than the handful `/` contributed before. If this is `0`, the regexes in Step 1 did not match and the harness is still blind; fix it before continuing rather than proceeding with a baseline that watches nothing.
+
+- [ ] **Step 4: Capture the baseline**
+
+```bash
+PARITY_BASE=http://localhost:3100 npm run parity > "$SP/parity-baseline.txt" 2>&1
+wc -l "$SP/parity-baseline.txt"
+pkill -f 'next start -p 3100'
+```
+
+Record the line count — Task 6 compares against this exact file. **From this point until Task 6, do not run any pipeline command** (`ingest`, `project`, `lines`, `settle`): the harness reads a live render, so new data would read as a spurious diff.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/web/scripts/figure-parity.mjs
+git commit -m "Give figure-parity eyes on the explorer
+
+It fetched / with no query params, and the explorer's entire matchup section
+is behind a selected player -- so the harness has been reading 'Pick a player'
+ever since the explorer became the landing page. Every figure on the project's
+main page was unwatched.
+
+Ids are discovered from the rendered links, matching how the player-card path
+is already found, so this survives a slate change. Failure to reach an
+explorer page exits non-zero rather than quietly reverting to an empty read."
+```
+
+---
+
 ### Task 1: Wilson intervals in `prob.ts`, with vitest
 
 Introduces the repo's first test framework, scoped deliberately to one pure function. No DB, no fixtures, no async.
@@ -1049,49 +1160,51 @@ npm run contrast
 
 Expected: pass. No new colour tokens were introduced, so a failure means something in Task 4's CSS reached for one.
 
-- [ ] **Step 4: Build, then parity**
+- [ ] **Step 4: Build, serve, and run parity against the Task 0 baseline**
 
-Parity refuses a server whose build does not match `.next/BUILD_ID` — `next dev` serves a stale compile after any `next build`, and a stale read looks like a pass. Build first, then serve that build:
+Parity has **no committed baseline artifact**. It prints figures to stdout; the check is a `diff` of two runs. The "before" run was captured in Task 0 Step 4, at `$SP/parity-baseline.txt`, from app code identical to `main`.
+
+Parity also refuses a server whose build does not match `.next/BUILD_ID` — `next dev` serves a stale compile after any `next build`, and a stale read looks like a pass. Build first, then serve *that* build, on the same port Task 0 used:
 
 ```bash
+SP=/private/tmp/claude-501/-Users-sam-Projects-mlb-edge/a3f25d61-599b-4546-8274-fdd530db6e81/scratchpad
 npm run web:build
-npm run -w @mlb-edge/web start &
-PARITY_BASE=http://localhost:3000 npm run parity
+(cd apps/web && npx next start -p 3100 > "$SP/server-after.log" 2>&1 &)
+sleep 6
+PARITY_BASE=http://localhost:3100 npm run parity > "$SP/parity-after.txt" 2>&1
+diff "$SP/parity-baseline.txt" "$SP/parity-after.txt" > "$SP/parity-diff.txt"; echo "diff exit=$?"
 ```
+
+**Do not run any pipeline command** (`ingest`, `project`, `lines`, `settle`) between the Task 0 baseline and this run — the harness reads a live render, so new data reads as a spurious diff (`figure-parity.mjs:24-26`).
 
 - [ ] **Step 5: Adjudicate the parity diff — do not wave it through**
 
-Two diff classes are expected, and they are not equivalent:
+Read `$SP/parity-diff.txt`. Two diff classes are expected, and they are not equivalent:
 
-1. **New figures from the arsenal panel.** Additions. Accept and regenerate the baseline.
-2. **Changed vs-hand figures on past slates**, from Task 2's lookahead fix. These are *modifications to existing numbers*. This is a true positive and the reason parity exists. Before accepting, confirm each changed figure moved in the expected direction — a capped sum must be **smaller than or equal to** the uncapped one it replaces, never larger. A figure that grew means the join in Task 2 duplicated rows.
+1. **Added lines on the explorer path** — figures from the arsenal panel, which did not exist before. Pure additions (`>` lines only).
+2. **Changed vs-hand figures on the explorer path**, from Task 2's lookahead fix. These are *modifications to existing numbers*, and they are the reason this branch needed parity extended at all. Before accepting, confirm each changed figure moved in the expected direction — a capped sum must be **smaller than or equal to** the uncapped one it replaces, never larger. A figure that grew means the join in Task 2 duplicated rows, which is the specific bug that join could introduce.
 
-Record the adjudication in the commit message. Parity's whole contract is that presentation changes prove they moved no data; this branch moves data on purpose, and that has to be stated rather than absorbed.
+Anything else is unexplained and blocks the branch. In particular, `/`, `/slate`, `/model` and `/player` should be **byte-identical** between the two runs: this branch touches no figure on any of them. A diff there means something leaked.
 
 - [ ] **Step 6: Spot-check the arsenal against reality**
 
 From Task 3 Step 1 you noted which pitch sorts first for the most-used pitcher. Confirm the rendered panel agrees, and that a known sinkerballer shows the sinker on top with a plausible share. A table that is internally consistent but describes the wrong pitcher passes every automated check here.
 
-- [ ] **Step 7: Stop the server and commit the baseline**
+- [ ] **Step 7: Stop the server**
 
 ```bash
-kill %1
-git add -A
-git commit -m "Regenerate parity baseline for the arsenal panel
-
-Two diff classes, adjudicated separately:
-  - additions from the new panel;
-  - changed vs-hand figures on past slates, from the platoon lookahead fix.
-    Every changed figure was confirmed to have shrunk or held, never grown --
-    a grown figure would mean the added join duplicated rows.
-
-Data moved on purpose here, which is exactly what parity is meant to make
-somebody say out loud."
+pkill -f 'next start -p 3100'
 ```
+
+Nothing to commit from this step — parity produces no tracked artifact. The adjudication from Step 5 goes in the Task 6 Step 8 commit message and in the progress ledger.
+
+Do **not** use `git add -A` anywhere in this task. This repo has a recorded history of broad `git add` sweeping unrelated files into a commit; stage explicit paths.
 
 - [ ] **Step 8: Update `CLAUDE.md`**
 
 The "Known seams" section states pitch data is unstored and the panel deliberately absent. That is now false. Replace that claim with the panel's real limits: season-only (no multi-year history), both hands pooled, no batted-ball quality per pitch type, and display-only — no projector reads it.
+
+Also update the `parity` description under "Commands": it now covers the explorer with a player selected, not just the landing page's empty state.
 
 ```bash
 git add CLAUDE.md
@@ -1101,6 +1214,8 @@ git commit -m "CLAUDE.md: the versus-pitch-types seam is now the arsenal panel's
 ---
 
 ## Self-Review
+
+**Parity, corrected pre-flight.** The first draft of Task 6 ran parity once against the new build and then `git add -A`'d a "baseline". Both halves were wrong: parity has no committed artifact — it prints to stdout and the check is a diff of two runs — and it fetched only `/`, whose entire content is behind a selected player, so it could not see either change in this branch. Task 0 now extends the harness and captures the "before" side first; Task 6 diffs against it. The `git add -A` is gone.
 
 **Spec coverage.** Every spec section maps to a task: measured sample-size constraints → Task 3's comments and Task 4's caption; data layer → Task 3; Wilson in `prob.ts` → Task 1; bounds-not-`±` → Tasks 1 and 4; presentation and no-colour → Task 4; caption's four required statements → Task 4 Step 1; all eight edge cases → Tasks 3 (null `pitch_type`, empty result, `batterId` null, doubleheader via the date predicate) and 4 (no data, blank batter, hidden types) and 5 (no probable starter, pitcher inverts); the platoon bug → Task 2; verification → Task 6. Out-of-scope items are in no task, correctly.
 
