@@ -225,6 +225,7 @@ export async function getPropHistory(
     so: number | null; bb: number | null; hbp: number | null; sf: number | null;
     p_outs: number | null; p_bf: number | null; p_h: number | null;
     p_er: number | null; p_bb: number | null; p_so: number | null;
+    max_ev: string | null;
   }>(
     `SELECT DISTINCT ON (g.id) g.id AS game_id,
             to_char(g.game_date, 'YYYY-MM-DD') AS game_date,
@@ -243,7 +244,14 @@ export async function getPropHistory(
             -- and the player may have no batting row at all.
             bl.pa, bl.ab, bl.h, bl.doubles, bl.triples, bl.hr, bl.so, bl.bb, bl.hbp, bl.sf,
             pl.outs AS p_outs, pl.bf AS p_bf, pl.h AS p_h, pl.er AS p_er,
-            pl.bb AS p_bb, pl.so AS p_so
+            pl.bb AS p_bb, pl.so AS p_so,
+            -- Hardest ball hit in the game. For a batter prop that is the balls
+            -- HE hit; for a pitcher prop, the hardest one hit OFF him -- which
+            -- is why the side is chosen from the prop's table rather than
+            -- computing both. Null when nothing was put in play.
+            (SELECT max(gpx.launch_speed) FROM game_pitches gpx
+              WHERE gpx.game_id = g.id
+                AND gpx.${map.table === 'bat' ? 'batter_id' : 'pitcher_id'} = $1) AS max_ev
      FROM ${src}
      JOIN games g ON g.id = b.game_id
      ${handJoin}
@@ -268,6 +276,7 @@ export async function getPropHistory(
       doubles: r.doubles, triples: r.triples, hr: r.hr, so: r.so, bb: r.bb,
       hbp: r.hbp, sf: r.sf,
       pOuts: r.p_outs, pBf: r.p_bf, pH: r.p_h, pEr: r.p_er, pBb: r.p_bb, pSo: r.p_so,
+      maxEv: r.max_ev == null ? null : Number(r.max_ev),
     }))
     .sort((a, b) => (a.date < b.date ? 1 : -1))
     .slice(0, limit);

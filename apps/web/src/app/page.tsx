@@ -140,6 +140,18 @@ export default async function PropsPage({
   // The whole slate, shipped once so the finder can filter in the browser.
   const slatePlayers: SlateSearchHit[] = date ? await getSlatePlayerIndex(date) : [];
 
+  // The selected game, as a slot on the chart's timeline -- but only while it
+  // is genuinely unplayed. Once a box score exists the game is history and
+  // appears as a real bar, so showing a placeholder too would double it.
+  const pendingGame = openGame && player && openGame.homeRuns == null && openGame.awayRuns == null
+    ? {
+        date: openGame.date,
+        home: player.teamId != null && player.teamId === openGame.homeId,
+        opponentId: player.teamId === openGame.homeId ? openGame.awayId : openGame.homeId,
+        opponent: player.teamId === openGame.homeId ? openGame.away : openGame.home,
+      }
+    : null;
+
   const base: Q = { date, game: sp.game, player: sp.player, prop, last, venue: sp.venue, hand: sp.hand };
 
   return (
@@ -309,6 +321,7 @@ export default async function PropsPage({
                     playerName={player.playerName}
                     prop={shownProp}
                     pitching={PITCHER_PROPS.includes(shownProp)}
+                    pending={pendingGame}
                     totals={totals}
                     games={history}
                     marketLine={reference.line}

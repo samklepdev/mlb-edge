@@ -44,7 +44,7 @@ const GAP = 14;
 //
 // With no market line there is nothing to clear, so bars stay neutral.
 export function PropBars({
-  games, line, marketLine, source, projMean, prop, pitching, onLineChange,
+  games, line, marketLine, source, projMean, prop, pitching, pending, onLineChange,
 }: {
   games: PropGame[];
   /** The EFFECTIVE line: the reader's if they moved it, else the market's. */
@@ -58,6 +58,11 @@ export function PropBars({
   source: 'market' | 'seeded' | 'custom';
   /** Server-computed; see PlayerPanel for why it is a prop and not an import. */
   pitching: boolean;
+  /** The game this chart is set up for, which has not been played. Drawn as an
+   *  empty dashed slot at the right so the upcoming matchup has a place on the
+   *  timeline instead of the chart simply stopping at the last result. Null
+   *  once that game has a box score -- then it is history like the rest. */
+  pending?: { date: string; opponentId: number | null; opponent: string | null; home: boolean } | null;
   projMean: number | null;
   prop: string;
   onLineChange: (v: number | null) => void;
@@ -238,6 +243,14 @@ export function PropBars({
                 </li>
               );
             })}
+            {pending && (
+              // No value, so no bar -- an outline where one would go. Sized as a
+              // sibling column so the played bars keep their widths rather than
+              // being squeezed by an extra entry.
+              <li className="pb-col pb-col-pending" aria-hidden="true">
+                <span className="pb-pending" />
+              </li>
+            )}
           </ol>
 
           {/* One card, moved to the pointer, rather than fifteen hidden ones.
@@ -256,18 +269,35 @@ export function PropBars({
                 <p className="pb-pop-h">{d.date} {d.home ? 'vs' : '@'} {opp}</p>
                 {res && <p className="pb-pop-res">{res}</p>}
                 <dl className="pb-pop-grid">
-                  <div><dt>PA</dt><dd className="num">{d.pa ?? '—'}</dd></div>
-                  <div><dt>H</dt><dd className="num">{d.h ?? '—'}</dd></div>
-                  <div><dt>2B</dt><dd className="num">{d.doubles ?? '—'}</dd></div>
-                  <div><dt>3B</dt><dd className="num">{d.triples ?? '—'}</dd></div>
-                  <div><dt>K</dt><dd className="num">{d.so ?? '—'}</dd></div>
-                  <div><dt>BB</dt><dd className="num">{d.bb ?? '—'}</dd></div>
-                  <div><dt>AVG</dt><dd className="num">{avg(d)}</dd></div>
-                  {/* Exit velocity IS stored now -- game_pitches.launch_speed,
-                      121,596 batted balls -- but this card is not yet wired to
-                      it. Saying "not wired up" rather than "not ingested",
-                      which stopped being true with the per-pitch ingest. */}
-                  <div><dt>Max EV</dt><dd className="pb-pop-na">not wired up</dd></div>
+                  {/* A pitcher prop gets the pitching line. The batting fields
+                      are empty for most starters, so leaving them would read as
+                      missing data rather than as the wrong table. */}
+                  {pitching ? (
+                    <>
+                      <div><dt>IP</dt><dd className="num">{d.pOuts == null ? '—' : `${Math.floor(d.pOuts / 3)}.${d.pOuts % 3}`}</dd></div>
+                      <div><dt>BF</dt><dd className="num">{d.pBf ?? '—'}</dd></div>
+                      <div><dt>H</dt><dd className="num">{d.pH ?? '—'}</dd></div>
+                      <div><dt>ER</dt><dd className="num">{d.pEr ?? '—'}</dd></div>
+                      <div><dt>K</dt><dd className="num">{d.pSo ?? '—'}</dd></div>
+                      <div><dt>BB</dt><dd className="num">{d.pBb ?? '—'}</dd></div>
+                      {/* Hardest ball hit OFF him, not by him. */}
+                      <div><dt>Max EV</dt><dd className="num">{d.maxEv == null ? '—' : d.maxEv.toFixed(1)}</dd></div>
+                    </>
+                  ) : (
+                    <>
+                      <div><dt>PA</dt><dd className="num">{d.pa ?? '—'}</dd></div>
+                      <div><dt>H</dt><dd className="num">{d.h ?? '—'}</dd></div>
+                      <div><dt>2B</dt><dd className="num">{d.doubles ?? '—'}</dd></div>
+                      <div><dt>3B</dt><dd className="num">{d.triples ?? '—'}</dd></div>
+                      <div><dt>K</dt><dd className="num">{d.so ?? '—'}</dd></div>
+                      <div><dt>BB</dt><dd className="num">{d.bb ?? '—'}</dd></div>
+                      <div><dt>AVG</dt><dd className="num">{avg(d)}</dd></div>
+                      {/* The hardest ball this batter hit. An em dash means
+                          nothing was put in play -- a walk-and-strikeout day has
+                          no exit velocity, which is different from missing. */}
+                      <div><dt>Max EV</dt><dd className="num">{d.maxEv == null ? '—' : d.maxEv.toFixed(1)}</dd></div>
+                    </>
+                  )}
                 </dl>
               </div>
             );
@@ -297,6 +327,20 @@ export function PropBars({
               </li>
             );
           })}
+          {pending && (
+            <li className="pb-foot-col pb-foot-pending">
+              <span
+                className="pb-foot-logo"
+                style={logoUrl(pending.opponentId)
+                  ? { backgroundImage: `url(${logoUrl(pending.opponentId)})` }
+                  : undefined}
+                title={`${pending.home ? 'vs' : '@'} ${abbrev(pending.opponentId, pending.opponent ?? '')} — not played yet`}
+              />
+              <span className="pb-foot-date num">
+                {Number(pending.date.split('-')[1])}/{Number(pending.date.split('-')[2])}
+              </span>
+            </li>
+          )}
         </ol>
       </div>
 
