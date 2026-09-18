@@ -142,10 +142,9 @@ export default async function PropsPage({
       <header className="masthead">
         <h1 className="wordmark">mlb-edge <span>/ props</span></h1>
         <p className="purpose">
-          One player, one prop, game by game against the market line. Past
-          results are not a forecast — see <Link href="/model">the model</Link> for
-          whether any of this has predictive value, and <Link href="/slate">the
-          slate</Link> for today&apos;s games.
+          One player, one prop, game by game. Set the line where you want it and
+          read the history yourself. <Link href="/slate">Slate</Link> ·{' '}
+          <Link href="/model">Model</Link>
         </p>
       </header>
 
@@ -275,13 +274,6 @@ export default async function PropsPage({
                 </div>
               ) : (
                 <>
-                  {!player.props.includes(shownProp) && (
-                    <p className="cap">
-                      The model has no {shownProp.replace(/_/g, ' ')} projection for this player on
-                      this game — the chart still shows their history, but there is no model
-                      line to compare against.
-                    </p>
-                  )}
                   {hand !== 'all' && !NO_PLATOON.includes(shownProp) && (
                     <p className="cap">
                       Filtered to {hand}HP: each bar is that game&apos;s production
@@ -363,10 +355,9 @@ export default async function PropsPage({
                             <p className="cap">
                               Plate-appearance level, not a starter approximation: these are the
                               PAs this batter actually took against {matchup.vsHand.hand}HP,
-                              including relievers. Read it as context, not as an edge — a split
-                              this coarse over {matchup.vsHand.pa} PA is mostly noise, and
-                              selection matters (a batter benched against same-handed starters
-                              looks better against them than he is).
+                              including relievers. {matchup.vsHand.pa} PA is a small sample, and
+                              selection matters — a batter benched against same-handed starters
+                              looks better against them than he is.
                             </p>
                           </>
                         ) : (
@@ -427,9 +418,7 @@ export default async function PropsPage({
 
               <p className="cap ex-warn">
                 Every filter narrows the sample. Slice far enough and any player
-                clears any line — that is the failure mode this project exists to
-                avoid, so read the game count under the chart before reading the
-                shape.
+                clears any line, so read the game count below before the shape.
               </p>
               <p className="cap">
                 Showing <span className="num">{history.length}</span> game(s).
