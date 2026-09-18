@@ -52,6 +52,17 @@ WCAG AA. `parity` refuses to run without `PARITY_BASE` and refuses a server
 whose build doesn't match `.next/BUILD_ID` — `next dev` serves a stale compile
 after any `next build`, and a stale read looks like a pass.
 
+`parity` has **no committed baseline**: it prints figures to stdout and the
+check is a `diff` of two runs, so the "before" side must be captured from the
+unchanged code before you start. It reaches `/`, `/slate`, `/player`, `/model`
+and — since the arsenal panel — an explorer URL with a game AND player
+selected. That last path matters: `/` alone renders "Pick a player", so for as
+long as the harness fetched only `/`, every figure on the project's main page
+was unwatched. Ids are discovered from the rendered links, not hardcoded, and
+the script exits non-zero rather than quietly falling back to the empty read.
+It reads a live render, so running any pipeline command between the two runs
+shows up as a spurious diff.
+
 ## Pipeline order (stages read the previous stage's output; dates must match)
 `ingest schedule` → `ingest games` (box scores = the model's history) →
 `project` (distributions → `projections.dist`) → `lines pull` (prices vs
@@ -87,6 +98,20 @@ vs reality; `backtest` = calibration report (reliability, ECE, Brier).
 - Park factors are a stub table; the pitcher factor is a hits-allowed proxy.
 - The per-PA independence assumption slightly understates variance (mild residual
   overconfidence in high-probability buckets at large n).
+- The explorer's arsenal panel (`getArsenalMatchup`, `ArsenalTable`) crosses the
+  probable starter's pitch mix against the batter's swing decisions on those same
+  pitch types. It is **display-only — no projector reads it**, and it is context,
+  not a claim. Its real limits: season-only (`game_pitches` starts 2026-03-15, so
+  no multi-year history); both pitcher hands pooled, because splitting halves an
+  already-thin n and the vs-hand table above it already carries handedness; no
+  batted-ball quality per pitch type (46 balls in play is the *second-best* pitch
+  for the most-pitched-to hitter in the league — split that way it is noise for
+  everyone); and it deliberately ignores the page's Window/Venue/Hand filters,
+  since at `last 15` a typical batter has ~12 swings against a secondary pitch.
+  Whiff and chase carry Wilson bounds (`prob.ts`) precisely so a thin row reads
+  as thin. Pitch types under 5% usage are excluded, not folded into an "Other"
+  row; the count of excluded types is derived from the same result set as the
+  rows, so the two cannot drift apart.
 - Game-level markets (run line, total) live in `game_market_lines`, written by
   `lines games` and read only by the explorer's upcoming-game popover. They are
   market context, not model input: nothing prices against them and no pick is

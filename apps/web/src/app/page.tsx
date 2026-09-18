@@ -3,7 +3,9 @@ import {
   latestSlateDate, getSlateGames, getGamePlayers,
   getPropHistory, getPropReference, getMatchupContext, totalsFrom, PITCHER_PROPS,
   getPlayerRoles, getSlatePlayerIndex, getOppPitcherProfile, getGameLines,
+  getArsenalMatchup,
   type SlateGame, type ExplorerPlayer, type MatchupContext, type SlateSearchHit,
+  type ArsenalMatchup,
 } from '@mlb-edge/db';
 import { Headshot } from './_components/Headshot';
 import { PropLabel } from './_components/PropLabel';
@@ -11,6 +13,7 @@ import { PlayerPanel } from './_components/PlayerPanel';
 import { abbrev, logoUrl } from './_components/teams';
 import { Masthead } from './_components/Masthead';
 import { PlayerFinder } from './_components/PlayerFinder';
+import { ArsenalTable } from './_components/ArsenalTable';
 
 export const dynamic = 'force-dynamic';
 
@@ -136,6 +139,21 @@ export default async function PropsPage({
   const matchup: MatchupContext | null = player && openGame
     ? await getMatchupContext(openGame.gameId, player.playerId)
     : null;
+
+  // Who the arsenal table is about, and from which side.
+  //
+  // When the selected player is himself the pitcher, the cross inverts:
+  // getMatchupContext returns the OPPOSING starter, which says nothing about
+  // the prop on screen. Show the selected player's own arsenal instead.
+  const ownArsenal = player != null && PITCHER_PROPS.includes(shownProp);
+  const arsenalPitcherId = ownArsenal ? player!.playerId : matchup?.pitcher?.playerId ?? null;
+  const arsenal: ArsenalMatchup = arsenalPitcherId != null && openGame
+    ? await getArsenalMatchup(
+        ownArsenal ? null : player!.playerId,
+        arsenalPitcherId,
+        openGame.date,
+      )
+    : { rows: [], hiddenTypes: 0 };
 
   // The whole slate, shipped once so the finder can filter in the browser.
   const slatePlayers: SlateSearchHit[] = date ? await getSlatePlayerIndex(date) : [];
@@ -405,16 +423,24 @@ export default async function PropsPage({
                           </p>
                         )}
 
-                        <div className="notice ex-todo">
-                          <h2>Versus pitch types</h2>
-                          <p>
-                            Not built. Per-pitch data (type, speed, zone) is present in the
-                            live feed this project already downloads for every game, but
-                            nothing stores it — adding it means a new table and another pass
-                            over history. Deliberately absent rather than approximated from
-                            something else.
+                        {arsenalPitcherId == null ? (
+                          <p className="cap">
+                            No probable starter listed, so there is no arsenal to show.
                           </p>
-                        </div>
+                        ) : (
+                          <ArsenalTable
+                            rows={arsenal.rows}
+                            hiddenTypes={arsenal.hiddenTypes}
+                            pitcherName={
+                              ownArsenal ? player!.playerName : matchup!.pitcher!.playerName
+                            }
+                            throws={
+                              ownArsenal ? null : matchup!.pitcher!.throws
+                            }
+                            mode={ownArsenal ? 'own' : 'cross'}
+                            batterName={ownArsenal ? null : player!.playerName}
+                          />
+                        )}
                       </>
                     )}
                   </section>

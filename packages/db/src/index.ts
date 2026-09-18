@@ -3,7 +3,7 @@ export { pool, query, withTx } from './pool.js';
 export * from './types.js';
 export {
   normalCdf, pOver, pOverFromPmf, americanToImplied, deVig,
-  americanToProfit, evPerUnit,
+  americanToProfit, evPerUnit, wilson,
 } from './prob.js';
 export { clvByProp, clvExcludedCount } from './queries/clv.js';
 export { calibrationBuckets } from './queries/calibration.js';
@@ -18,7 +18,8 @@ export { getGameDetail } from './queries/game.js';
 export {
   getGamePlayers, getPropHistory, getPropReference, getMatchupContext, totalsFrom,
   PITCHER_PROPS, getPlayerRoles, getSlatePlayerIndex, getOppPitcherProfile, getGameLines,
-  type OppPitcherProfile, type GameLines,
+  getArsenalMatchup,
+  type OppPitcherProfile, type GameLines, type ArsenalRow, type ArsenalMatchup,
   type SlateSearchHit,
   type PlayerTotals,
   type PropHistoryFilters,

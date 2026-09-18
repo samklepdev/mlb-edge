@@ -1,4 +1,5 @@
 import { query } from '../pool.js';
+import { wilson } from '../prob.js';
 import type { ExplorerPlayer, PropGame, MatchupContext } from '../types.js';
 
 // Queries for the prop explorer (/props). Master-detail: pick a game, pick a
@@ -515,19 +516,27 @@ export async function getPropReference(
 
 // Who the batter faces, and how they have hit that hand.
 //
-// Pitch-type splits are the obvious next column here and are NOT available:
-// per-pitch data is in the live feed we already download, but nothing stores
-// it. Deliberately absent rather than approximated.
+// Pitch-type splits used to be called out here as unavailable. They are stored
+// now (game_pitches) and live in getArsenalMatchup below, deliberately as a
+// SEPARATE query rather than more columns on this one: this table is
+// plate-appearance level and split by hand, that one is pitch level and pools
+// both hands, and merging them would put two different denominators in one row.
 export async function getMatchupContext(
   gameId: number, playerId: number,
 ): Promise<MatchupContext | null> {
   const g = (
     await query<{
       home_team_id: number | null; away_team_id: number | null;
-      venue_name: string | null;
+      venue_name: string | null; game_date: string;
       condition: string | null; temp_f: string | null; wind: string | null;
     }>(
-      `SELECT g.home_team_id, g.away_team_id, g.venue_name, c.condition, c.temp_f, c.wind
+      // game_date is read here purely to cap the platoon split below. It is
+      // free on a row already being fetched, and taking it this way keeps
+      // getMatchupContext's signature at (gameId, playerId) -- every caller
+      // already has the game id, and none of them should have to know that
+      // one sub-query needs a lookahead guard.
+      `SELECT g.home_team_id, g.away_team_id, g.venue_name, g.game_date,
+              c.condition, c.temp_f, c.wind
        FROM games g LEFT JOIN game_conditions c ON c.game_id = g.id
        WHERE g.id = $1`,
       [gameId],
@@ -572,14 +581,21 @@ export async function getMatchupContext(
   const hand = pitcher?.throws === 'L' || pitcher?.throws === 'R' ? pitcher.throws : null;
   const split = hand == null ? undefined : (
     await query<{ pa: string; hits: string; hr: string; so: string; tb: string }>(
-      `SELECT sum(pa) AS pa,
-              sum(singles + doubles + triples + hr) AS hits,
-              sum(hr) AS hr,
-              sum(so) AS so,
-              sum(singles + 2*doubles + 3*triples + 4*hr) AS tb
-       FROM player_game_platoon
-       WHERE player_id = $1 AND pitch_hand = $2`,
-      [playerId, hand],
+      // Capped at the selected game's date. Without this the explorer shows a
+      // batter's FULL-SEASON platoon line while displaying a game from April --
+      // the panel would be reporting PAs that had not happened yet. Same guard
+      // the projection history queries carry (game_date < target), and the
+      // arsenal panel directly below this one is capped the same way; two
+      // adjacent panels disagreeing about what "to date" means is the bug.
+      `SELECT sum(pl.pa) AS pa,
+              sum(pl.singles + pl.doubles + pl.triples + pl.hr) AS hits,
+              sum(pl.hr) AS hr,
+              sum(pl.so) AS so,
+              sum(pl.singles + 2*pl.doubles + 3*pl.triples + 4*pl.hr) AS tb
+       FROM player_game_platoon pl
+       JOIN games g2 ON g2.id = pl.game_id
+       WHERE pl.player_id = $1 AND pl.pitch_hand = $2 AND g2.game_date < $3`,
+      [playerId, hand, g.game_date],
     )
   ).rows[0];
 
@@ -601,4 +617,138 @@ export async function getMatchupContext(
       tbPerPa: Number(split!.tb) / n,
     },
   };
+}
+
+/** One pitch type in a starter's arsenal, crossed with how the selected batter
+ *  has handled that pitch. Percentages are proportions in 0..1, not points. */
+export interface ArsenalRow {
+  pitchType: string;
+  /** Share of this pitcher's pitches, over non-null pitch_type only. */
+  usage: number;
+  velo: number | null;
+  /** His whiffs over swings he induced, against ALL batters. */
+  pWhiffPct: number | null;
+  /** Denominator behind pWhiffPct. Not rendered as a column, but a starter
+   *  with too few induced swings needs his cell suppressed like the batter's. */
+  pSwings: number;
+  bSwings: number;
+  bWhiffPct: number | null;
+  bWhiffLo: number | null;
+  bWhiffHi: number | null;
+  /** Pitches seen outside the zone -- the chase denominator. */
+  bOutZone: number;
+  bChasePct: number | null;
+  bChaseLo: number | null;
+  bChaseHi: number | null;
+}
+
+/** The rows at or above the 5% usage cut, plus a count of those below it. */
+export interface ArsenalMatchup {
+  rows: ArsenalRow[];
+  hiddenTypes: number;
+}
+
+// The probable starter's arsenal, crossed with the batter's swing decisions
+// against those same pitch types.
+//
+// Three things this deliberately does NOT do, each measured rather than
+// assumed (see the spec for the numbers):
+//   - It does not split the batter's half by pitcher hand. That halves n --
+//     157 slider swings become 82/75 for the busiest batter in the database --
+//     and the PA-level vs-hand table directly above the panel already carries
+//     handedness.
+//   - It does not report batted-ball quality per pitch type. 46 balls in play
+//     is the SECOND-BEST pitch for the most-pitched-to hitter in the league;
+//     exit velocity split this way is noise for everyone.
+//   - It does not honour the page's Window filter. At `last 15` the same
+//     batter has 12 slider swings.
+//
+// `batterId` may be null, for a selected player who is himself the pitcher.
+// `p.batter_id = NULL` matches no rows, so the batter half comes back empty
+// and every batter column is a zero -- the caller decides how to present that.
+export async function getArsenalMatchup(
+  batterId: number | null,
+  pitcherId: number,
+  asOf: string,
+): Promise<ArsenalMatchup> {
+  const res = await query<{
+    pitch_type: string; usage: string; velo: string | null;
+    p_swings: string; p_whiffs: string;
+    b_swings: string; b_whiffs: string; b_out_zone: string; b_chases: string;
+  }>(
+    // `pitch_type IS NOT NULL` also disposes of every null `in_zone` and
+    // `start_speed` in the table -- all 689 such rows are the same rows.
+    // `in_zone IS FALSE` rather than `NOT in_zone`: the column is nullable,
+    // and `NOT NULL` is NULL, which a FILTER clause drops silently.
+    `WITH pitcher AS (
+       SELECT p.pitch_type,
+              count(*)                           AS n,
+              avg(p.start_speed)                 AS velo,
+              count(*) FILTER (WHERE p.is_swing) AS swings,
+              count(*) FILTER (WHERE p.is_whiff) AS whiffs
+       FROM game_pitches p
+       JOIN games g ON g.id = p.game_id
+       WHERE p.pitcher_id = $2 AND p.pitch_type IS NOT NULL AND g.game_date < $3
+       GROUP BY p.pitch_type
+     ),
+     ptot AS (SELECT sum(n) AS n FROM pitcher),
+     batter AS (
+       SELECT p.pitch_type,
+              count(*) FILTER (WHERE p.is_swing)                        AS swings,
+              count(*) FILTER (WHERE p.is_whiff)                        AS whiffs,
+              count(*) FILTER (WHERE p.in_zone IS FALSE)                AS out_zone,
+              count(*) FILTER (WHERE p.in_zone IS FALSE AND p.is_swing) AS chases
+       FROM game_pitches p
+       JOIN games g ON g.id = p.game_id
+       WHERE p.batter_id = $1 AND p.pitch_type IS NOT NULL AND g.game_date < $3
+       GROUP BY p.pitch_type
+     )
+     SELECT pi.pitch_type,
+            pi.n::numeric / NULLIF(pt.n, 0) AS usage,
+            pi.velo,
+            pi.swings                  AS p_swings,
+            pi.whiffs                  AS p_whiffs,
+            COALESCE(b.swings, 0)      AS b_swings,
+            COALESCE(b.whiffs, 0)      AS b_whiffs,
+            COALESCE(b.out_zone, 0)    AS b_out_zone,
+            COALESCE(b.chases, 0)      AS b_chases
+     FROM pitcher pi
+     CROSS JOIN ptot pt
+     LEFT JOIN batter b ON b.pitch_type = pi.pitch_type
+     ORDER BY pi.n DESC`,
+    [batterId, pitcherId, asOf],
+  );
+
+  // Every type comes back and the 5% cut is applied here, not in SQL, so the
+  // "not shown" count and the rows above it are derived from one result set
+  // and cannot drift apart. The cut is over this same asOf-capped season
+  // rather than his career: an arsenal that changed mid-season should read as
+  // it stands on the day.
+  const all = res.rows.map((r) => {
+    const pSwings = Number(r.p_swings);
+    const bSwings = Number(r.b_swings);
+    const bWhiffs = Number(r.b_whiffs);
+    const bOutZone = Number(r.b_out_zone);
+    const bChases = Number(r.b_chases);
+    const whiffCi = bSwings > 0 ? wilson(bWhiffs, bSwings) : null;
+    const chaseCi = bOutZone > 0 ? wilson(bChases, bOutZone) : null;
+    return {
+      pitchType: r.pitch_type,
+      usage: Number(r.usage),
+      velo: r.velo == null ? null : Number(r.velo),
+      pWhiffPct: pSwings > 0 ? Number(r.p_whiffs) / pSwings : null,
+      pSwings,
+      bSwings,
+      bWhiffPct: bSwings > 0 ? bWhiffs / bSwings : null,
+      bWhiffLo: whiffCi?.lo ?? null,
+      bWhiffHi: whiffCi?.hi ?? null,
+      bOutZone,
+      bChasePct: bOutZone > 0 ? bChases / bOutZone : null,
+      bChaseLo: chaseCi?.lo ?? null,
+      bChaseHi: chaseCi?.hi ?? null,
+    };
+  });
+
+  const rows = all.filter((r) => r.usage >= 0.05);
+  return { rows, hiddenTypes: all.length - rows.length };
 }

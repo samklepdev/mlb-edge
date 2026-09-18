@@ -144,8 +144,68 @@ const player = await fetchPage(playerPath);
 // numbers that decide whether the model is worth anything.
 const model = await fetchPage('/model');
 
+// The explorer with a game and player actually selected.
+//
+// `/` alone renders "Pick a player" and nothing else: the matchup section,
+// the prop chart and the arsenal table are all behind a selected player. For
+// as long as this harness fetched only `/`, the landing page's ENTIRE content
+// was unwatched -- the explorer became the landing page and parity kept
+// reading its empty state.
+//
+// Ids are discovered, not hardcoded, for the same reason the player link
+// above is: a fixed id rots the first time the slate moves.
+//
+// The first player link on the game page is not good enough: most players
+// on a given game do not have enough at-bat history for a vs-hand split, and
+// their page renders "No handedness split available" instead of the table --
+// which is exactly the table a later task in this plan changes. Picking that
+// player would capture zero of its figures, so that change would show a
+// clean diff here, which is the blindness this task exists to remove.
+// `TB/PA` is a table header cell that only the vs-hand table emits, so its
+// presence is what "this candidate actually has the table" means.
+//
+// The search is capped (MAX_PLAYER_CANDIDATES) rather than unbounded: a slate
+// where no player on the game has a split must fail loudly, not turn this
+// harness into a crawler of the whole roster.
+const MAX_PLAYER_CANDIDATES = 12;
+const explorerGame = home.match(/\/\?[^"']*game=(\d+)/);
+let explorerPath = null;
+let explorer = null;
+if (explorerGame) {
+  const gamePage = await fetchPage(`/?game=${explorerGame[1]}`);
+  const candidates = [
+    ...new Set(
+      [...gamePage.matchAll(/\/\?[^"']*game=\d+&(?:amp;)?player=(\d+)/g)].map((m) => m[1])
+    ),
+  ].slice(0, MAX_PLAYER_CANDIDATES);
+  for (const playerId of candidates) {
+    const path = `/?game=${explorerGame[1]}&player=${playerId}`;
+    const page = await fetchPage(path);
+    if (page.includes('TB/PA')) {
+      explorerPath = path;
+      explorer = page;
+      break;
+    }
+  }
+}
+if (!explorer) {
+  // Loud, not silent. A slate with no games is a real state, but so is "the
+  // link shape changed and this regex now matches nothing", and so is "every
+  // player on this game lacks a handedness split" -- any of those silently
+  // returning this harness to watching an empty or split-less page would
+  // reinstate the blindness this task exists to remove.
+  console.error(
+    'figure-parity: could not reach an explorer page with a handedness split.\n' +
+      '  Either the slate is empty, the game/player link shape on `/` changed, or\n' +
+      `  no player among the first ${MAX_PLAYER_CANDIDATES} on this game has a vs-hand split.\n` +
+      '  Fix this rather than ignoring it: without it, `/` contributes almost no figures.'
+  );
+  process.exit(4);
+}
+
 for (const [label, html] of [
   ['/', home], ['/slate', slate], [playerPath, player], ['/model', model],
+  [explorerPath, explorer],
 ]) {
   for (const f of figures(strip(html))) console.log(`${label}\t${f}`);
   for (const f of svgFigures(html)) console.log(`${label}\t${f}`);

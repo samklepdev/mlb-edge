@@ -80,6 +80,26 @@ body {
 
 .num { font-variant-numeric: tabular-nums; }
 
+/* The caveat under a figure, table or control group -- not the content.
+
+   This was only ever defined as `.plot p.cap`, so of the 28 captions in the app
+   the three inside the model page's plots were styled and the rest inherited
+   body ink at full width. A line whose whole job is to qualify the figure above
+   it was reading as primary text, which is exactly backwards -- and in a project
+   whose captions carry the "past hit rate is not predictive" warnings, the
+   caveat rendering as loudly as the claim is a correctness problem, not a
+   cosmetic one.
+
+   Values are lifted verbatim from the old `.plot p.cap`, which had been getting
+   this right on one page for as long as the class has existed; promoting them
+   changes nothing there. --muted is chrome, not a claim about any figure. */
+.cap {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 0 1.25rem;
+  max-width: 58ch;
+}
+
 .wrap {
   max-width: 60rem;
   margin: 0 auto;
@@ -108,7 +128,6 @@ body {
 
 /* ---- plot ---- */
 .plot { margin: 2.75rem 0 0; }
-.plot p.cap { color: var(--muted); font-size: 0.9rem; margin: 0 0 1.25rem; max-width: 58ch; }
 .plot-frame {
   background: var(--panel);
   border: 1px solid var(--hair);
@@ -634,7 +653,6 @@ a:hover { text-decoration: underline; }
   padding: 0.6rem 0.8rem; margin-bottom: 0.9rem;
   color: var(--muted); font-size: 0.85rem;
 }
-.ex-todo { margin-top: 1.5rem; }
 
 .ex-flabel { margin: 0.9rem 0 0.4rem; font-size: 0.8rem; color: var(--muted); }
 .ex-flabel:first-of-type { margin-top: 0; }
@@ -921,3 +939,14 @@ tbody tr:nth-child(even) { background: var(--stripe); }
   padding-bottom: 0;
   margin: 0;
 }
+
+.ex-arsenal { margin-top: 1.6rem; }
+/* The spanning "pitcher"/"batter" band. Deliberately quiet: it groups columns,
+   it is not a heading anyone reads first. */
+.ars-band {
+  font-size: 0.68rem; font-weight: 400; text-transform: lowercase;
+  letter-spacing: 0.04em; color: var(--faint);
+}
+/* Wilson bounds ride alongside the point estimate at reduced weight -- the
+   estimate is the figure, the interval is how much to trust it. */
+.ars-ci { color: var(--faint); font-size: 0.8em; white-space: nowrap; }
