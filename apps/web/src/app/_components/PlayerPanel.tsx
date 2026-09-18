@@ -108,7 +108,7 @@ export function PlayerPanel({
               <div><dt>OBP</dt><dd className="num">{fmt3(totals.obp)}</dd></div>
               <div>
                 <dt>xBA</dt>
-                <dd className="ph-na" title="Statcast expected batting average — needs per-pitch hitData, which is not ingested">—</dd>
+                <dd className="ph-na" title="Statcast expected batting average — the per-pitch inputs are now stored, but xBA itself is a model this project does not fit">—</dd>
               </div>
               <div><dt>BABIP</dt><dd className="num">{fmt3(totals.babip)}</dd></div>
             </>

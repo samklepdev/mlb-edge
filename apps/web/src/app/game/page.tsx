@@ -7,6 +7,7 @@ import { Headshot } from '../_components/Headshot';
 import { Side } from '../_components/Side';
 import { PropLabel } from '../_components/PropLabel';
 import { abbrev, logoUrl } from '../_components/teams';
+import { Masthead } from '../_components/Masthead';
 
 export const dynamic = 'force-dynamic';
 
@@ -158,15 +159,7 @@ export default async function GamePage({
 
   return (
     <main className="wrap">
-      <header className="masthead">
-        <h1 className="wordmark">
-          <Link href="/">mlb-edge</Link> <span>/ game</span>
-        </h1>
-        <p className="purpose">
-          What happened, and what the model had said about it. These are
-          per-player prop picks, not a prediction about who wins.
-        </p>
-      </header>
+      <Masthead section="game" />
 
       {error ? (
         <section className="notice"><h2>Error</h2><p>{error}</p></section>
@@ -238,11 +231,8 @@ export default async function GamePage({
               <h2>Model picks on this game</h2>
               <p className="cap">
                 {settled.length > 0
-                  ? `${game.picks.length} pick(s), ${settled.length} settled. A settled pick is one
-                     outcome of one prop — it is not evidence the model has an edge. That question
-                     is answered by closing line value across many picks, not by this game.`
-                  : `${game.picks.length} flagged edge(s). An edge is a hypothesis, not a
-                     recommendation — the market is usually right about what the model is missing.`}
+                  ? `${game.picks.length} pick(s), ${settled.length} settled.`
+                  : `${game.picks.length} flagged edge(s).`}
               </p>
               <div className="tscroll" tabIndex={0} role="region" aria-label="Model picks, scrollable">
                 <table>

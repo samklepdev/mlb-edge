@@ -263,11 +263,11 @@ export function PropBars({
                   <div><dt>K</dt><dd className="num">{d.so ?? '—'}</dd></div>
                   <div><dt>BB</dt><dd className="num">{d.bb ?? '—'}</dd></div>
                   <div><dt>AVG</dt><dd className="num">{avg(d)}</dd></div>
-                  {/* Asked for, and honestly unavailable: exit velocity is
-                      hitData.launchSpeed in the live feed this project already
-                      downloads, but nothing stores it. A visible gap beats a
-                      silently dropped field. */}
-                  <div><dt>Max EV</dt><dd className="pb-pop-na">not ingested</dd></div>
+                  {/* Exit velocity IS stored now -- game_pitches.launch_speed,
+                      121,596 batted balls -- but this card is not yet wired to
+                      it. Saying "not wired up" rather than "not ingested",
+                      which stopped being true with the per-pitch ingest. */}
+                  <div><dt>Max EV</dt><dd className="pb-pop-na">not wired up</dd></div>
                 </dl>
               </div>
             );
@@ -323,10 +323,8 @@ export function PropBars({
                 median rather than a market line. Drag the handle to move it.
               </strong>
             )}{' '}
-            A run of green means this player has beaten this number often; it is
-            not evidence the next one clears. Max exit velocity is not stored yet
-            — it is in the live feed already downloaded for every game, alongside
-            pitch types.
+            {data.length} game(s) shown — a short window, so read the count with
+            the shape.
           </>
         )}
       </figcaption>

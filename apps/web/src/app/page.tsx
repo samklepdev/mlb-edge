@@ -2,13 +2,15 @@ import Link from 'next/link';
 import {
   latestSlateDate, getSlateGames, getGamePlayers,
   getPropHistory, getPropReference, getMatchupContext, totalsFrom, PITCHER_PROPS,
-  getPlayerRoles,
-  type SlateGame, type ExplorerPlayer, type MatchupContext,
+  getPlayerRoles, getSlatePlayerIndex,
+  type SlateGame, type ExplorerPlayer, type MatchupContext, type SlateSearchHit,
 } from '@mlb-edge/db';
 import { Headshot } from './_components/Headshot';
 import { PropLabel } from './_components/PropLabel';
 import { PlayerPanel } from './_components/PlayerPanel';
 import { abbrev, logoUrl } from './_components/teams';
+import { Masthead } from './_components/Masthead';
+import { PlayerFinder } from './_components/PlayerFinder';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,19 +137,14 @@ export default async function PropsPage({
     ? await getMatchupContext(openGame.gameId, player.playerId)
     : null;
 
+  // The whole slate, shipped once so the finder can filter in the browser.
+  const slatePlayers: SlateSearchHit[] = date ? await getSlatePlayerIndex(date) : [];
+
   const base: Q = { date, game: sp.game, player: sp.player, prop, last, venue: sp.venue, hand: sp.hand };
 
   return (
     <main className="wrap wide">
-      <header className="masthead">
-        <h1 className="wordmark">mlb-edge <span>/ props</span></h1>
-        <p className="purpose">
-          One player, one prop, game by game against the market line. Past
-          results are not a forecast — see <Link href="/model">the model</Link> for
-          whether any of this has predictive value, and <Link href="/slate">the
-          slate</Link> for today&apos;s games.
-        </p>
-      </header>
+      <Masthead section="props" />
 
       {error ? (
         <section className="notice"><h2>Error</h2><p>{error}</p></section>
@@ -157,6 +154,19 @@ export default async function PropsPage({
             {/* --- left: games, expanding to players --- */}
             <aside className="ex-games" aria-label="Games and players">
               <h2 className="ex-h">Games</h2>
+
+              {/* Filters in the browser as you type. The page is otherwise
+                  entirely server-rendered; this is the one control where a
+                  round trip per keystroke would be felt. */}
+              <PlayerFinder
+                players={slatePlayers}
+                selectedId={player?.playerId ?? null}
+                base={Object.fromEntries(
+                  Object.entries({ date, prop, last, venue: sp.venue, hand: sp.hand })
+                    .filter(([, v]) => Boolean(v)) as [string, string][],
+                )}
+              />
+
               {games.length === 0 && <p className="cap">No games for {date}.</p>}
               <ul className="ex-list">
                 {games.map((g) => {
@@ -219,6 +229,10 @@ export default async function PropsPage({
                                       >
                                         <Headshot playerId={p.playerId} size={20} />
                                         <span>{p.playerName}</span>
+                                        {/* Marked, not just moved. A name sitting
+                                            out of alphabetical order with nothing
+                                            to explain it reads as a sorting bug. */}
+                                        {p.isProbable && <span className="ex-sp" title="Probable starting pitcher">SP</span>}
                                       </Link>
                                     </li>
                                   ))}
@@ -275,13 +289,6 @@ export default async function PropsPage({
                 </div>
               ) : (
                 <>
-                  {!player.props.includes(shownProp) && (
-                    <p className="cap">
-                      The model has no {shownProp.replace(/_/g, ' ')} projection for this player on
-                      this game — the chart still shows their history, but there is no model
-                      line to compare against.
-                    </p>
-                  )}
                   {hand !== 'all' && !NO_PLATOON.includes(shownProp) && (
                     <p className="cap">
                       Filtered to {hand}HP: each bar is that game&apos;s production
@@ -363,10 +370,9 @@ export default async function PropsPage({
                             <p className="cap">
                               Plate-appearance level, not a starter approximation: these are the
                               PAs this batter actually took against {matchup.vsHand.hand}HP,
-                              including relievers. Read it as context, not as an edge — a split
-                              this coarse over {matchup.vsHand.pa} PA is mostly noise, and
-                              selection matters (a batter benched against same-handed starters
-                              looks better against them than he is).
+                              including relievers. {matchup.vsHand.pa} PA is a small sample, and
+                              selection matters — a batter benched against same-handed starters
+                              looks better against them than he is.
                             </p>
                           </>
                         ) : (
@@ -427,9 +433,7 @@ export default async function PropsPage({
 
               <p className="cap ex-warn">
                 Every filter narrows the sample. Slice far enough and any player
-                clears any line — that is the failure mode this project exists to
-                avoid, so read the game count under the chart before reading the
-                shape.
+                clears any line, so read the game count below before the shape.
               </p>
               <p className="cap">
                 Showing <span className="num">{history.length}</span> game(s).

@@ -255,6 +255,33 @@ a:hover { text-decoration: underline; }
 .ptab-dim { color: var(--faint); }
 /* Genuinely inert: rendered as a <span>, so there is nothing to click. The
    cursor says so before the click does. */
+/* ---- masthead nav ----
+   Replaces the sentence each page used to carry here. Links sit on --navy, so
+   they use the same light steps the wordmark does rather than the ink ramp,
+   which is tuned for light surfaces. */
+/* Wordmark left, nav right, on one row. `baseline` rather than `center` so the
+   links sit on the wordmark's baseline instead of floating against a 1.6rem
+   cap height. Wraps on a narrow viewport, where the nav drops below and
+   left-aligns rather than being squeezed. */
+.mast-inner {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.5rem;
+}
+.mnav { display: flex; gap: 1.1rem; }
+.mnav-link {
+  color: #c3d0e0;
+  font-size: 0.9rem;
+  text-decoration: none;
+  padding-bottom: 0.15rem;
+  border-bottom: 2px solid transparent;
+}
+.mnav-link:hover { color: #ffffff; text-decoration: none; }
+.mnav-on { color: #ffffff; border-bottom-color: var(--red); }
+.mnav-link:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+
 .ptab-dim { cursor: not-allowed; }
 /* Still brightens on hover -- the label has to be READABLE to be understood as
    unavailable, and the title explains why. It deliberately does NOT take the
@@ -282,6 +309,31 @@ a:hover { text-decoration: underline; }
   border: 1px solid var(--hair);
   padding: 0.9rem 1rem;
 }
+/* Search sits above the games list and searches the whole slate, not the open
+   game -- someone typing a name does not know which game to open first. */
+.ex-search { display: flex; gap: 0.3rem; margin: 0 0 0.7rem; }
+.ex-search-in {
+  flex: 1; min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--hair); background: var(--panel); color: var(--ink);
+  font-size: 0.85rem;
+}
+.ex-search-in:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+/* Visually hidden, but announced. The result count changes as the reader types
+   and a sighted user sees the list shrink; this is the same information for
+   someone who cannot. Not display:none, which would remove it from the
+   accessibility tree entirely. */
+.ex-sr {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.ex-results { margin: 0 0 0.9rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--hair); }
+.ex-results-h { margin: 0 0 0.35rem; font-size: 0.78rem; }
+/* Which game the hit is in -- the one thing a flat result list loses. */
+.ex-hit-game { margin-left: auto; color: var(--faint); font-size: 0.68rem; white-space: nowrap; }
+
 .ex-list { list-style: none; margin: 0; padding: 0; max-height: 34rem; overflow-y: auto; }
 /* (team) day/time (team). Grid rather than flex so the centre column is
    genuinely centred in the row -- with flex the two side columns would have to
@@ -334,6 +386,18 @@ a:hover { text-decoration: underline; }
 }
 .ex-player:hover { background: var(--paper); text-decoration: none; }
 .ex-sel { background: var(--paper); font-weight: 600; }
+/* Marks the probable starter. --muted, not a colour that would rank them above
+   the rest of the list -- they are first because of their role, not their
+   quality. */
+.ex-sp {
+  margin-left: auto;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border: 1px solid var(--hair);
+  padding: 0 0.2rem;
+  border-radius: 2px;
+}
 .ex-empty { padding: 0.3rem 0.35rem; }
 
 .ex-main { min-width: 0; }
@@ -694,6 +758,10 @@ a.gamecard:focus-visible .gc-cond { opacity: 1; }
   grid-template-columns: minmax(0, 57rem);
   justify-content: center;
 }
+/* The prop explorer uses .wrap.wide (82rem, so a 79rem content column), and the
+   bar's fixed 57rem track left its contents 11rem narrower than the page
+   beneath it. The track has to follow the wrap it sits in. */
+.wrap.wide .masthead { grid-template-columns: minmax(0, 79rem); }
 .wordmark {
   font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
   text-transform: uppercase;

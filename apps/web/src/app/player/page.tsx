@@ -6,6 +6,7 @@ import {
 import { Headshot } from '../_components/Headshot';
 import { Side } from '../_components/Side';
 import { PropLabel } from '../_components/PropLabel';
+import { Masthead } from '../_components/Masthead';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,15 +41,7 @@ export default async function PlayerPage({
 
   return (
     <main className="wrap">
-      <header className="masthead">
-        <h1 className="wordmark">
-          <Link href="/">mlb-edge</Link> <span>/ player</span>
-        </h1>
-        <p className="purpose">
-          The model&apos;s read for one player on a slate: projection, market
-          line, and where they disagree. A big edge is a hypothesis, not a lock.
-        </p>
-      </header>
+      <Masthead section="player" />
 
       {error ? (
         <section className="notice"><h2>Error</h2><p>{error}</p></section>

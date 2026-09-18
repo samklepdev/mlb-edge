@@ -138,6 +138,9 @@ export interface ExplorerPlayer {
    *  recent appearance — an upcoming game has no box score to read. Null when
    *  the player has never appeared, so the UI must handle an unplaced player. */
   teamId: number | null;
+  /** This game's probable starting pitcher. Listed first within their team, and
+   *  marked, so the break from alphabetical order reads as deliberate. */
+  isProbable: boolean;
 }
 export interface PropGame {
   gameId: number;
