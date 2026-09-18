@@ -319,13 +319,16 @@ a:hover { text-decoration: underline; }
   font-size: 0.85rem;
 }
 .ex-search-in:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
-.ex-search-go {
-  padding: 0 0.6rem;
-  border: 1px solid var(--hair); background: var(--panel); color: var(--ink);
-  font-size: 0.8rem; cursor: pointer;
+/* Visually hidden, but announced. The result count changes as the reader types
+   and a sighted user sees the list shrink; this is the same information for
+   someone who cannot. Not display:none, which would remove it from the
+   accessibility tree entirely. */
+.ex-sr {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
-.ex-search-go:hover { border-color: var(--navy); }
-.ex-search-go:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
 .ex-results { margin: 0 0 0.9rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--hair); }
 .ex-results-h { margin: 0 0 0.35rem; font-size: 0.78rem; }
 /* Which game the hit is in -- the one thing a flat result list loses. */

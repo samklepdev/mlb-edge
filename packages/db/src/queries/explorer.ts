@@ -101,11 +101,12 @@ const PROP_COLUMN: Record<string, { table: 'bat' | 'pit'; expr: string; platoon?
 export const PITCHER_PROPS: readonly string[] =
   Object.entries(PROP_COLUMN).filter(([, m]) => m.table === 'pit').map(([k]) => k);
 
-// Name search across every projected player on a slate.
+// Every projected player on a slate, for the type-ahead.
 //
-// Searches the whole DATE rather than the open game: a reader who types a name
-// does not know which game that player is in, and making them expand games
-// until they find one would defeat the point of searching.
+// Returns the WHOLE slate rather than taking a search term, because the filter
+// runs in the browser: a round trip per keystroke on a force-dynamic page would
+// lag badly, and one date is only ~500 rows -- roughly 40KB once serialised,
+// which is cheaper than the first query would have been.
 export interface SlateSearchHit {
   playerId: number;
   playerName: string;
@@ -115,18 +116,12 @@ export interface SlateSearchHit {
   awayId: number | null;
   homeId: number | null;
 }
-export async function searchSlatePlayers(
-  date: string, q: string, limit = 40,
-): Promise<SlateSearchHit[]> {
-  const term = q.trim();
-  if (term.length < 2) return [];
+export async function getSlatePlayerIndex(date: string): Promise<SlateSearchHit[]> {
   const res = await query<{
     player_id: number; full_name: string; game_id: number;
     away: string | null; home: string | null;
     away_id: number | null; home_id: number | null;
   }>(
-    // ILIKE with a leading wildcard so "cease" and "dylan" both hit. No index
-    // helps that, but the candidate set is one slate -- a few hundred rows.
     `SELECT DISTINCT p.player_id, pl.full_name, p.game_id,
             ta.name AS away, th.name AS home,
             g.away_team_id AS away_id, g.home_team_id AS home_id
@@ -137,10 +132,8 @@ export async function searchSlatePlayers(
      LEFT JOIN teams ta ON ta.id = g.away_team_id
      WHERE g.game_date = $1
        AND p.model_version = (SELECT max(model_version) FROM projections)
-       AND pl.full_name ILIKE '%' || $2 || '%'
-     ORDER BY pl.full_name
-     LIMIT $3`,
-    [date, term, limit],
+     ORDER BY pl.full_name`,
+    [date],
   );
   return res.rows.map((r) => ({
     playerId: r.player_id, playerName: r.full_name, gameId: r.game_id,
