@@ -10,6 +10,7 @@ import type { ExplorerPlayer, PropGame, MatchupContext } from '../types.js';
 export async function getGamePlayers(gameId: number): Promise<ExplorerPlayer[]> {
   const res = await query<{
     player_id: number; full_name: string; props: string[]; team_id: number | null;
+    is_probable: boolean;
   }>(
     // The team cannot come from this game's box score -- an upcoming game has
     // none, and upcoming games are what this list is for. The lateral picks the
@@ -17,7 +18,12 @@ export async function getGamePlayers(gameId: number): Promise<ExplorerPlayer[]> 
     // most recent appearance otherwise, matching getMatchupContext.
     `SELECT p.player_id, pl.full_name,
             array_agg(DISTINCT p.prop_type ORDER BY p.prop_type) AS props,
-            t.team_id
+            t.team_id,
+            -- $1, not p.game_id: the latter is not in the GROUP BY, so
+            -- Postgres rejects it as an ungrouped outer column. They are the
+            -- same value -- the WHERE below pins p.game_id to $1.
+            EXISTS (SELECT 1 FROM probable_pitchers pp
+                     WHERE pp.game_id = $1 AND pp.pitcher_id = p.player_id) AS is_probable
      FROM projections p
      JOIN players pl ON pl.id = p.player_id
      LEFT JOIN LATERAL (
@@ -36,11 +42,14 @@ export async function getGamePlayers(gameId: number): Promise<ExplorerPlayer[]> 
      WHERE p.game_id = $1
        AND p.model_version = (SELECT max(model_version) FROM projections)
      GROUP BY 1, 2, t.team_id
-     ORDER BY pl.full_name`,
+     -- Probable starter first within the game; the UI groups by team, so the
+     -- flag only has to beat the name sort inside each side's list.
+     ORDER BY is_probable DESC, pl.full_name`,
     [gameId],
   );
   return res.rows.map((r) => ({
     playerId: r.player_id, playerName: r.full_name, props: r.props, teamId: r.team_id,
+    isProbable: r.is_probable,
   }));
 }
 

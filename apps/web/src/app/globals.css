@@ -361,6 +361,18 @@ a:hover { text-decoration: underline; }
 }
 .ex-player:hover { background: var(--paper); text-decoration: none; }
 .ex-sel { background: var(--paper); font-weight: 600; }
+/* Marks the probable starter. --muted, not a colour that would rank them above
+   the rest of the list -- they are first because of their role, not their
+   quality. */
+.ex-sp {
+  margin-left: auto;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border: 1px solid var(--hair);
+  padding: 0 0.2rem;
+  border-radius: 2px;
+}
 .ex-empty { padding: 0.3rem 0.35rem; }
 
 .ex-main { min-width: 0; }

@@ -212,6 +212,10 @@ export default async function PropsPage({
                                       >
                                         <Headshot playerId={p.playerId} size={20} />
                                         <span>{p.playerName}</span>
+                                        {/* Marked, not just moved. A name sitting
+                                            out of alphabetical order with nothing
+                                            to explain it reads as a sorting bug. */}
+                                        {p.isProbable && <span className="ex-sp" title="Probable starting pitcher">SP</span>}
                                       </Link>
                                     </li>
                                   ))}
