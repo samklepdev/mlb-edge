@@ -259,7 +259,18 @@ a:hover { text-decoration: underline; }
    Replaces the sentence each page used to carry here. Links sit on --navy, so
    they use the same light steps the wordmark does rather than the ink ramp,
    which is tuned for light surfaces. */
-.mnav { display: flex; gap: 1.1rem; margin-top: 0.6rem; }
+/* Wordmark left, nav right, on one row. `baseline` rather than `center` so the
+   links sit on the wordmark's baseline instead of floating against a 1.6rem
+   cap height. Wraps on a narrow viewport, where the nav drops below and
+   left-aligns rather than being squeezed. */
+.mast-inner {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.5rem;
+}
+.mnav { display: flex; gap: 1.1rem; }
 .mnav-link {
   color: #c3d0e0;
   font-size: 0.9rem;
@@ -710,6 +721,10 @@ a.gamecard:focus-visible .gc-cond { opacity: 1; }
   grid-template-columns: minmax(0, 57rem);
   justify-content: center;
 }
+/* The prop explorer uses .wrap.wide (82rem, so a 79rem content column), and the
+   bar's fixed 57rem track left its contents 11rem narrower than the page
+   beneath it. The track has to follow the wrap it sits in. */
+.wrap.wide .masthead { grid-template-columns: minmax(0, 79rem); }
 .wordmark {
   font-family: var(--font-condensed), ui-sans-serif, system-ui, sans-serif;
   text-transform: uppercase;
