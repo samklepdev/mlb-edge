@@ -141,6 +141,110 @@ export async function getSlatePlayerIndex(date: string): Promise<SlateSearchHit[
   }));
 }
 
+// The opposing probable starter's season line, as rates.
+//
+// Everything here is season-to-date from player_game_pitching -- no modelling,
+// no projection. "Rankings" in the panel title is the reference site's word;
+// these are the pitcher's own rates, not a rank against the league.
+export interface OppPitcherProfile {
+  playerId: number;
+  playerName: string;
+  throws: string | null;
+  bf: number;
+  obp: number | null;
+  bbPct: number | null;
+  lobPct: number | null;
+  woba: number | null;
+  kPct: number | null;
+  hr9: number | null;
+}
+
+// Fixed league-average linear weights. These are the conventional wOBA
+// coefficients, NOT refit to this season's run environment -- a season-specific
+// fit needs run-expectancy tables this project does not have. Labelled in the
+// UI for the same reason. IBB is not stored on the pitching side, so the
+// denominator uses BB rather than BB-IBB, which overstates it slightly on
+// pitchers who issue intentional walks.
+const WOBA = { bb: 0.69, hbp: 0.72, b1: 0.89, b2: 1.27, b3: 1.62, hr: 2.10 } as const;
+
+export async function getOppPitcherProfile(
+  gameId: number, playerId: number,
+): Promise<OppPitcherProfile | null> {
+  // Same side-resolution as getMatchupContext: the player's own team decides
+  // which probable pitcher is the opposing one.
+  const side = (
+    await query<{ team_id: number | null }>(
+      `SELECT team_id FROM (
+         SELECT b.team_id, g.game_date, (b.game_id = $1) AS this_game
+         FROM player_game_batting b JOIN games g ON g.id = b.game_id
+         WHERE b.player_id = $2 AND b.team_id IS NOT NULL
+         UNION ALL
+         SELECT p.team_id, g.game_date, (p.game_id = $1) AS this_game
+         FROM player_game_pitching p JOIN games g ON g.id = p.game_id
+         WHERE p.player_id = $2 AND p.team_id IS NOT NULL
+       ) t ORDER BY t.this_game DESC, t.game_date DESC LIMIT 1`,
+      [gameId, playerId],
+    )
+  ).rows[0];
+  if (side?.team_id == null) return null;
+
+  const g = (
+    await query<{ home_team_id: number | null }>(
+      'SELECT home_team_id FROM games WHERE id = $1', [gameId],
+    )
+  ).rows[0];
+  const oppSide = side.team_id === g?.home_team_id ? 'away' : 'home';
+
+  const row = (
+    await query<{
+      pitcher_id: number; full_name: string; throws: string | null;
+      bf: string; h: string; bb: string; hbp: string; ab: string; sf: string;
+      hr: string; r: string; so: string; outs: string; doubles: string; triples: string;
+    }>(
+      `SELECT pp.pitcher_id, pl.full_name, pl.throws,
+              coalesce(sum(s.bf),0) bf, coalesce(sum(s.h),0) h, coalesce(sum(s.bb),0) bb,
+              coalesce(sum(s.hbp),0) hbp, coalesce(sum(s.ab),0) ab, coalesce(sum(s.sf),0) sf,
+              coalesce(sum(s.hr),0) hr, coalesce(sum(s.r),0) r, coalesce(sum(s.so),0) so,
+              coalesce(sum(s.outs),0) outs,
+              coalesce(sum(s.doubles),0) doubles, coalesce(sum(s.triples),0) triples
+       FROM probable_pitchers pp
+       JOIN players pl ON pl.id = pp.pitcher_id
+       LEFT JOIN player_game_pitching s ON s.player_id = pp.pitcher_id
+       WHERE pp.game_id = $1 AND pp.side = $2
+       GROUP BY pp.pitcher_id, pl.full_name, pl.throws`,
+      [gameId, oppSide],
+    )
+  ).rows[0];
+  if (!row) return null;
+
+  const n = (v: string) => Number(v);
+  const bf = n(row.bf), h = n(row.h), bb = n(row.bb), hbp = n(row.hbp);
+  const ab = n(row.ab), sf = n(row.sf), hr = n(row.hr), r = n(row.r);
+  const so = n(row.so), outs = n(row.outs);
+  const b2 = n(row.doubles), b3 = n(row.triples);
+  const b1 = Math.max(0, h - b2 - b3 - hr);
+  const ip = outs / 3;
+  const onBase = h + bb + hbp;
+  // The conventional LOB% denominator. It can go non-positive for a tiny
+  // sample -- one appearance ending in a home run -- so it is guarded rather
+  // than allowed to produce a nonsense percentage.
+  const lobDen = onBase - 1.4 * hr;
+  const obpDen = ab + bb + hbp + sf;
+  const wobaDen = ab + bb + sf + hbp;
+
+  return {
+    playerId: row.pitcher_id, playerName: row.full_name, throws: row.throws, bf,
+    obp: obpDen > 0 ? onBase / obpDen : null,
+    bbPct: bf > 0 ? bb / bf : null,
+    lobPct: lobDen > 0 ? (onBase - r) / lobDen : null,
+    woba: wobaDen > 0
+      ? (WOBA.bb * bb + WOBA.hbp * hbp + WOBA.b1 * b1 + WOBA.b2 * b2 + WOBA.b3 * b3 + WOBA.hr * hr) / wobaDen
+      : null,
+    kPct: bf > 0 ? so / bf : null,
+    hr9: ip > 0 ? (hr * 9) / ip : null,
+  };
+}
+
 // Whether a player has any batting or pitching history at all.
 //
 // Deliberately data-driven rather than read off players.position: 60 players in

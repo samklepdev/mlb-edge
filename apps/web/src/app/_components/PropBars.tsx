@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import type { PropGame } from '@mlb-edge/db';
+import type { PropGame, OppPitcherProfile } from '@mlb-edge/db';
 import { abbrev, logoUrl } from './teams';
 
 // A client component, which is allowed here only because nothing server-only
@@ -20,7 +20,14 @@ const CARD_W = 200;
 // Includes the result line below the header. Must be updated whenever a row is
 // added to the card -- it is what keeps the card clamped inside the plot.
 const CARD_H = 150;
+// The upcoming-game card carries a matchup header plus six pitcher rates, so it
+// needs its own height for the same clamping the per-game card gets.
+const PENDING_CARD_H = 208;
 const GAP = 14;
+
+// Baseball rate conventions: .331 without the leading zero, 9.4% with one place.
+const rate3 = (v: number | null) => (v == null ? '—' : v.toFixed(3).replace(/^0/, ''));
+const pct1 = (v: number | null) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
 
 // Game-by-game outcomes for one prop, against the market line.
 //
@@ -62,7 +69,10 @@ export function PropBars({
    *  empty dashed slot at the right so the upcoming matchup has a place on the
    *  timeline instead of the chart simply stopping at the last result. Null
    *  once that game has a box score -- then it is history like the rest. */
-  pending?: { date: string; opponentId: number | null; opponent: string | null; home: boolean } | null;
+  pending?: {
+    date: string; opponentId: number | null; opponent: string | null; home: boolean;
+    opp: OppPitcherProfile | null;
+  } | null;
   projMean: number | null;
   prop: string;
   onLineChange: (v: number | null) => void;
@@ -70,6 +80,9 @@ export function PropBars({
   const plotRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<number | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  // The upcoming column is tracked separately from `active`, which indexes into
+  // played games and has no slot for a game that has not happened.
+  const [pendingOn, setPendingOn] = useState(false);
 
   // The line is owned by PlayerPanel, because the hit rate in the player header
   // reads from it too. This component only reports changes upward.
@@ -82,15 +95,15 @@ export function PropBars({
   // Clamp the card inside the plot box rather than letting it overhang. That
   // matters more than usual here: body sets overflow-x: hidden, so anything
   // past the viewport edge is not merely ugly, it is invisible.
-  const place = (x: number, y: number) => {
+  const place = (x: number, y: number, cardH = CARD_H) => {
     const w = plotRef.current?.clientWidth ?? 0;
     const h = plotRef.current?.clientHeight ?? 0;
     let left = x + GAP;
     if (left + CARD_W > w) left = x - GAP - CARD_W;
     left = Math.max(0, Math.min(left, Math.max(0, w - CARD_W)));
-    let top = y - GAP - CARD_H;
+    let top = y - GAP - cardH;
     if (top < 0) top = y + GAP;
-    top = Math.max(0, Math.min(top, Math.max(0, h - CARD_H)));
+    top = Math.max(0, Math.min(top, Math.max(0, h - cardH)));
     setPos({ left, top });
   };
 
@@ -110,7 +123,7 @@ export function PropBars({
     place(el.offsetLeft + el.offsetWidth / 2, el.offsetTop + 8);
   };
 
-  const clear = () => { setActive(null); setPos(null); };
+  const clear = () => { setActive(null); setPendingOn(false); setPos(null); };
 
   // Drag the line. Pointer capture rather than window listeners: the pointer
   // keeps reporting to this element even when it leaves the plot, so a fast
@@ -247,11 +260,73 @@ export function PropBars({
               // No value, so no bar -- an outline where one would go. Sized as a
               // sibling column so the played bars keep their widths rather than
               // being squeezed by an extra entry.
-              <li className="pb-col pb-col-pending" aria-hidden="true">
+              <li
+                className="pb-col pb-col-pending"
+                tabIndex={0}
+                aria-label={`${pending.date}, ${pending.home ? 'vs' : 'at'} ${abbrev(pending.opponentId, pending.opponent ?? '')} — not played yet`}
+                onMouseMove={(e) => {
+                  const r = plotRef.current?.getBoundingClientRect();
+                  if (!r) return;
+                  setActive(null);
+                  setPendingOn(true);
+                  place(e.clientX - r.left, e.clientY - r.top, PENDING_CARD_H);
+                }}
+                onFocus={(e) => {
+                  const el = e.currentTarget;
+                  setActive(null);
+                  setPendingOn(true);
+                  place(el.offsetLeft + el.offsetWidth / 2, el.offsetTop + 8, PENDING_CARD_H);
+                }}
+                onBlur={clear}
+              >
                 <span className="pb-pending" />
               </li>
             )}
           </ol>
+
+          {/* The upcoming game's card: the matchup, then the opposing starter's
+              season rates. Everything in it is season-to-date fact -- no
+              projection, which is why a chart that otherwise only shows history
+              can carry it. */}
+          {pendingOn && pending && pos && (
+            <div className="pb-pop pb-pop-wide" role="tooltip" style={{ left: pos.left, top: pos.top }}>
+              <p className="pb-pop-h">
+                {pending.date} {pending.home ? 'vs' : '@'}{' '}
+                {abbrev(pending.opponentId, pending.opponent ?? '')}
+              </p>
+              <dl className="pb-pop-grid">
+                {/* Game markets are not ingested: `lines pull` requests player
+                    props only, so market_lines holds no spread or total. Shown
+                    as gaps rather than dropped, so it is obvious they are
+                    missing rather than forgotten. */}
+                <div><dt>Run line</dt><dd className="pb-pop-na">not ingested</dd></div>
+                <div><dt>Total</dt><dd className="pb-pop-na">not ingested</dd></div>
+              </dl>
+
+              <p className="pb-pop-sec cnd">Opp pitcher rankings</p>
+              {pending.opp == null ? (
+                <p className="pb-pop-res">No probable starter listed.</p>
+              ) : (
+                <>
+                  <p className="pb-pop-res">
+                    {pending.opp.playerName}
+                    {pending.opp.throws && ` (${pending.opp.throws}HP)`} ·{' '}
+                    <span className="num">{pending.opp.bf}</span> BF
+                  </p>
+                  <dl className="pb-pop-grid">
+                    <div><dt>OBP</dt><dd className="num">{rate3(pending.opp.obp)}</dd></div>
+                    <div><dt>BB%</dt><dd className="num">{pct1(pending.opp.bbPct)}</dd></div>
+                    <div><dt>LOB%</dt><dd className="num">{pct1(pending.opp.lobPct)}</dd></div>
+                    {/* Fixed league weights, not refit to this season -- see the
+                        WOBA constant in the query. */}
+                    <div><dt title="Fixed league linear weights, not refit to this season">wOBA</dt><dd className="num">{rate3(pending.opp.woba)}</dd></div>
+                    <div><dt>K%</dt><dd className="num">{pct1(pending.opp.kPct)}</dd></div>
+                    <div><dt>HR/9</dt><dd className="num">{pending.opp.hr9 == null ? '—' : pending.opp.hr9.toFixed(2)}</dd></div>
+                  </dl>
+                </>
+              )}
+            </div>
+          )}
 
           {/* One card, moved to the pointer, rather than fifteen hidden ones.
               It sits outside the <ol> so it is never a child of the element

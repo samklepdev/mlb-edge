@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { PropGame, PlayerTotals } from '@mlb-edge/db';
+import type { PropGame, PlayerTotals, OppPitcherProfile } from '@mlb-edge/db';
 import { Headshot } from './Headshot';
 import { PropLabel } from './PropLabel';
 import { PropBars } from './PropBars';
@@ -32,7 +32,10 @@ export function PlayerPanel({
    *  client bundle, which CLAUDE.md forbids outright. */
   pitching: boolean;
   /** The upcoming game this chart is set up for; see PropBars. */
-  pending?: { date: string; opponentId: number | null; opponent: string | null; home: boolean } | null;
+  pending?: {
+    date: string; opponentId: number | null; opponent: string | null; home: boolean;
+    opp: OppPitcherProfile | null;
+  } | null;
   totals: PlayerTotals;
   games: PropGame[];
   marketLine: number | null;

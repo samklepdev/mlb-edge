@@ -2,7 +2,7 @@ import Link from 'next/link';
 import {
   latestSlateDate, getSlateGames, getGamePlayers,
   getPropHistory, getPropReference, getMatchupContext, totalsFrom, PITCHER_PROPS,
-  getPlayerRoles, getSlatePlayerIndex,
+  getPlayerRoles, getSlatePlayerIndex, getOppPitcherProfile,
   type SlateGame, type ExplorerPlayer, type MatchupContext, type SlateSearchHit,
 } from '@mlb-edge/db';
 import { Headshot } from './_components/Headshot';
@@ -143,12 +143,16 @@ export default async function PropsPage({
   // The selected game, as a slot on the chart's timeline -- but only while it
   // is genuinely unplayed. Once a box score exists the game is history and
   // appears as a real bar, so showing a placeholder too would double it.
-  const pendingGame = openGame && player && openGame.homeRuns == null && openGame.awayRuns == null
+  const unplayed = openGame && player && openGame.homeRuns == null && openGame.awayRuns == null;
+  const pendingGame = unplayed
     ? {
-        date: openGame.date,
-        home: player.teamId != null && player.teamId === openGame.homeId,
-        opponentId: player.teamId === openGame.homeId ? openGame.awayId : openGame.homeId,
-        opponent: player.teamId === openGame.homeId ? openGame.away : openGame.home,
+        date: openGame!.date,
+        home: player!.teamId != null && player!.teamId === openGame!.homeId,
+        opponentId: player!.teamId === openGame!.homeId ? openGame!.awayId : openGame!.homeId,
+        opponent: player!.teamId === openGame!.homeId ? openGame!.away : openGame!.home,
+        // Season-to-date rates for the starter this player will face. Fetched
+        // only for an unplayed game, since that is the only time the panel shows.
+        opp: await getOppPitcherProfile(openGame!.gameId, player!.playerId),
       }
     : null;
 
